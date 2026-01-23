@@ -258,25 +258,59 @@ const DeliveryPlatform = () => {
     } catch (e: any) { alert('Error completing job: ' + e.message); }
   };
 
+  const generatePayNowQRData = (uen: string, amount: number, refNumber: string) => {
+    // PayNow QR code follows EMVCo standard
+    // This generates the data string for PayNow QR
+    const merchantName = MERCHANT_NAME.substring(0, 25);
+    const amountStr = amount.toFixed(2);
+    
+    // Build PayNow QR string
+    let qrData = '';
+    qrData += '00' + '02' + '01'; // Payload Format Indicator
+    qrData += '01' + '02' + '12'; // Point of Initiation (Dynamic)
+    
+    // Merchant Account Info for PayNow (ID 26)
+    const proxyType = '0'; // 0 = UEN
+    const proxyValue = uen;
+    const merchantAcctInfo = '00' + '08' + 'SG.PAYNOW' + 
+                            '01' + '01' + proxyType + 
+                            '02' + String(proxyValue.length).padStart(2, '0') + proxyValue +
+                            '03' + '01' + '1'; // Amount editable = No
+    qrData += '26' + String(merchantAcctInfo.length).padStart(2, '0') + merchantAcctInfo;
+    
+    qrData += '52' + '04' + '0000'; // Merchant Category Code
+    qrData += '53' + '03' + '702'; // Transaction Currency (SGD)
+    qrData += '54' + String(amountStr.length).padStart(2, '0') + amountStr; // Transaction Amount
+    qrData += '58' + '02' + 'SG'; // Country Code
+    qrData += '59' + String(merchantName.length).padStart(2, '0') + merchantName; // Merchant Name
+    qrData += '60' + '09' + 'Singapore'; // Merchant City
+    
+    // Additional Data (Reference)
+    const addData = '01' + String(refNumber.length).padStart(2, '0') + refNumber;
+    qrData += '62' + String(addData.length).padStart(2, '0') + addData;
+    
+    // CRC placeholder (will be calculated)
+    qrData += '6304';
+    
+    return qrData;
+  };
+
   const handleTopUp = () => {
     const amt = parseFloat(topUpAmt);
     if (!amt || amt < 5) return alert('Minimum top-up amount is $5');
-    setPayNowQR(`PayNow Payment Instructions
-━━━━━━━━━━━━━━━━━━━━━━━━━
-Merchant: ${MERCHANT_NAME}
-UEN: ${PAYNOW_UEN}
-Amount: SGD $${amt.toFixed(2)}
-Reference: TOP${Date.now()}
-━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Steps:
-1. Open your banking app
-2. Select PayNow
-3. Enter UEN: ${PAYNOW_UEN}
-4. Enter amount: $${amt.toFixed(2)}
-5. Add reference code
-6. Complete payment
-7. Click "I've Paid" button below`);
+    const refNumber = 'TOP' + Date.now().toString().slice(-8);
+    
+    // Generate QR code URL using a QR code API
+    const qrContent = `https://www.paynow.sg/pay?uen=${PAYNOW_UEN}&amount=${amt.toFixed(2)}&ref=${refNumber}`;
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrContent)}`;
+    
+    setPayNowQR(JSON.stringify({
+      qrUrl: qrCodeUrl,
+      amount: amt,
+      refNumber: refNumber,
+      uen: PAYNOW_UEN,
+      merchantName: MERCHANT_NAME
+    }));
   };
 
   const confirmTopUp = async () => {
@@ -416,13 +450,6 @@ Steps:
                       <UserPlus size={20} />
                       Create New Account
                     </button>
-                  </div>
-                )}
-                {view === 'admin' && (
-                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs font-semibold text-gray-700 mb-2">Demo Admin Login:</p>
-                    <p className="text-xs text-gray-600">Email: admin@delivery.com</p>
-                    <p className="text-xs text-gray-600">Password: admin123</p>
                   </div>
                 )}
                 {view !== 'admin' && (
@@ -625,14 +652,47 @@ Steps:
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="bg-gray-50 p-4 rounded-lg border-2 border-gray-300">
-                      <pre className="text-sm whitespace-pre-wrap font-mono text-gray-800">{payNowQR}</pre>
-                    </div>
+                    {(() => {
+                      const qrData = JSON.parse(payNowQR);
+                      return (
+                        <>
+                          <div className="flex justify-center">
+                            <div className="bg-white p-4 rounded-lg border-2 border-purple-500 shadow-lg">
+                              <img 
+                                src={qrData.qrUrl} 
+                                alt="PayNow QR Code" 
+                                className="w-48 h-48"
+                              />
+                            </div>
+                          </div>
+                          <div className="bg-purple-50 p-4 rounded-lg text-center">
+                            <p className="text-lg font-bold text-purple-900">Scan with PayNow</p>
+                            <p className="text-2xl font-bold text-purple-700 mt-2">SGD ${qrData.amount.toFixed(2)}</p>
+                            <div className="mt-3 text-sm text-purple-800">
+                              <p><span className="font-semibold">To:</span> {qrData.merchantName}</p>
+                              <p><span className="font-semibold">UEN:</span> {qrData.uen}</p>
+                              <p><span className="font-semibold">Ref:</span> {qrData.refNumber}</p>
+                            </div>
+                          </div>
+                          <div className="bg-yellow-50 p-3 rounded-lg">
+                            <p className="text-xs text-yellow-800 text-center">
+                              Open your banking app → Scan QR → Confirm payment → Click button below
+                            </p>
+                          </div>
+                        </>
+                      );
+                    })()}
                     <button 
                       onClick={confirmTopUp} 
                       className="w-full bg-green-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                     >
                       ✓ I've Paid - Add ${topUpAmt} Credits
+                    </button>
+                    <button 
+                      onClick={() => setPayNowQR('')} 
+                      className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                    >
+                      Cancel
                     </button>
                   </div>
                 )}
@@ -934,6 +994,179 @@ Steps:
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Edit Customer Modal */}
+        {editCust && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Edit Customer</h3>
+                <button onClick={() => setEditCust(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                  <input 
+                    type="text" 
+                    value={editCust.name} 
+                    onChange={(e) => setEditCust({...editCust, name: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input 
+                    type="email" 
+                    value={editCust.email} 
+                    onChange={(e) => setEditCust({...editCust, email: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                  <input 
+                    type="text" 
+                    value={editCust.phone} 
+                    onChange={(e) => setEditCust({...editCust, phone: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Credits</label>
+                  <input 
+                    type="number" 
+                    value={editCust.credits || 0} 
+                    onChange={(e) => setEditCust({...editCust, credits: parseFloat(e.target.value)})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                    step="0.01"
+                  />
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button 
+                    onClick={() => setEditCust(null)} 
+                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await api(`customers?id=eq.${editCust.id}`, 'PATCH', {
+                          name: editCust.name,
+                          email: editCust.email,
+                          phone: editCust.phone,
+                          credits: editCust.credits
+                        });
+                        alert('Customer updated successfully!');
+                        setEditCust(null);
+                        loadData();
+                      } catch (e: any) {
+                        alert('Error updating customer: ' + e.message);
+                      }
+                    }} 
+                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Rider Modal */}
+        {editRider && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Edit Rider</h3>
+                <button onClick={() => setEditRider(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                  <input 
+                    type="text" 
+                    value={editRider.name} 
+                    onChange={(e) => setEditRider({...editRider, name: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input 
+                    type="email" 
+                    value={editRider.email} 
+                    onChange={(e) => setEditRider({...editRider, email: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                  <input 
+                    type="text" 
+                    value={editRider.phone} 
+                    onChange={(e) => setEditRider({...editRider, phone: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tier</label>
+                  <input 
+                    type="number" 
+                    value={editRider.tier || 1} 
+                    onChange={(e) => setEditRider({...editRider, tier: parseInt(e.target.value)})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Earnings</label>
+                  <input 
+                    type="number" 
+                    value={editRider.earnings || 0} 
+                    onChange={(e) => setEditRider({...editRider, earnings: parseFloat(e.target.value)})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                    step="0.01"
+                  />
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button 
+                    onClick={() => setEditRider(null)} 
+                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await api(`riders?id=eq.${editRider.id}`, 'PATCH', {
+                          name: editRider.name,
+                          email: editRider.email,
+                          phone: editRider.phone,
+                          tier: editRider.tier,
+                          earnings: editRider.earnings
+                        });
+                        alert('Rider updated successfully!');
+                        setEditRider(null);
+                        loadData();
+                      } catch (e: any) {
+                        alert('Error updating rider: ' + e.message);
+                      }
+                    }} 
+                    className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
