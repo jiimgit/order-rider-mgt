@@ -30,7 +30,7 @@ const api = async (endpoint: string, method = 'GET', body: any = null): Promise<
     let data;
     try {
       data = JSON.parse(text);
-    } catch (e) {
+    } catch (e: any) {
       throw new Error(`Invalid JSON response: ${text}`);
     }
     
@@ -110,7 +110,7 @@ const DeliveryPlatform = () => {
       setCustomers(Array.isArray(c) ? c : []);
       setJobs(Array.isArray(j) ? j : []);
       console.log('[LoadData] All data loaded successfully!');
-    } catch (e) { 
+    } catch (e: any) { 
       const errorMessage = e.message || 'Unknown error';
       console.error('[LoadData] Error:', e);
       
@@ -129,7 +129,7 @@ const DeliveryPlatform = () => {
     setLoading(false);
   };
 
-  const handleLogin = async (type) => {
+  const handleLogin = async (type: string) => {
     try {
       if (type === 'admin' && loginForm.email === 'admin@delivery.com' && loginForm.password === 'admin123') {
         setAuth({ isAuth: true, type: 'admin', id: 'admin1' });
@@ -147,7 +147,7 @@ const DeliveryPlatform = () => {
       } else {
         alert('Invalid credentials. Please check:\n- Email is correct\n- Password is correct\n- You have registered an account');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Login error:', e);
       alert('Login error: ' + e.message + '\n\nPlease check:\n1. Database tables exist\n2. RLS policies allow access\n3. Credentials are correct');
     }
@@ -169,7 +169,7 @@ const DeliveryPlatform = () => {
       setIsReg(false);
       setRegForm({ name: '', email: '', password: '', phone: '', referralCode: '' });
       loadData();
-    } catch (e) { 
+    } catch (e: any) { 
       console.error('Registration error:', e);
       alert('Registration error: ' + e.message + '\n\nPossible issues:\n1. Email already exists\n2. Database connection problem\n3. RLS policy blocking insert'); 
     }
@@ -184,7 +184,7 @@ const DeliveryPlatform = () => {
         if (!ref || ref.length === 0) return alert('Invalid referral code');
         tier = ref[0].tier + 1;
         uplineChain = [{ id: ref[0].id, name: ref[0].name, tier: ref[0].tier }, ...(ref[0].upline_chain || [])];
-      } catch (e) {
+      } catch (e: any) {
         return alert('Error checking referral code: ' + e.message);
       }
     }
@@ -205,7 +205,7 @@ const DeliveryPlatform = () => {
       setIsReg(false);
       setRegForm({ name: '', email: '', password: '', phone: '', referralCode: '' });
       loadData();
-    } catch (e) { 
+    } catch (e: any) { 
       console.error('Registration error:', e);
       alert('Registration error: ' + e.message + '\n\nPossible issues:\n1. Email already exists\n2. Database connection problem\n3. RLS policy blocking insert'); 
     }
@@ -222,26 +222,26 @@ const DeliveryPlatform = () => {
       setJobForm({ pickup: '', delivery: '', timeframe: 'same-day', price: '10' });
       alert('Job posted successfully!');
       loadData();
-    } catch (e) { alert('Error posting job: ' + e.message); }
+    } catch (e: any) { alert('Error posting job: ' + e.message); }
   };
 
-  const acceptJob = async (jobId) => {
+  const acceptJob = async (jobId: string) => {
     try {
       await api(`jobs?id=eq.${jobId}`, 'PATCH', { status: 'accepted', rider_id: auth.id, rider_name: curr.name, rider_phone: curr.phone, accepted_at: new Date().toISOString() });
       alert('Job accepted! Customer will be notified via WhatsApp (when integrated).');
       loadData();
-    } catch (e) { alert('Error accepting job: ' + e.message); }
+    } catch (e: any) { alert('Error accepting job: ' + e.message); }
   };
 
-  const updateStatus = async (status) => {
+  const updateStatus = async (status: string) => {
     try {
-      const updateData = { status };
+      const updateData: any = { status };
       if (status === 'picked-up') updateData.picked_up_at = new Date().toISOString();
       if (status === 'on-the-way') updateData.on_the_way_at = new Date().toISOString();
       await api(`jobs?id=eq.${activeJob.id}`, 'PATCH', updateData);
       alert(`Status updated: ${status}. Customer will receive WhatsApp notification (when integrated).`);
       loadData();
-    } catch (e) { alert('Error updating status: ' + e.message); }
+    } catch (e: any) { alert('Error updating status: ' + e.message); }
   };
 
   const completeJob = async () => {
@@ -255,7 +255,7 @@ const DeliveryPlatform = () => {
       }
       alert(`Delivery completed! You earned $${comm.activeRider.toFixed(2)}`);
       loadData();
-    } catch (e) { alert('Error completing job: ' + e.message); }
+    } catch (e: any) { alert('Error completing job: ' + e.message); }
   };
 
   const handleTopUp = () => {
@@ -287,7 +287,7 @@ Steps:
       setPayNowQR('');
       setShowTopUp(false);
       loadData();
-    } catch (e) { alert('Error adding credits: ' + e.message); }
+    } catch (e: any) { alert('Error adding credits: ' + e.message); }
   };
 
   if (loading) return (
