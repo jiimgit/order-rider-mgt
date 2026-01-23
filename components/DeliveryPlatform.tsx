@@ -85,6 +85,59 @@ const DeliveryPlatform = () => {
   const [jobForm, setJobForm] = useState({ pickup: '', delivery: '', timeframe: 'same-day', price: '10' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+
+  // WhatsApp Message Templates
+  const whatsAppTemplates = {
+    accepted: [
+      { id: 1, label: '👋 Job Accepted', message: 'Hi {customer}! I am {rider}, your delivery rider. I have accepted your delivery job from {pickup} to {delivery}. I will pick up your package soon!' },
+      { id: 2, label: '📦 Will Collect Soon', message: 'Hello {customer}! This is {rider}. I will be collecting your package from {pickup} shortly. Please ensure it is ready for pickup.' },
+      { id: 3, label: '⏰ ETA Update', message: 'Hi {customer}! Your rider {rider} here. I expect to pick up your package in about 15-20 minutes. Thank you!' },
+    ],
+    'picked-up': [
+      { id: 4, label: '✅ Package Collected', message: 'Hi {customer}! Good news - I have collected your package from {pickup}. Now heading to {delivery}!' },
+      { id: 5, label: '📦 On My Way Soon', message: 'Hello {customer}! Package picked up successfully. I will be on my way to {delivery} shortly.' },
+      { id: 6, label: '🚗 Starting Delivery', message: 'Hi {customer}! Your package is with me now. Starting my journey to deliver it to {delivery}. Stay tuned!' },
+    ],
+    'on-the-way': [
+      { id: 7, label: '🚗 On The Way', message: 'Hi {customer}! I am now on my way to {delivery} with your package. ETA approximately 15-20 minutes.' },
+      { id: 8, label: '📍 Almost There', message: 'Hello {customer}! I am getting close to {delivery}. Please be ready to receive your package!' },
+      { id: 9, label: '🔔 Arriving Soon', message: 'Hi {customer}! I will arrive at {delivery} in about 5-10 minutes. Please be available to receive your delivery.' },
+    ],
+    completed: [
+      { id: 10, label: '✅ Delivered', message: 'Hi {customer}! Your package has been successfully delivered to {delivery}. Thank you for using our service!' },
+      { id: 11, label: '🙏 Thank You', message: 'Hello {customer}! Delivery completed! Thank you for choosing us. Have a great day!' },
+    ],
+    custom: [
+      { id: 12, label: '⏰ Running Late', message: 'Hi {customer}! I apologize but I am running a bit late due to traffic. I will reach {delivery} as soon as possible. Thank you for your patience!' },
+      { id: 13, label: '📞 Please Call Me', message: 'Hi {customer}! This is your rider {rider}. Could you please give me a call? I need some clarification about the delivery. Thank you!' },
+      { id: 14, label: '📍 Location Help', message: 'Hi {customer}! I am having trouble finding the exact location at {delivery}. Could you please share your live location or provide more details?' },
+      { id: 15, label: '🏠 At Location', message: 'Hi {customer}! I have arrived at {delivery}. Please come to collect your package or let me know where to leave it.' },
+    ]
+  };
+
+  // Generate WhatsApp Click-to-Chat URL
+  const generateWhatsAppLink = (phone: string, message: string): string => {
+    // Remove any non-numeric characters and ensure proper format
+    let cleanPhone = phone.replace(/\D/g, '');
+    // Add Singapore country code if not present
+    if (cleanPhone.startsWith('8') || cleanPhone.startsWith('9')) {
+      cleanPhone = '65' + cleanPhone;
+    } else if (!cleanPhone.startsWith('65')) {
+      cleanPhone = '65' + cleanPhone;
+    }
+    const encodedMessage = encodeURIComponent(message);
+    return `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+  };
+
+  // Replace placeholders in template message
+  const formatTemplateMessage = (template: string, job: any, riderName: string): string => {
+    return template
+      .replace(/{customer}/g, job.customer_name || 'Customer')
+      .replace(/{rider}/g, riderName || 'Your Rider')
+      .replace(/{pickup}/g, job.pickup || 'pickup location')
+      .replace(/{delivery}/g, job.delivery || 'delivery location');
+  };
 
   const curr = auth.type === 'customer' ? customers.find(c => c.id === auth.id) : auth.type === 'rider' ? riders.find(r => r.id === auth.id) : null;
   const activeJob = jobs.find(j => j.rider_id === auth.id && j.status !== 'completed' && j.status !== 'cancelled');
@@ -856,6 +909,18 @@ const DeliveryPlatform = () => {
                   <p className="text-gray-700">Phone: {activeJob.customer_phone}</p>
                   <p className="text-4xl font-bold text-blue-600 mt-4">${activeJob.price}</p>
                 </div>
+                
+                {/* WhatsApp Notify Customer Button */}
+                <button 
+                  onClick={() => setShowWhatsAppModal(true)} 
+                  className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold text-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-2 mb-4"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  Notify Customer via WhatsApp
+                </button>
+
                 <div className="space-y-3">
                   {activeJob.status === 'accepted' && (
                     <button 
@@ -1191,6 +1256,94 @@ const DeliveryPlatform = () => {
                     Save Changes
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* WhatsApp Template Modal */}
+        {showWhatsAppModal && activeJob && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+              <div className="bg-green-500 p-4 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  Notify Customer
+                </h3>
+                <button onClick={() => setShowWhatsAppModal(false)} className="text-white hover:bg-green-600 p-2 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="p-4 bg-green-50 border-b">
+                <p className="text-sm text-green-800">
+                  <span className="font-semibold">Sending to:</span> {activeJob.customer_name} ({activeJob.customer_phone})
+                </p>
+                <p className="text-sm text-green-800">
+                  <span className="font-semibold">Current Status:</span> {activeJob.status.replace('-', ' ').toUpperCase()}
+                </p>
+              </div>
+
+              <div className="overflow-y-auto max-h-[60vh] p-4">
+                {/* Status-based Templates */}
+                <div className="mb-6">
+                  <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    📋 Recommended for Current Status
+                  </h4>
+                  <div className="space-y-2">
+                    {(whatsAppTemplates[activeJob.status as keyof typeof whatsAppTemplates] || []).map((template) => (
+                      <a
+                        key={template.id}
+                        href={generateWhatsAppLink(activeJob.customer_phone, formatTemplateMessage(template.message, activeJob, curr?.name))}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full p-3 bg-white border-2 border-green-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all text-left"
+                      >
+                        <p className="font-semibold text-green-700">{template.label}</p>
+                        <p className="text-sm text-gray-600 mt-1">{formatTemplateMessage(template.message, activeJob, curr?.name)}</p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Other Common Templates */}
+                <div>
+                  <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    💬 Other Messages
+                  </h4>
+                  <div className="space-y-2">
+                    {whatsAppTemplates.custom.map((template) => (
+                      <a
+                        key={template.id}
+                        href={generateWhatsAppLink(activeJob.customer_phone, formatTemplateMessage(template.message, activeJob, curr?.name))}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
+                      >
+                        <p className="font-semibold text-gray-700">{template.label}</p>
+                        <p className="text-sm text-gray-600 mt-1">{formatTemplateMessage(template.message, activeJob, curr?.name)}</p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Direct Call Option */}
+                <div className="mt-6 pt-4 border-t">
+                  <a
+                    href={`tel:${activeJob.customer_phone}`}
+                    className="block w-full p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-center font-semibold"
+                  >
+                    📞 Call Customer Directly
+                  </a>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 border-t">
+                <p className="text-xs text-gray-500 text-center">
+                  Clicking a message will open WhatsApp with the pre-filled text. You can edit it before sending.
+                </p>
               </div>
             </div>
           </div>
