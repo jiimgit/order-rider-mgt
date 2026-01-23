@@ -258,41 +258,64 @@ const DeliveryPlatform = () => {
     } catch (e: any) { alert('Error completing job: ' + e.message); }
   };
 
-  const generatePayNowQRData = (uen: string, amount: number, refNumber: string) => {
-    // PayNow QR code follows EMVCo standard
-    // This generates the data string for PayNow QR
-    const merchantName = MERCHANT_NAME.substring(0, 25);
+  // CRC16-CCITT calculation for PayNow QR
+  const calculateCRC16 = (str: string): string => {
+    let crc = 0xFFFF;
+    const polynomial = 0x1021;
+    
+    for (let i = 0; i < str.length; i++) {
+      crc ^= (str.charCodeAt(i) << 8);
+      for (let j = 0; j < 8; j++) {
+        if (crc & 0x8000) {
+          crc = ((crc << 1) ^ polynomial) & 0xFFFF;
+        } else {
+          crc = (crc << 1) & 0xFFFF;
+        }
+      }
+    }
+    return crc.toString(16).toUpperCase().padStart(4, '0');
+  };
+
+  // Generate proper PayNow QR string following EMVCo standard
+  const generatePayNowString = (uen: string, amount: number, refNumber: string, editable: boolean = false): string => {
+    const merchantName = MERCHANT_NAME.substring(0, 25).toUpperCase();
     const amountStr = amount.toFixed(2);
     
-    // Build PayNow QR string
-    let qrData = '';
-    qrData += '00' + '02' + '01'; // Payload Format Indicator
-    qrData += '01' + '02' + '12'; // Point of Initiation (Dynamic)
+    // Helper to create TLV (Tag-Length-Value)
+    const tlv = (tag: string, value: string): string => {
+      return tag + value.length.toString().padStart(2, '0') + value;
+    };
     
-    // Merchant Account Info for PayNow (ID 26)
-    const proxyType = '0'; // 0 = UEN
-    const proxyValue = uen;
-    const merchantAcctInfo = '00' + '08' + 'SG.PAYNOW' + 
-                            '01' + '01' + proxyType + 
-                            '02' + String(proxyValue.length).padStart(2, '0') + proxyValue +
-                            '03' + '01' + '1'; // Amount editable = No
-    qrData += '26' + String(merchantAcctInfo.length).padStart(2, '0') + merchantAcctInfo;
+    // Build Merchant Account Information (ID 26) for PayNow
+    let merchantAcctInfo = '';
+    merchantAcctInfo += tlv('00', 'SG.PAYNOW');           // Globally unique identifier
+    merchantAcctInfo += tlv('01', '2');                   // Proxy type: 2 = UEN
+    merchantAcctInfo += tlv('02', uen);                   // Proxy value (UEN)
+    merchantAcctInfo += tlv('03', editable ? '1' : '0');  // Amount editable: 0 = No, 1 = Yes
     
-    qrData += '52' + '04' + '0000'; // Merchant Category Code
-    qrData += '53' + '03' + '702'; // Transaction Currency (SGD)
-    qrData += '54' + String(amountStr.length).padStart(2, '0') + amountStr; // Transaction Amount
-    qrData += '58' + '02' + 'SG'; // Country Code
-    qrData += '59' + String(merchantName.length).padStart(2, '0') + merchantName; // Merchant Name
-    qrData += '60' + '09' + 'Singapore'; // Merchant City
+    // Build Additional Data Field (ID 62)
+    let additionalData = '';
+    additionalData += tlv('01', refNumber);              // Bill/Reference number
     
-    // Additional Data (Reference)
-    const addData = '01' + String(refNumber.length).padStart(2, '0') + refNumber;
-    qrData += '62' + String(addData.length).padStart(2, '0') + addData;
+    // Build the QR string
+    let qrString = '';
+    qrString += tlv('00', '01');                         // Payload Format Indicator
+    qrString += tlv('01', '12');                         // Point of Initiation: 12 = Dynamic QR
+    qrString += tlv('26', merchantAcctInfo);             // Merchant Account Info (PayNow)
+    qrString += tlv('52', '0000');                       // Merchant Category Code
+    qrString += tlv('53', '702');                        // Transaction Currency: 702 = SGD
+    qrString += tlv('54', amountStr);                    // Transaction Amount
+    qrString += tlv('58', 'SG');                         // Country Code
+    qrString += tlv('59', merchantName);                 // Merchant Name
+    qrString += tlv('60', 'SINGAPORE');                  // Merchant City
+    qrString += tlv('62', additionalData);               // Additional Data
     
-    // CRC placeholder (will be calculated)
-    qrData += '6304';
+    // Add CRC placeholder and calculate
+    qrString += '6304';
+    const crc = calculateCRC16(qrString);
+    qrString += crc;
     
-    return qrData;
+    return qrString;
   };
 
   const handleTopUp = () => {
@@ -300,12 +323,15 @@ const DeliveryPlatform = () => {
     if (!amt || amt < 5) return alert('Minimum top-up amount is $5');
     const refNumber = 'TOP' + Date.now().toString().slice(-8);
     
-    // Generate QR code URL using a QR code API
-    const qrContent = `https://www.paynow.sg/pay?uen=${PAYNOW_UEN}&amount=${amt.toFixed(2)}&ref=${refNumber}`;
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrContent)}`;
+    // Generate proper PayNow QR string
+    const payNowString = generatePayNowString(PAYNOW_UEN, amt, refNumber, false);
+    
+    // Generate QR code image URL
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(payNowString)}`;
     
     setPayNowQR(JSON.stringify({
       qrUrl: qrCodeUrl,
+      payNowString: payNowString,
       amount: amt,
       refNumber: refNumber,
       uen: PAYNOW_UEN,
