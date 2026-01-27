@@ -1,11 +1,12 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle, Search, Download, ChevronLeft, ChevronRight, FileText, Calendar } from 'lucide-react';
 
 const SUPABASE_URL = 'https://esylsugzysfjntukmxks.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeWxzdWd6eXNmam50dWtteGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDgyODEsImV4cCI6MjA4NDYyNDI4MX0.Ldbk29uDGte1ue7LSAzEoHjAJNjYToAA2zyHWloS2fI';
 const PAYNOW_UEN = "202012697W";
 const MERCHANT_NAME = "The Food Thinker Pte Ltd";
+const ITEMS_PER_PAGE = 10;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const api = async (endpoint: string, method = 'GET', body: any = null): Promise<any> => {
@@ -77,8 +78,8 @@ const DeliveryPlatform = () => {
   const [customers, setCustomers] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [adminView, setAdminView] = useState('customers');
-  const [editCust, setEditCust] = useState(null);
-  const [editRider, setEditRider] = useState(null);
+  const [editCust, setEditCust] = useState<any>(null);
+  const [editRider, setEditRider] = useState<any>(null);
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmt, setTopUpAmt] = useState('');
   const [payNowQR, setPayNowQR] = useState('');
@@ -86,6 +87,163 @@ const DeliveryPlatform = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+
+  // Admin search, pagination and filter states
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerPage, setCustomerPage] = useState(1);
+  const [riderSearch, setRiderSearch] = useState('');
+  const [riderPage, setRiderPage] = useState(1);
+  const [jobSearch, setJobSearch] = useState('');
+  const [jobPage, setJobPage] = useState(1);
+  const [jobDateFrom, setJobDateFrom] = useState('');
+  const [jobDateTo, setJobDateTo] = useState('');
+
+  // Export functions
+  const exportToCSV = (data: any[], filename: string, headers: string[]) => {
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(h => {
+        const key = h.toLowerCase().replace(/ /g, '_');
+        let value = row[key] ?? '';
+        // Handle special cases
+        if (key === 'credits' || key === 'earnings' || key === 'price') value = parseFloat(value || 0).toFixed(2);
+        if (key === 'created_at') value = new Date(value).toLocaleString();
+        // Escape commas and quotes
+        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+          value = `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      }).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
+  const exportToPDF = (data: any[], title: string, headers: string[]) => {
+    // Create a printable HTML table
+    const tableRows = data.map(row => 
+      `<tr>${headers.map(h => {
+        const key = h.toLowerCase().replace(/ /g, '_');
+        let value = row[key] ?? '';
+        if (key === 'credits' || key === 'earnings' || key === 'price') value = '$' + parseFloat(value || 0).toFixed(2);
+        if (key === 'created_at') value = new Date(value).toLocaleDateString();
+        if (key === 'password') value = '••••••••';
+        return `<td style="border:1px solid #ddd;padding:8px;">${value}</td>`;
+      }).join('')}</tr>`
+    ).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { color: #333; }
+          table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+          th { background-color: #4CAF50; color: white; padding: 12px 8px; text-align: left; border: 1px solid #ddd; }
+          td { padding: 8px; border: 1px solid #ddd; }
+          tr:nth-child(even) { background-color: #f2f2f2; }
+          .header { display: flex; justify-content: space-between; align-items: center; }
+          .date { color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${title}</h1>
+          <p class="date">Generated: ${new Date().toLocaleString()}</p>
+        </div>
+        <p>Total Records: ${data.length}</p>
+        <table>
+          <thead>
+            <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
+      };
+    }
+  };
+
+  // Filter and paginate customers
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((c: any) => 
+      c.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      c.email?.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      c.phone?.includes(customerSearch)
+    );
+  }, [customers, customerSearch]);
+
+  const paginatedCustomers = useMemo(() => {
+    const start = (customerPage - 1) * ITEMS_PER_PAGE;
+    return filteredCustomers.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredCustomers, customerPage]);
+
+  const customerTotalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
+
+  // Filter and paginate riders
+  const filteredRiders = useMemo(() => {
+    return riders.filter((r: any) => 
+      r.name?.toLowerCase().includes(riderSearch.toLowerCase()) ||
+      r.email?.toLowerCase().includes(riderSearch.toLowerCase()) ||
+      r.phone?.includes(riderSearch) ||
+      r.referral_code?.toLowerCase().includes(riderSearch.toLowerCase())
+    );
+  }, [riders, riderSearch]);
+
+  const paginatedRiders = useMemo(() => {
+    const start = (riderPage - 1) * ITEMS_PER_PAGE;
+    return filteredRiders.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredRiders, riderPage]);
+
+  const riderTotalPages = Math.ceil(filteredRiders.length / ITEMS_PER_PAGE);
+
+  // Filter and paginate jobs
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((j: any) => {
+      const matchesSearch = 
+        j.customer_name?.toLowerCase().includes(jobSearch.toLowerCase()) ||
+        j.rider_name?.toLowerCase().includes(jobSearch.toLowerCase()) ||
+        j.pickup?.toLowerCase().includes(jobSearch.toLowerCase()) ||
+        j.delivery?.toLowerCase().includes(jobSearch.toLowerCase()) ||
+        j.status?.toLowerCase().includes(jobSearch.toLowerCase());
+      
+      let matchesDate = true;
+      if (jobDateFrom) {
+        const jobDate = new Date(j.created_at);
+        const fromDate = new Date(jobDateFrom);
+        matchesDate = matchesDate && jobDate >= fromDate;
+      }
+      if (jobDateTo) {
+        const jobDate = new Date(j.created_at);
+        const toDate = new Date(jobDateTo);
+        toDate.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && jobDate <= toDate;
+      }
+      
+      return matchesSearch && matchesDate;
+    });
+  }, [jobs, jobSearch, jobDateFrom, jobDateTo]);
+
+  const paginatedJobs = useMemo(() => {
+    const start = (jobPage - 1) * ITEMS_PER_PAGE;
+    return filteredJobs.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredJobs, jobPage]);
+
+  const jobTotalPages = Math.ceil(filteredJobs.length / ITEMS_PER_PAGE);
 
   // WhatsApp Message Templates
   const whatsAppTemplates = {
@@ -1021,68 +1179,302 @@ const DeliveryPlatform = () => {
 
             {adminView === 'customers' && (
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-2xl font-bold mb-6">All Customers ({customers.length})</h3>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                  <h3 className="text-2xl font-bold">All Customers ({filteredCustomers.length})</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button 
+                      onClick={() => exportToCSV(filteredCustomers, 'customers', ['Name', 'Email', 'Phone', 'Credits', 'Created_at'])}
+                      className="flex items-center gap-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
+                    >
+                      <Download size={16} /> Excel/CSV
+                    </button>
+                    <button 
+                      onClick={() => exportToPDF(filteredCustomers, 'Customers Report', ['Name', 'Email', 'Phone', 'Credits', 'Created_at'])}
+                      className="flex items-center gap-2 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
+                    >
+                      <FileText size={16} /> PDF
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Search Box */}
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, or phone..."
+                    value={customerSearch}
+                    onChange={(e) => { setCustomerSearch(e.target.value); setCustomerPage(1); }}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+
                 <div className="space-y-3">
-                  {customers.map(c => (
-                    <div key={c.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-semibold text-lg">{c.name}</p>
-                          <p className="text-sm text-gray-600">{c.email} | {c.phone}</p>
-                          <p className="text-sm font-bold text-green-600 mt-1">Credits: ${(c.credits || 0).toFixed(2)}</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => setEditCust(c)} className="p-2 bg-blue-100 rounded hover:bg-blue-200"><Edit2 size={18} /></button>
-                          <button onClick={async () => { if (window.confirm('Delete customer?')) { await api(`customers?id=eq.${c.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200"><Trash2 size={18} /></button>
+                  {paginatedCustomers.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">No customers found</p>
+                  ) : (
+                    paginatedCustomers.map((c: any) => (
+                      <div key={c.id} className="border rounded-lg p-4 hover:border-purple-300 transition-colors">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-semibold text-lg">{c.name}</p>
+                            <p className="text-sm text-gray-600">{c.email} | {c.phone}</p>
+                            <p className="text-sm font-bold text-green-600 mt-1">Credits: ${(c.credits || 0).toFixed(2)}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => setEditCust({...c, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
+                            <button onClick={async () => { if (window.confirm('Delete customer?')) { await api(`customers?id=eq.${c.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
+
+                {/* Pagination */}
+                {customerTotalPages > 1 && (
+                  <div className="flex justify-center items-center gap-2 mt-6">
+                    <button
+                      onClick={() => setCustomerPage(p => Math.max(1, p - 1))}
+                      disabled={customerPage === 1}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    {Array.from({ length: customerTotalPages }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === customerTotalPages || Math.abs(p - customerPage) <= 2)
+                      .map((p, idx, arr) => (
+                        <React.Fragment key={p}>
+                          {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-2">...</span>}
+                          <button
+                            onClick={() => setCustomerPage(p)}
+                            className={`w-10 h-10 rounded-lg font-medium ${customerPage === p ? 'bg-purple-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+                          >
+                            {p}
+                          </button>
+                        </React.Fragment>
+                      ))
+                    }
+                    <button
+                      onClick={() => setCustomerPage(p => Math.min(customerTotalPages, p + 1))}
+                      disabled={customerPage === customerTotalPages}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
             {adminView === 'riders' && (
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-2xl font-bold mb-6">All Riders ({riders.length})</h3>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                  <h3 className="text-2xl font-bold">All Riders ({filteredRiders.length})</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button 
+                      onClick={() => exportToCSV(filteredRiders, 'riders', ['Name', 'Email', 'Phone', 'Tier', 'Referral_code', 'Earnings', 'Completed_jobs', 'Created_at'])}
+                      className="flex items-center gap-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
+                    >
+                      <Download size={16} /> Excel/CSV
+                    </button>
+                    <button 
+                      onClick={() => exportToPDF(filteredRiders, 'Riders Report', ['Name', 'Email', 'Phone', 'Tier', 'Referral_code', 'Earnings', 'Completed_jobs'])}
+                      className="flex items-center gap-2 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
+                    >
+                      <FileText size={16} /> PDF
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Search Box */}
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, phone, or referral code..."
+                    value={riderSearch}
+                    onChange={(e) => { setRiderSearch(e.target.value); setRiderPage(1); }}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+
                 <div className="space-y-3">
-                  {riders.map(r => (
-                    <div key={r.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-semibold text-lg">{r.name} - Tier {r.tier}</p>
-                          <p className="text-sm text-gray-600">{r.email} | {r.phone}</p>
-                          <p className="text-sm text-gray-600 mt-1">Code: {r.referral_code}</p>
-                          <p className="text-sm font-bold text-green-600 mt-1">Earnings: ${(r.earnings || 0).toFixed(2)} | Jobs: {r.completed_jobs || 0}</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => setEditRider(r)} className="p-2 bg-blue-100 rounded hover:bg-blue-200"><Edit2 size={18} /></button>
-                          <button onClick={async () => { if (window.confirm('Delete rider?')) { await api(`riders?id=eq.${r.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200"><Trash2 size={18} /></button>
+                  {paginatedRiders.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">No riders found</p>
+                  ) : (
+                    paginatedRiders.map((r: any) => (
+                      <div key={r.id} className="border rounded-lg p-4 hover:border-green-300 transition-colors">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-semibold text-lg">{r.name} - Tier {r.tier}</p>
+                            <p className="text-sm text-gray-600">{r.email} | {r.phone}</p>
+                            <p className="text-sm text-gray-600 mt-1">Code: <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">{r.referral_code}</span></p>
+                            <p className="text-sm font-bold text-green-600 mt-1">Earnings: ${(r.earnings || 0).toFixed(2)} | Jobs: {r.completed_jobs || 0}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => setEditRider({...r, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
+                            <button onClick={async () => { if (window.confirm('Delete rider?')) { await api(`riders?id=eq.${r.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
+
+                {/* Pagination */}
+                {riderTotalPages > 1 && (
+                  <div className="flex justify-center items-center gap-2 mt-6">
+                    <button
+                      onClick={() => setRiderPage(p => Math.max(1, p - 1))}
+                      disabled={riderPage === 1}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    {Array.from({ length: riderTotalPages }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === riderTotalPages || Math.abs(p - riderPage) <= 2)
+                      .map((p, idx, arr) => (
+                        <React.Fragment key={p}>
+                          {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-2">...</span>}
+                          <button
+                            onClick={() => setRiderPage(p)}
+                            className={`w-10 h-10 rounded-lg font-medium ${riderPage === p ? 'bg-green-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+                          >
+                            {p}
+                          </button>
+                        </React.Fragment>
+                      ))
+                    }
+                    <button
+                      onClick={() => setRiderPage(p => Math.min(riderTotalPages, p + 1))}
+                      disabled={riderPage === riderTotalPages}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
             {adminView === 'jobs' && (
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-2xl font-bold mb-6">All Jobs ({jobs.length})</h3>
-                <div className="space-y-3">
-                  {jobs.map(j => (
-                    <div key={j.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <p className="font-semibold text-lg">{j.pickup} → {j.delivery}</p>
-                          <p className="text-sm text-gray-600">Customer: {j.customer_name} | Rider: {j.rider_name || 'Unassigned'}</p>
-                          <p className="text-sm text-gray-600">Price: ${j.price} | Status: {j.status}</p>
-                        </div>
-                        <button onClick={async () => { if (window.confirm('Delete job?')) { await api(`jobs?id=eq.${j.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200"><Trash2 size={18} /></button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                  <h3 className="text-2xl font-bold">All Jobs ({filteredJobs.length})</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button 
+                      onClick={() => exportToCSV(filteredJobs, 'jobs', ['Customer_name', 'Rider_name', 'Pickup', 'Delivery', 'Price', 'Status', 'Created_at'])}
+                      className="flex items-center gap-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
+                    >
+                      <Download size={16} /> Excel/CSV
+                    </button>
+                    <button 
+                      onClick={() => exportToPDF(filteredJobs, 'Jobs Report', ['Customer_name', 'Rider_name', 'Pickup', 'Delivery', 'Price', 'Status', 'Created_at'])}
+                      className="flex items-center gap-2 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
+                    >
+                      <FileText size={16} /> PDF
+                    </button>
+                  </div>
                 </div>
+                
+                {/* Search and Date Filter */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="relative md:col-span-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="text"
+                      placeholder="Search customer, rider, location, status..."
+                      value={jobSearch}
+                      onChange={(e) => { setJobSearch(e.target.value); setJobPage(1); }}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="date"
+                      value={jobDateFrom}
+                      onChange={(e) => { setJobDateFrom(e.target.value); setJobPage(1); }}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="From date"
+                    />
+                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">From</span>
+                  </div>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="date"
+                      value={jobDateTo}
+                      onChange={(e) => { setJobDateTo(e.target.value); setJobPage(1); }}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="To date"
+                    />
+                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">To</span>
+                  </div>
+                </div>
+                {(jobDateFrom || jobDateTo) && (
+                  <button 
+                    onClick={() => { setJobDateFrom(''); setJobDateTo(''); }}
+                    className="mb-4 text-sm text-blue-600 hover:underline"
+                  >
+                    Clear date filter
+                  </button>
+                )}
+
+                <div className="space-y-3">
+                  {paginatedJobs.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">No jobs found</p>
+                  ) : (
+                    paginatedJobs.map((j: any) => (
+                      <div key={j.id} className="border rounded-lg p-4 hover:border-blue-300 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-semibold text-lg">{j.pickup} → {j.delivery}</p>
+                            <p className="text-sm text-gray-600">Customer: {j.customer_name} | Rider: {j.rider_name || 'Unassigned'}</p>
+                            <p className="text-sm text-gray-600">Price: ${j.price} | Status: <span className={`font-medium ${j.status === 'completed' ? 'text-green-600' : j.status === 'cancelled' ? 'text-red-600' : 'text-blue-600'}`}>{j.status}</span></p>
+                            <p className="text-xs text-gray-400 mt-1">Created: {new Date(j.created_at).toLocaleString()}</p>
+                          </div>
+                          <button onClick={async () => { if (window.confirm('Delete job?')) { await api(`jobs?id=eq.${j.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Pagination */}
+                {jobTotalPages > 1 && (
+                  <div className="flex justify-center items-center gap-2 mt-6">
+                    <button
+                      onClick={() => setJobPage(p => Math.max(1, p - 1))}
+                      disabled={jobPage === 1}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    {Array.from({ length: jobTotalPages }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === jobTotalPages || Math.abs(p - jobPage) <= 2)
+                      .map((p, idx, arr) => (
+                        <React.Fragment key={p}>
+                          {idx > 0 && arr[idx - 1] !== p - 1 && <span className="px-2">...</span>}
+                          <button
+                            onClick={() => setJobPage(p)}
+                            className={`w-10 h-10 rounded-lg font-medium ${jobPage === p ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+                          >
+                            {p}
+                          </button>
+                        </React.Fragment>
+                      ))
+                    }
+                    <button
+                      onClick={() => setJobPage(p => Math.min(jobTotalPages, p + 1))}
+                      disabled={jobPage === jobTotalPages}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1091,7 +1483,7 @@ const DeliveryPlatform = () => {
         {/* Edit Customer Modal */}
         {editCust && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold">Edit Customer</h3>
                 <button onClick={() => setEditCust(null)} className="p-2 hover:bg-gray-100 rounded-full">
@@ -1136,6 +1528,21 @@ const DeliveryPlatform = () => {
                     step="0.01"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password <span className="text-gray-400 font-normal">(leave empty to keep current)</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                    <input 
+                      type="password" 
+                      value={editCust.password || ''} 
+                      onChange={(e) => setEditCust({...editCust, password: e.target.value})} 
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                      placeholder="Enter new password"
+                    />
+                  </div>
+                </div>
                 <div className="flex gap-3 mt-6">
                   <button 
                     onClick={() => setEditCust(null)} 
@@ -1146,12 +1553,17 @@ const DeliveryPlatform = () => {
                   <button 
                     onClick={async () => {
                       try {
-                        await api(`customers?id=eq.${editCust.id}`, 'PATCH', {
+                        const updateData: any = {
                           name: editCust.name,
                           email: editCust.email,
                           phone: editCust.phone,
                           credits: editCust.credits
-                        });
+                        };
+                        // Only update password if a new one was entered
+                        if (editCust.password && editCust.password.trim() !== '') {
+                          updateData.password = editCust.password;
+                        }
+                        await api(`customers?id=eq.${editCust.id}`, 'PATCH', updateData);
                         alert('Customer updated successfully!');
                         setEditCust(null);
                         loadData();
@@ -1172,7 +1584,7 @@ const DeliveryPlatform = () => {
         {/* Edit Rider Modal */}
         {editRider && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold">Edit Rider</h3>
                 <button onClick={() => setEditRider(null)} className="p-2 hover:bg-gray-100 rounded-full">
@@ -1227,6 +1639,21 @@ const DeliveryPlatform = () => {
                     step="0.01"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password <span className="text-gray-400 font-normal">(leave empty to keep current)</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                    <input 
+                      type="password" 
+                      value={editRider.password || ''} 
+                      onChange={(e) => setEditRider({...editRider, password: e.target.value})} 
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                      placeholder="Enter new password"
+                    />
+                  </div>
+                </div>
                 <div className="flex gap-3 mt-6">
                   <button 
                     onClick={() => setEditRider(null)} 
@@ -1237,13 +1664,18 @@ const DeliveryPlatform = () => {
                   <button 
                     onClick={async () => {
                       try {
-                        await api(`riders?id=eq.${editRider.id}`, 'PATCH', {
+                        const updateData: any = {
                           name: editRider.name,
                           email: editRider.email,
                           phone: editRider.phone,
                           tier: editRider.tier,
                           earnings: editRider.earnings
-                        });
+                        };
+                        // Only update password if a new one was entered
+                        if (editRider.password && editRider.password.trim() !== '') {
+                          updateData.password = editRider.password;
+                        }
+                        await api(`riders?id=eq.${editRider.id}`, 'PATCH', updateData);
                         alert('Rider updated successfully!');
                         setEditRider(null);
                         loadData();
