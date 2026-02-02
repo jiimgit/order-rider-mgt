@@ -1949,11 +1949,6 @@ const DeliveryPlatform = () => {
             </div>
           </div>
         )}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Assign Rider Modal */}
         {showAssignRider && (
