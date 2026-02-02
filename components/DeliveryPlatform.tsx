@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
-import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle, Search, Download, ChevronLeft, ChevronRight, FileText, Calendar } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle, Search, Download, ChevronLeft, ChevronRight, FileText, Calendar, Upload, MapPin, Eye, UserCheck, BarChart3, Clock, CheckCircle, XCircle, Send } from 'lucide-react';
 
 const SUPABASE_URL = 'https://esylsugzysfjntukmxks.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeWxzdWd6eXNmam50dWtteGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDgyODEsImV4cCI6MjA4NDYyNDI4MX0.Ldbk29uDGte1ue7LSAzEoHjAJNjYToAA2zyHWloS2fI';
@@ -97,6 +97,200 @@ const DeliveryPlatform = () => {
   const [jobPage, setJobPage] = useState(1);
   const [jobDateFrom, setJobDateFrom] = useState('');
   const [jobDateTo, setJobDateTo] = useState('');
+
+  // New Admin Job Management states
+  const [showJobImport, setShowJobImport] = useState(false);
+  const [showAssignRider, setShowAssignRider] = useState<any>(null);
+  const [showJobSummary, setShowJobSummary] = useState(false);
+  const [showRiderTracking, setShowRiderTracking] = useState<any>(null);
+  const [importedJobs, setImportedJobs] = useState<any[]>([]);
+  const [summaryDateFrom, setSummaryDateFrom] = useState('');
+  const [summaryDateTo, setSummaryDateTo] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Download Excel Template
+  const downloadJobTemplate = () => {
+    const template = [
+      ['customer_name', 'customer_phone', 'pickup', 'delivery', 'timeframe', 'price', 'notes'],
+      ['John Doe', '91234567', '123 Orchard Road', '456 Marina Bay', 'same-day', '15', 'Handle with care'],
+      ['Jane Smith', '98765432', '789 Bugis Street', '321 Tampines Ave', 'next-day', '12', ''],
+    ];
+    const csvContent = template.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'job_import_template.csv';
+    link.click();
+  };
+
+  // Parse CSV file
+  const parseCSV = (text: string): any[] => {
+    const lines = text.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/ /g, '_'));
+    const data: any[] = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      if (values.length >= 4) {
+        const row: any = {};
+        headers.forEach((h, idx) => {
+          row[h] = values[idx] || '';
+        });
+        row.price = parseFloat(row.price) || 10;
+        row.timeframe = row.timeframe || 'same-day';
+        row.status = 'posted';
+        data.push(row);
+      }
+    }
+    return data;
+  };
+
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const parsed = parseCSV(text);
+      setImportedJobs(parsed);
+    };
+    reader.readAsText(file);
+  };
+
+  // Import jobs to database
+  const importJobsToDatabase = async () => {
+    if (importedJobs.length === 0) {
+      alert('No jobs to import');
+      return;
+    }
+    
+    try {
+      let successCount = 0;
+      for (const job of importedJobs) {
+        await api('jobs', 'POST', {
+          customer_name: job.customer_name,
+          customer_phone: job.customer_phone,
+          pickup: job.pickup,
+          delivery: job.delivery,
+          timeframe: job.timeframe,
+          price: job.price,
+          status: 'posted',
+          notes: job.notes || ''
+        });
+        successCount++;
+      }
+      alert(`Successfully imported ${successCount} jobs!`);
+      setImportedJobs([]);
+      setShowJobImport(false);
+      loadData();
+    } catch (e: any) {
+      alert('Error importing jobs: ' + e.message);
+    }
+  };
+
+  // Assign rider to job
+  const assignRiderToJob = async (jobId: string, riderId: string, riderName: string, riderPhone: string) => {
+    try {
+      await api(`jobs?id=eq.${jobId}`, 'PATCH', {
+        rider_id: riderId,
+        rider_name: riderName,
+        rider_phone: riderPhone,
+        status: 'accepted',
+        accepted_at: new Date().toISOString()
+      });
+      alert('Rider assigned successfully!');
+      setShowAssignRider(null);
+      loadData();
+    } catch (e: any) {
+      alert('Error assigning rider: ' + e.message);
+    }
+  };
+
+  // Generate tracking link
+  const generateTrackingLink = (job: any): string => {
+    // Create a simple tracking URL with job details
+    const trackingData = encodeURIComponent(JSON.stringify({
+      jobId: job.id,
+      pickup: job.pickup,
+      delivery: job.delivery,
+      riderName: job.rider_name,
+      status: job.status
+    }));
+    return `https://www.google.com/maps/dir/${encodeURIComponent(job.pickup)}/${encodeURIComponent(job.delivery)}`;
+  };
+
+  // Generate WhatsApp tracking message
+  const generateTrackingWhatsApp = (job: any, customerPhone: string): string => {
+    const trackingUrl = generateTrackingLink(job);
+    const message = `🚚 *Delivery Update*\n\nHi! Here's your delivery tracking information:\n\n📦 *Order Details:*\n• From: ${job.pickup}\n• To: ${job.delivery}\n• Rider: ${job.rider_name || 'Assigning...'}\n• Status: ${job.status.toUpperCase()}\n\n📍 *Track Route:*\n${trackingUrl}\n\nThank you for your order!`;
+    
+    let cleanPhone = customerPhone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('8') || cleanPhone.startsWith('9')) {
+      cleanPhone = '65' + cleanPhone;
+    }
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  };
+
+  // Job Summary calculations
+  const jobSummaryData = useMemo(() => {
+    let filtered = jobs;
+    
+    if (summaryDateFrom) {
+      filtered = filtered.filter((j: any) => new Date(j.created_at) >= new Date(summaryDateFrom));
+    }
+    if (summaryDateTo) {
+      const toDate = new Date(summaryDateTo);
+      toDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter((j: any) => new Date(j.created_at) <= toDate);
+    }
+    
+    const totalJobs = filtered.length;
+    const completedJobs = filtered.filter((j: any) => j.status === 'completed').length;
+    const pendingJobs = filtered.filter((j: any) => ['posted', 'accepted', 'picked-up', 'on-the-way'].includes(j.status)).length;
+    const cancelledJobs = filtered.filter((j: any) => j.status === 'cancelled').length;
+    const totalRevenue = filtered.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+    const completedRevenue = filtered.filter((j: any) => j.status === 'completed').reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+    
+    // Group by rider
+    const riderStats: any = {};
+    filtered.forEach((j: any) => {
+      if (j.rider_name) {
+        if (!riderStats[j.rider_name]) {
+          riderStats[j.rider_name] = { name: j.rider_name, jobs: 0, completed: 0, revenue: 0 };
+        }
+        riderStats[j.rider_name].jobs++;
+        if (j.status === 'completed') {
+          riderStats[j.rider_name].completed++;
+          riderStats[j.rider_name].revenue += parseFloat(j.price) || 0;
+        }
+      }
+    });
+    
+    // Group by date
+    const dailyStats: any = {};
+    filtered.forEach((j: any) => {
+      const date = new Date(j.created_at).toLocaleDateString();
+      if (!dailyStats[date]) {
+        dailyStats[date] = { date, jobs: 0, revenue: 0 };
+      }
+      dailyStats[date].jobs++;
+      dailyStats[date].revenue += parseFloat(j.price) || 0;
+    });
+    
+    return {
+      totalJobs,
+      completedJobs,
+      pendingJobs,
+      cancelledJobs,
+      totalRevenue,
+      completedRevenue,
+      riderStats: Object.values(riderStats),
+      dailyStats: Object.values(dailyStats),
+      filteredJobs: filtered
+    };
+  }, [jobs, summaryDateFrom, summaryDateTo]);
 
   // Export functions
   const exportToCSV = (data: any[], filename: string, headers: string[]) => {
@@ -1364,6 +1558,18 @@ const DeliveryPlatform = () => {
                   <h3 className="text-2xl font-bold">All Jobs ({filteredJobs.length})</h3>
                   <div className="flex flex-wrap gap-2">
                     <button 
+                      onClick={() => setShowJobSummary(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm font-medium"
+                    >
+                      <BarChart3 size={16} /> Summary
+                    </button>
+                    <button 
+                      onClick={() => setShowJobImport(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm font-medium"
+                    >
+                      <Upload size={16} /> Import Jobs
+                    </button>
+                    <button 
                       onClick={() => exportToCSV(filteredJobs, 'jobs', ['Customer_name', 'Rider_name', 'Pickup', 'Delivery', 'Price', 'Status', 'Created_at'])}
                       className="flex items-center gap-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
                     >
@@ -1431,11 +1637,64 @@ const DeliveryPlatform = () => {
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <p className="font-semibold text-lg">{j.pickup} → {j.delivery}</p>
-                            <p className="text-sm text-gray-600">Customer: {j.customer_name} | Rider: {j.rider_name || 'Unassigned'}</p>
-                            <p className="text-sm text-gray-600">Price: ${j.price} | Status: <span className={`font-medium ${j.status === 'completed' ? 'text-green-600' : j.status === 'cancelled' ? 'text-red-600' : 'text-blue-600'}`}>{j.status}</span></p>
+                            <p className="text-sm text-gray-600">
+                              Customer: {j.customer_name} {j.customer_phone && `(${j.customer_phone})`}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              Rider: {j.rider_name ? (
+                                <span className="text-green-600 font-medium">{j.rider_name}</span>
+                              ) : (
+                                <span className="text-orange-500">Unassigned</span>
+                              )}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              Price: <span className="font-medium">${j.price}</span> | 
+                              Status: <span className={`font-medium ${j.status === 'completed' ? 'text-green-600' : j.status === 'cancelled' ? 'text-red-600' : 'text-blue-600'}`}>{j.status}</span>
+                            </p>
                             <p className="text-xs text-gray-400 mt-1">Created: {new Date(j.created_at).toLocaleString()}</p>
                           </div>
-                          <button onClick={async () => { if (window.confirm('Delete job?')) { await api(`jobs?id=eq.${j.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
+                          <div className="flex flex-col gap-2">
+                            {/* Assign Rider Button */}
+                            {!j.rider_id && j.status === 'posted' && (
+                              <button 
+                                onClick={() => setShowAssignRider(j)}
+                                className="p-2 bg-blue-100 rounded hover:bg-blue-200 flex items-center gap-1 text-xs text-blue-700" 
+                                title="Assign Rider"
+                              >
+                                <UserCheck size={16} /> Assign
+                              </button>
+                            )}
+                            {/* Track Location Button */}
+                            {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
+                              <button 
+                                onClick={() => setShowRiderTracking(j)}
+                                className="p-2 bg-green-100 rounded hover:bg-green-200 flex items-center gap-1 text-xs text-green-700" 
+                                title="Track & Notify"
+                              >
+                                <MapPin size={16} /> Track
+                              </button>
+                            )}
+                            {/* Send WhatsApp Update */}
+                            {j.customer_phone && (
+                              <a 
+                                href={generateTrackingWhatsApp(j, j.customer_phone)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center gap-1 text-xs" 
+                                title="Send WhatsApp Update"
+                              >
+                                <Send size={16} />
+                              </a>
+                            )}
+                            {/* Delete Button */}
+                            <button 
+                              onClick={async () => { if (window.confirm('Delete job?')) { await api(`jobs?id=eq.${j.id}`, 'DELETE'); loadData(); }}} 
+                              className="p-2 bg-red-100 rounded hover:bg-red-200" 
+                              title="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -1477,6 +1736,353 @@ const DeliveryPlatform = () => {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Job Import Modal */}
+        {showJobImport && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Import Jobs</h3>
+                <button onClick={() => { setShowJobImport(false); setImportedJobs([]); }} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Step 1: Download Template */}
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                <h4 className="font-semibold text-blue-900 mb-2">Step 1: Download Template</h4>
+                <p className="text-sm text-blue-700 mb-3">Download the CSV template, fill in your job data, then upload it below.</p>
+                <button 
+                  onClick={downloadJobTemplate}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Download size={18} /> Download Template (CSV)
+                </button>
+              </div>
+
+              {/* Step 2: Upload File */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-semibold text-gray-900 mb-2">Step 2: Upload Your File</h4>
+                <p className="text-sm text-gray-600 mb-3">Upload your filled CSV file with job data.</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.txt"
+                  onChange={handleFileUpload}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+              </div>
+
+              {/* Preview Imported Jobs */}
+              {importedJobs.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="font-semibold text-gray-900 mb-3">Preview ({importedJobs.length} jobs)</h4>
+                  <div className="max-h-60 overflow-y-auto border rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100 sticky top-0">
+                        <tr>
+                          <th className="text-left p-2">Customer</th>
+                          <th className="text-left p-2">Phone</th>
+                          <th className="text-left p-2">Pickup</th>
+                          <th className="text-left p-2">Delivery</th>
+                          <th className="text-left p-2">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importedJobs.map((job, idx) => (
+                          <tr key={idx} className="border-t">
+                            <td className="p-2">{job.customer_name}</td>
+                            <td className="p-2">{job.customer_phone}</td>
+                            <td className="p-2">{job.pickup}</td>
+                            <td className="p-2">{job.delivery}</td>
+                            <td className="p-2">${job.price}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Step 3: Import */}
+                  <button 
+                    onClick={importJobsToDatabase}
+                    className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+                  >
+                    <Upload size={18} /> Import {importedJobs.length} Jobs to Database
+                  </button>
+                </div>
+              )}
+
+              {/* Template Format Info */}
+              <div className="p-4 bg-yellow-50 rounded-lg">
+                <h4 className="font-semibold text-yellow-800 mb-2">Template Format</h4>
+                <p className="text-xs text-yellow-700">
+                  Required columns: <code className="bg-yellow-100 px-1 rounded">customer_name</code>, 
+                  <code className="bg-yellow-100 px-1 rounded">customer_phone</code>, 
+                  <code className="bg-yellow-100 px-1 rounded">pickup</code>, 
+                  <code className="bg-yellow-100 px-1 rounded">delivery</code><br/>
+                  Optional: <code className="bg-yellow-100 px-1 rounded">timeframe</code> (same-day/next-day), 
+                  <code className="bg-yellow-100 px-1 rounded">price</code>, 
+                  <code className="bg-yellow-100 px-1 rounded">notes</code>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Assign Rider Modal */}
+        {showAssignRider && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Assign Rider</h3>
+                <button onClick={() => setShowAssignRider(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                <p className="font-semibold text-blue-900">{showAssignRider.pickup} → {showAssignRider.delivery}</p>
+                <p className="text-sm text-blue-700">Customer: {showAssignRider.customer_name}</p>
+                <p className="text-sm text-blue-700">Price: ${showAssignRider.price}</p>
+              </div>
+
+              <h4 className="font-semibold text-gray-700 mb-3">Select a Rider:</h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {riders.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4">No riders available</p>
+                ) : (
+                  riders.map((r: any) => (
+                    <button
+                      key={r.id}
+                      onClick={() => assignRiderToJob(showAssignRider.id, r.id, r.name, r.phone)}
+                      className="w-full p-3 border rounded-lg hover:border-green-500 hover:bg-green-50 text-left transition-colors"
+                    >
+                      <p className="font-semibold">{r.name}</p>
+                      <p className="text-sm text-gray-600">{r.phone} | Tier {r.tier} | {r.completed_jobs || 0} jobs completed</p>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rider Tracking Modal */}
+        {showRiderTracking && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Track & Notify</h3>
+                <button onClick={() => setShowRiderTracking(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="mb-4 p-4 bg-green-50 rounded-lg">
+                <p className="font-semibold text-green-900">{showRiderTracking.pickup} → {showRiderTracking.delivery}</p>
+                <p className="text-sm text-green-700">Rider: {showRiderTracking.rider_name}</p>
+                <p className="text-sm text-green-700">Status: {showRiderTracking.status}</p>
+              </div>
+
+              {/* View Route on Map */}
+              <a
+                href={generateTrackingLink(showRiderTracking)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center font-semibold mb-3"
+              >
+                <MapPin className="inline mr-2" size={18} />
+                View Route on Google Maps
+              </a>
+
+              {/* Send Tracking to Customer via WhatsApp */}
+              {showRiderTracking.customer_phone && (
+                <a
+                  href={generateTrackingWhatsApp(showRiderTracking, showRiderTracking.customer_phone)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full p-3 bg-green-500 text-white rounded-lg hover:bg-green-600 text-center font-semibold mb-3"
+                >
+                  <Send className="inline mr-2" size={18} />
+                  Send Tracking to Customer (WhatsApp)
+                </a>
+              )}
+
+              {/* Rider Contact */}
+              {showRiderTracking.rider_phone && (
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">Contact Rider:</p>
+                  <div className="flex gap-2">
+                    <a
+                      href={`tel:${showRiderTracking.rider_phone}`}
+                      className="flex-1 p-2 bg-blue-100 text-blue-700 rounded-lg text-center font-medium hover:bg-blue-200"
+                    >
+                      📞 Call
+                    </a>
+                    <a
+                      href={`https://wa.me/65${showRiderTracking.rider_phone.replace(/\D/g, '')}?text=Hi ${showRiderTracking.rider_name}, checking on the delivery status for order to ${showRiderTracking.delivery}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 p-2 bg-green-100 text-green-700 rounded-lg text-center font-medium hover:bg-green-200"
+                    >
+                      💬 WhatsApp
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Job Summary Modal */}
+        {showJobSummary && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Orders Summary</h3>
+                <button onClick={() => setShowJobSummary(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Date Filter */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                  <input
+                    type="date"
+                    value={summaryDateFrom}
+                    onChange={(e) => setSummaryDateFrom(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                  <input
+                    type="date"
+                    value={summaryDateTo}
+                    onChange={(e) => setSummaryDateTo(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={() => { setSummaryDateFrom(''); setSummaryDateTo(''); }}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => exportToCSV(jobSummaryData.filteredJobs, 'orders_summary', ['Customer_name', 'Rider_name', 'Pickup', 'Delivery', 'Price', 'Status', 'Created_at'])}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    <Download size={16} /> Export
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Package className="text-blue-600" size={20} />
+                    <span className="text-sm text-blue-700">Total Orders</span>
+                  </div>
+                  <p className="text-3xl font-bold text-blue-900">{jobSummaryData.totalJobs}</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="text-green-600" size={20} />
+                    <span className="text-sm text-green-700">Completed</span>
+                  </div>
+                  <p className="text-3xl font-bold text-green-900">{jobSummaryData.completedJobs}</p>
+                </div>
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="text-yellow-600" size={20} />
+                    <span className="text-sm text-yellow-700">Pending</span>
+                  </div>
+                  <p className="text-3xl font-bold text-yellow-900">{jobSummaryData.pendingJobs}</p>
+                </div>
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="text-red-600" size={20} />
+                    <span className="text-sm text-red-700">Cancelled</span>
+                  </div>
+                  <p className="text-3xl font-bold text-red-900">{jobSummaryData.cancelledJobs}</p>
+                </div>
+              </div>
+
+              {/* Revenue Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <p className="text-sm text-purple-700 mb-1">Total Revenue (All Orders)</p>
+                  <p className="text-3xl font-bold text-purple-900">${jobSummaryData.totalRevenue.toFixed(2)}</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <p className="text-sm text-green-700 mb-1">Completed Revenue</p>
+                  <p className="text-3xl font-bold text-green-900">${jobSummaryData.completedRevenue.toFixed(2)}</p>
+                </div>
+              </div>
+
+              {/* Rider Performance */}
+              {jobSummaryData.riderStats.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="font-semibold text-gray-800 mb-3">Rider Performance</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="text-left p-3">Rider</th>
+                          <th className="text-center p-3">Total Jobs</th>
+                          <th className="text-center p-3">Completed</th>
+                          <th className="text-right p-3">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jobSummaryData.riderStats.map((rider: any, idx: number) => (
+                          <tr key={idx} className="border-t">
+                            <td className="p-3 font-medium">{rider.name}</td>
+                            <td className="p-3 text-center">{rider.jobs}</td>
+                            <td className="p-3 text-center text-green-600">{rider.completed}</td>
+                            <td className="p-3 text-right font-medium">${rider.revenue.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Daily Stats */}
+              {jobSummaryData.dailyStats.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-3">Daily Breakdown</h4>
+                  <div className="overflow-x-auto max-h-48">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100 sticky top-0">
+                        <tr>
+                          <th className="text-left p-3">Date</th>
+                          <th className="text-center p-3">Orders</th>
+                          <th className="text-right p-3">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jobSummaryData.dailyStats.map((day: any, idx: number) => (
+                          <tr key={idx} className="border-t">
+                            <td className="p-3">{day.date}</td>
+                            <td className="p-3 text-center">{day.jobs}</td>
+                            <td className="p-3 text-right font-medium">${day.revenue.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
