@@ -108,6 +108,123 @@ const DeliveryPlatform = () => {
   const [summaryDateTo, setSummaryDateTo] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Live GPS Tracking states
+  const [isTrackingGPS, setIsTrackingGPS] = useState(false);
+  const [gpsWatchId, setGpsWatchId] = useState<number | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [showLiveMap, setShowLiveMap] = useState<any>(null);
+  const [riderLocation, setRiderLocation] = useState<any>(null);
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+
+  // Start GPS tracking for rider
+  const startGPSTracking = async (jobId: string, riderId: string) => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        setCurrentLocation({ lat: latitude, lng: longitude });
+        
+        // Save to database
+        try {
+          // First, delete old location for this rider/job
+          await api(`rider_locations?rider_id=eq.${riderId}&job_id=eq.${jobId}`, 'DELETE');
+          
+          // Insert new location
+          await api('rider_locations', 'POST', {
+            rider_id: riderId,
+            job_id: jobId,
+            latitude: latitude,
+            longitude: longitude,
+            accuracy: accuracy,
+            updated_at: new Date().toISOString()
+          });
+          console.log('Location updated:', latitude, longitude);
+        } catch (e: any) {
+          console.error('Error saving location:', e);
+        }
+      },
+      (error) => {
+        console.error('GPS Error:', error);
+        alert('Unable to get your location. Please enable GPS and try again.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+
+    setGpsWatchId(watchId);
+    setIsTrackingGPS(true);
+    alert('GPS tracking started! Your location is now being shared.');
+  };
+
+  // Stop GPS tracking
+  const stopGPSTracking = () => {
+    if (gpsWatchId !== null) {
+      navigator.geolocation.clearWatch(gpsWatchId);
+      setGpsWatchId(null);
+    }
+    setIsTrackingGPS(false);
+    setCurrentLocation(null);
+    alert('GPS tracking stopped.');
+  };
+
+  // Fetch rider's current location for admin/customer view
+  const fetchRiderLocation = async (jobId: string) => {
+    try {
+      const locations = await api(`rider_locations?job_id=eq.${jobId}&order=updated_at.desc&limit=1`);
+      if (locations && locations.length > 0) {
+        setRiderLocation(locations[0]);
+        return locations[0];
+      }
+      return null;
+    } catch (e: any) {
+      console.error('Error fetching rider location:', e);
+      return null;
+    }
+  };
+
+  // Generate shareable live tracking URL
+  const generateLiveTrackingUrl = (job: any): string => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${baseUrl}?track=${job.id}`;
+  };
+
+  // Copy live tracking link
+  const copyLiveTrackingLink = (job: any) => {
+    const url = generateLiveTrackingUrl(job);
+    const message = `🚚 *Live Delivery Tracking*
+
+Track your delivery in real-time:
+${url}
+
+📦 *Order Details:*
+• From: ${job.pickup}
+• To: ${job.delivery}
+• Rider: ${job.rider_name || 'Assigning...'}
+• Status: ${job.status.toUpperCase()}
+
+Thank you for your order!`;
+
+    navigator.clipboard.writeText(message).then(() => {
+      alert('Live tracking link copied to clipboard!');
+    }).catch(() => {
+      const textArea = document.createElement('textarea');
+      textArea.value = message;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('Live tracking link copied to clipboard!');
+    });
+  };
+
   // Download Excel/CSV Template with sample data
   const downloadJobTemplate = () => {
     // Template with headers and sample data
@@ -1307,6 +1424,43 @@ Thank you for using our delivery service!`;
                   <p className="text-gray-700">Phone: {activeJob.customer_phone}</p>
                   <p className="text-4xl font-bold text-blue-600 mt-4">${activeJob.price}</p>
                 </div>
+
+                {/* GPS Live Tracking Button */}
+                <div className="mb-4">
+                  {!isTrackingGPS ? (
+                    <button 
+                      onClick={() => startGPSTracking(activeJob.id, auth.id as string)} 
+                      className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <MapPin size={20} />
+                      📍 Start Live GPS Tracking
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="bg-green-100 border-2 border-green-500 rounded-lg p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                          </span>
+                          <span className="text-green-800 font-semibold">GPS Tracking Active</span>
+                        </div>
+                        {currentLocation && (
+                          <span className="text-xs text-green-600">
+                            {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
+                          </span>
+                        )}
+                      </div>
+                      <button 
+                        onClick={stopGPSTracking} 
+                        className="w-full bg-red-500 text-white py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <XCircle size={18} />
+                        Stop GPS Tracking
+                      </button>
+                    </div>
+                  )}
+                </div>
                 
                 {/* WhatsApp Notify Customer Button */}
                 <button 
@@ -1718,6 +1872,26 @@ Thank you for using our delivery service!`;
                             >
                               <Link size={16} /> Copy Link
                             </button>
+                            {/* Live Track Button - Opens Map */}
+                            {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
+                              <button 
+                                onClick={() => setShowLiveMap(j)}
+                                className="p-2 bg-orange-100 rounded hover:bg-orange-200 flex items-center gap-1 text-xs text-orange-700" 
+                                title="View Live Location"
+                              >
+                                <Eye size={16} /> Live Map
+                              </button>
+                            )}
+                            {/* Copy Live Tracking Link */}
+                            {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
+                              <button 
+                                onClick={() => copyLiveTrackingLink(j)}
+                                className="p-2 bg-indigo-100 rounded hover:bg-indigo-200 flex items-center gap-1 text-xs text-indigo-700" 
+                                title="Copy Live Tracking Link"
+                              >
+                                <MapPin size={16} /> Live Link
+                              </button>
+                            )}
                             {/* Track Location Button */}
                             {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
                               <button 
@@ -1725,7 +1899,7 @@ Thank you for using our delivery service!`;
                                 className="p-2 bg-green-100 rounded hover:bg-green-200 flex items-center gap-1 text-xs text-green-700" 
                                 title="Track & Notify"
                               >
-                                <MapPin size={16} /> Track
+                                <Navigation size={16} /> Route
                               </button>
                             )}
                             {/* Send WhatsApp Update */}
@@ -2453,6 +2627,115 @@ Thank you for using our delivery service!`;
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Live Map Modal with OpenStreetMap */}
+        {showLiveMap && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-hidden">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-2xl font-bold flex items-center gap-2">
+                  <MapPin className="text-orange-600" />
+                  Live Tracking - {showLiveMap.rider_name || 'Rider'}
+                </h3>
+                <button onClick={() => { setShowLiveMap(null); setRiderLocation(null); }} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                <p className="font-semibold text-blue-900">{showLiveMap.pickup} → {showLiveMap.delivery}</p>
+                <p className="text-sm text-blue-700">Customer: {showLiveMap.customer_name} | Status: {showLiveMap.status}</p>
+              </div>
+
+              {/* Map Container */}
+              <div className="relative bg-gray-100 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                <iframe
+                  id="live-map-frame"
+                  width="100%"
+                  height="100%"
+                  frameBorder="0"
+                  scrolling="no"
+                  src={riderLocation 
+                    ? `https://www.openstreetmap.org/export/embed.html?bbox=${riderLocation.longitude - 0.01}%2C${riderLocation.latitude - 0.01}%2C${riderLocation.longitude + 0.01}%2C${riderLocation.latitude + 0.01}&layer=mapnik&marker=${riderLocation.latitude}%2C${riderLocation.longitude}`
+                    : `https://www.openstreetmap.org/export/embed.html?bbox=103.6%2C1.2%2C104.0%2C1.5&layer=mapnik`
+                  }
+                  style={{ border: 0 }}
+                ></iframe>
+                
+                {/* Location Info Overlay */}
+                <div className="absolute bottom-4 left-4 right-4 bg-white bg-opacity-95 rounded-lg p-3 shadow-lg">
+                  {riderLocation ? (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                          </span>
+                          <span className="font-semibold text-green-700">Rider Location Active</span>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">
+                          Lat: {riderLocation.latitude?.toFixed(6)} | Lng: {riderLocation.longitude?.toFixed(6)}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Last updated: {new Date(riderLocation.updated_at).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const loc = await fetchRiderLocation(showLiveMap.id);
+                          if (!loc) alert('No location data available. Rider may not have started GPS tracking.');
+                        }}
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <p className="text-gray-600 mb-2">Loading rider location...</p>
+                      <button
+                        onClick={async () => {
+                          const loc = await fetchRiderLocation(showLiveMap.id);
+                          if (!loc) alert('No location data available. Rider may not have started GPS tracking.');
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                      >
+                        Load Location
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <a
+                  href={riderLocation 
+                    ? `https://www.openstreetmap.org/?mlat=${riderLocation.latitude}&mlon=${riderLocation.longitude}#map=16/${riderLocation.latitude}/${riderLocation.longitude}`
+                    : `https://www.openstreetmap.org/#map=12/1.3521/103.8198`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 bg-blue-600 text-white rounded-lg text-center font-semibold hover:bg-blue-700"
+                >
+                  Open Full Map
+                </a>
+                <button
+                  onClick={() => copyLiveTrackingLink(showLiveMap)}
+                  className="p-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 flex items-center justify-center gap-2"
+                >
+                  <Link size={18} /> Copy Tracking Link
+                </button>
+              </div>
+
+              {/* Auto-refresh note */}
+              <p className="text-xs text-gray-400 text-center mt-3">
+                Click "Refresh" to get the latest rider location. Rider must have GPS tracking enabled.
+              </p>
             </div>
           </div>
         )}
