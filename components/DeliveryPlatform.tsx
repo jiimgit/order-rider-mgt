@@ -108,15 +108,30 @@ const DeliveryPlatform = () => {
   const [summaryDateTo, setSummaryDateTo] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Download Excel Template
+  // Download Excel/CSV Template with sample data
   const downloadJobTemplate = () => {
+    // Template with headers and sample data
     const template = [
       ['customer_name', 'customer_phone', 'pickup', 'delivery', 'timeframe', 'price', 'notes'],
-      ['John Doe', '91234567', '123 Orchard Road', '456 Marina Bay', 'same-day', '15', 'Handle with care'],
-      ['Jane Smith', '98765432', '789 Bugis Street', '321 Tampines Ave', 'next-day', '12', ''],
+      ['John Doe', '91234567', '123 Orchard Road #01-01 Singapore 238858', '456 Marina Bay Sands Singapore 018956', 'same-day', '15', 'Handle with care'],
+      ['Jane Smith', '98765432', '789 Bugis Street Singapore 188067', '321 Tampines Ave 5 #02-15 Singapore 529651', 'next-day', '12', 'Call before delivery'],
+      ['Michael Tan', '87654321', 'Block 123 Jurong West St 21 Singapore 640123', '1 Raffles Place #10-01 Singapore 048616', 'same-day', '18', ''],
+      ['Sarah Lee', '96543210', '50 Serangoon North Ave 4 Singapore 555856', '100 Orchard Road Singapore 238840', 'express', '25', 'Fragile items'],
+      ['David Wong', '81234567', 'ION Orchard 2 Orchard Turn Singapore 238801', '313 Somerset Singapore 238895', 'same-day', '10', ''],
+      ['', '', '', '', '', '', ''],
+      ['DELETE THE SAMPLE ROWS ABOVE AND ADD YOUR OWN DATA', '', '', '', '', '', ''],
     ];
-    const csvContent = template.map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Properly escape CSV values
+    const escapeCSV = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+    
+    const csvContent = template.map(row => row.map(escapeCSV).join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'job_import_template.csv';
@@ -1742,7 +1757,7 @@ const DeliveryPlatform = () => {
         {/* Job Import Modal */}
         {showJobImport && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold">Import Jobs</h3>
                 <button onClick={() => { setShowJobImport(false); setImportedJobs([]); }} className="p-2 hover:bg-gray-100 rounded-full">
@@ -1751,80 +1766,189 @@ const DeliveryPlatform = () => {
               </div>
 
               {/* Step 1: Download Template */}
-              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-semibold text-blue-900 mb-2">Step 1: Download Template</h4>
-                <p className="text-sm text-blue-700 mb-3">Download the CSV template, fill in your job data, then upload it below.</p>
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                  <span className="bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
+                  Download Template
+                </h4>
+                <p className="text-sm text-blue-700 mb-4">Download the CSV template below. It contains column headers and sample data to guide you.</p>
+                
+                {/* Template Preview Table */}
+                <div className="bg-white rounded-lg border overflow-x-auto mb-4">
+                  <table className="w-full text-xs">
+                    <thead className="bg-blue-100">
+                      <tr>
+                        <th className="p-2 text-left font-semibold text-blue-800">customer_name</th>
+                        <th className="p-2 text-left font-semibold text-blue-800">customer_phone</th>
+                        <th className="p-2 text-left font-semibold text-blue-800">pickup</th>
+                        <th className="p-2 text-left font-semibold text-blue-800">delivery</th>
+                        <th className="p-2 text-left font-semibold text-blue-800">timeframe</th>
+                        <th className="p-2 text-left font-semibold text-blue-800">price</th>
+                        <th className="p-2 text-left font-semibold text-blue-800">notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-gray-600">
+                      <tr className="border-t">
+                        <td className="p-2">John Doe</td>
+                        <td className="p-2">91234567</td>
+                        <td className="p-2">123 Orchard Rd</td>
+                        <td className="p-2">456 Marina Bay</td>
+                        <td className="p-2">same-day</td>
+                        <td className="p-2">15</td>
+                        <td className="p-2">Handle with care</td>
+                      </tr>
+                      <tr className="border-t bg-gray-50">
+                        <td className="p-2">Jane Smith</td>
+                        <td className="p-2">98765432</td>
+                        <td className="p-2">789 Bugis St</td>
+                        <td className="p-2">321 Tampines Ave</td>
+                        <td className="p-2">next-day</td>
+                        <td className="p-2">12</td>
+                        <td className="p-2"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
                 <button 
                   onClick={downloadJobTemplate}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
                   <Download size={18} /> Download Template (CSV)
                 </button>
               </div>
 
+              {/* Column Descriptions */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+                <h4 className="font-semibold text-gray-800 mb-3">Column Descriptions</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-medium">Required</span>
+                    <div>
+                      <code className="font-mono bg-gray-200 px-1 rounded">customer_name</code>
+                      <p className="text-gray-500 text-xs">Customer's full name</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-medium">Required</span>
+                    <div>
+                      <code className="font-mono bg-gray-200 px-1 rounded">customer_phone</code>
+                      <p className="text-gray-500 text-xs">Phone number (e.g., 91234567)</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-medium">Required</span>
+                    <div>
+                      <code className="font-mono bg-gray-200 px-1 rounded">pickup</code>
+                      <p className="text-gray-500 text-xs">Pickup address</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-medium">Required</span>
+                    <div>
+                      <code className="font-mono bg-gray-200 px-1 rounded">delivery</code>
+                      <p className="text-gray-500 text-xs">Delivery address</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">Optional</span>
+                    <div>
+                      <code className="font-mono bg-gray-200 px-1 rounded">timeframe</code>
+                      <p className="text-gray-500 text-xs">same-day, next-day, or express</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">Optional</span>
+                    <div>
+                      <code className="font-mono bg-gray-200 px-1 rounded">price</code>
+                      <p className="text-gray-500 text-xs">Delivery price (default: $10)</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 md:col-span-2">
+                    <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">Optional</span>
+                    <div>
+                      <code className="font-mono bg-gray-200 px-1 rounded">notes</code>
+                      <p className="text-gray-500 text-xs">Special instructions or notes</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Step 2: Upload File */}
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-semibold text-gray-900 mb-2">Step 2: Upload Your File</h4>
-                <p className="text-sm text-gray-600 mb-3">Upload your filled CSV file with job data.</p>
+              <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+                  <span className="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
+                  Upload Your File
+                </h4>
+                <p className="text-sm text-green-700 mb-3">After filling in the template, upload your CSV file here.</p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept=".csv,.txt"
                   onChange={handleFileUpload}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 file:cursor-pointer"
                 />
               </div>
 
               {/* Preview Imported Jobs */}
               {importedJobs.length > 0 && (
-                <div className="mb-6">
-                  <h4 className="font-semibold text-gray-900 mb-3">Preview ({importedJobs.length} jobs)</h4>
-                  <div className="max-h-60 overflow-y-auto border rounded-lg">
+                <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
+                  <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                    <span className="bg-purple-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
+                    Preview & Import ({importedJobs.length} jobs)
+                  </h4>
+                  <div className="max-h-60 overflow-y-auto border rounded-lg bg-white">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-100 sticky top-0">
+                      <thead className="bg-purple-100 sticky top-0">
                         <tr>
-                          <th className="text-left p-2">Customer</th>
-                          <th className="text-left p-2">Phone</th>
-                          <th className="text-left p-2">Pickup</th>
-                          <th className="text-left p-2">Delivery</th>
-                          <th className="text-left p-2">Price</th>
+                          <th className="text-left p-2 font-medium">#</th>
+                          <th className="text-left p-2 font-medium">Customer</th>
+                          <th className="text-left p-2 font-medium">Phone</th>
+                          <th className="text-left p-2 font-medium">Pickup</th>
+                          <th className="text-left p-2 font-medium">Delivery</th>
+                          <th className="text-left p-2 font-medium">Price</th>
+                          <th className="text-left p-2 font-medium">Notes</th>
                         </tr>
                       </thead>
                       <tbody>
                         {importedJobs.map((job, idx) => (
-                          <tr key={idx} className="border-t">
-                            <td className="p-2">{job.customer_name}</td>
+                          <tr key={idx} className="border-t hover:bg-purple-50">
+                            <td className="p-2 text-gray-500">{idx + 1}</td>
+                            <td className="p-2 font-medium">{job.customer_name}</td>
                             <td className="p-2">{job.customer_phone}</td>
-                            <td className="p-2">{job.pickup}</td>
-                            <td className="p-2">{job.delivery}</td>
-                            <td className="p-2">${job.price}</td>
+                            <td className="p-2 text-xs">{job.pickup}</td>
+                            <td className="p-2 text-xs">{job.delivery}</td>
+                            <td className="p-2 font-medium text-green-600">${job.price}</td>
+                            <td className="p-2 text-xs text-gray-500">{job.notes || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
 
-                  {/* Step 3: Import */}
                   <button 
                     onClick={importJobsToDatabase}
-                    className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+                    className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-lg"
                   >
-                    <Upload size={18} /> Import {importedJobs.length} Jobs to Database
+                    <Upload size={20} /> Import {importedJobs.length} Jobs to Database
                   </button>
                 </div>
               )}
 
-              {/* Template Format Info */}
-              <div className="p-4 bg-yellow-50 rounded-lg">
-                <h4 className="font-semibold text-yellow-800 mb-2">Template Format</h4>
-                <p className="text-xs text-yellow-700">
-                  Required columns: <code className="bg-yellow-100 px-1 rounded">customer_name</code>, 
-                  <code className="bg-yellow-100 px-1 rounded">customer_phone</code>, 
-                  <code className="bg-yellow-100 px-1 rounded">pickup</code>, 
-                  <code className="bg-yellow-100 px-1 rounded">delivery</code><br/>
-                  Optional: <code className="bg-yellow-100 px-1 rounded">timeframe</code> (same-day/next-day), 
-                  <code className="bg-yellow-100 px-1 rounded">price</code>, 
-                  <code className="bg-yellow-100 px-1 rounded">notes</code>
+              {/* Tips */}
+              <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                <h4 className="font-semibold text-yellow-800 mb-2">💡 Tips</h4>
+                <ul className="text-xs text-yellow-700 space-y-1 list-disc list-inside">
+                  <li>Save your Excel file as CSV (Comma delimited) format</li>
+                  <li>Make sure the first row contains the column headers</li>
+                  <li>Phone numbers should be 8 digits without country code</li>
+                  <li>Delete the sample data rows before adding your own data</li>
+                  <li>Leave optional fields empty if not needed</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
                 </p>
               </div>
             </div>
