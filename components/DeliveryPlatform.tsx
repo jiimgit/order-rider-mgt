@@ -1873,6 +1873,7 @@ Thank you for using our delivery service!`;
                               <Link size={16} /> Copy Link
                             </button>
                             {/* Live Track Button - Opens Map */}
+                            {/* Live Map Button - Shows for jobs with rider assigned */}
                             {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
                               <button 
                                 onClick={() => setShowLiveMap(j)}
@@ -1882,16 +1883,14 @@ Thank you for using our delivery service!`;
                                 <Eye size={16} /> Live Map
                               </button>
                             )}
-                            {/* Copy Live Tracking Link */}
-                            {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
-                              <button 
-                                onClick={() => copyLiveTrackingLink(j)}
-                                className="p-2 bg-indigo-100 rounded hover:bg-indigo-200 flex items-center gap-1 text-xs text-indigo-700" 
-                                title="Copy Live Tracking Link"
-                              >
-                                <MapPin size={16} /> Live Link
-                              </button>
-                            )}
+                            {/* Copy Live Tracking Link - Always visible */}
+                            <button 
+                              onClick={() => copyLiveTrackingLink(j)}
+                              className="p-2 bg-indigo-100 rounded hover:bg-indigo-200 flex items-center gap-1 text-xs text-indigo-700" 
+                              title="Copy Live Tracking Link"
+                            >
+                              <MapPin size={16} /> Live Link
+                            </button>
                             {/* Track Location Button */}
                             {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
                               <button 
