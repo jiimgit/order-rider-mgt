@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle, Search, Download, ChevronLeft, ChevronRight, FileText, Calendar, Upload, MapPin, Eye, UserCheck, BarChart3, Clock, CheckCircle, XCircle, Send } from 'lucide-react';
+import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle, Search, Download, ChevronLeft, ChevronRight, FileText, Calendar, Upload, MapPin, Eye, UserCheck, BarChart3, Clock, CheckCircle, XCircle, Send, Link } from 'lucide-react';
 
 const SUPABASE_URL = 'https://esylsugzysfjntukmxks.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeWxzdWd6eXNmam50dWtteGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDgyODEsImV4cCI6MjA4NDYyNDI4MX0.Ldbk29uDGte1ue7LSAzEoHjAJNjYToAA2zyHWloS2fI';
@@ -223,17 +223,48 @@ const DeliveryPlatform = () => {
     }
   };
 
-  // Generate tracking link
+  // Generate tracking link (Google Maps route)
   const generateTrackingLink = (job: any): string => {
-    // Create a simple tracking URL with job details
-    const trackingData = encodeURIComponent(JSON.stringify({
-      jobId: job.id,
-      pickup: job.pickup,
-      delivery: job.delivery,
-      riderName: job.rider_name,
-      status: job.status
-    }));
     return `https://www.google.com/maps/dir/${encodeURIComponent(job.pickup)}/${encodeURIComponent(job.delivery)}`;
+  };
+
+  // Generate full tracking message for sharing
+  const generateFullTrackingMessage = (job: any): string => {
+    const trackingUrl = generateTrackingLink(job);
+    const statusEmoji = job.status === 'completed' ? '✅' : job.status === 'on-the-way' ? '🚗' : job.status === 'picked-up' ? '📦' : job.status === 'accepted' ? '👍' : '📋';
+    
+    return `🚚 *Delivery Tracking*
+
+${statusEmoji} *Status:* ${job.status.toUpperCase().replace('-', ' ')}
+
+📦 *Order Details:*
+• From: ${job.pickup}
+• To: ${job.delivery}
+• Customer: ${job.customer_name}
+${job.rider_name ? `• Rider: ${job.rider_name}` : '• Rider: Assigning...'}
+${job.rider_phone ? `• Rider Phone: ${job.rider_phone}` : ''}
+
+📍 *Track Route:*
+${trackingUrl}
+
+Thank you for using our delivery service!`;
+  };
+
+  // Copy tracking link to clipboard
+  const copyTrackingLink = (job: any) => {
+    const message = generateFullTrackingMessage(job);
+    navigator.clipboard.writeText(message).then(() => {
+      alert('Tracking information copied to clipboard!');
+    }).catch(() => {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = message;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('Tracking information copied to clipboard!');
+    });
   };
 
   // Generate WhatsApp tracking message
@@ -1679,6 +1710,14 @@ const DeliveryPlatform = () => {
                                 <UserCheck size={16} /> Assign
                               </button>
                             )}
+                            {/* Copy Tracking Link Button */}
+                            <button 
+                              onClick={() => copyTrackingLink(j)}
+                              className="p-2 bg-purple-100 rounded hover:bg-purple-200 flex items-center gap-1 text-xs text-purple-700" 
+                              title="Copy Tracking Link"
+                            >
+                              <Link size={16} /> Copy Link
+                            </button>
                             {/* Track Location Button */}
                             {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
                               <button 
