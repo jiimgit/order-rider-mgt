@@ -463,6 +463,37 @@ Thank you for using our delivery service!`;
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
+  // Generate WhatsApp with LIVE tracking URL
+  const generateLiveTrackingWhatsApp = (job: any, customerPhone: string): string => {
+    const liveTrackingUrl = generateLiveTrackingUrl(job);
+    const statusEmoji = job.status === 'completed' ? '✅' : job.status === 'on-the-way' ? '🚗' : job.status === 'picked-up' ? '📦' : job.status === 'accepted' ? '👍' : '📋';
+    
+    const message = `🚚 *Live Delivery Tracking*
+
+Hi! Track your delivery in real-time:
+
+📍 *LIVE TRACKING LINK:*
+${liveTrackingUrl}
+
+${statusEmoji} *Status:* ${job.status.toUpperCase().replace('-', ' ')}
+
+📦 *Order Details:*
+• From: ${job.pickup}
+• To: ${job.delivery}
+${job.rider_name ? `• Rider: ${job.rider_name}` : ''}
+${job.rider_phone ? `• Rider Phone: ${job.rider_phone}` : ''}
+
+Click the link above to see your rider's live location on the map!
+
+Thank you for your order! 🙏`;
+    
+    let cleanPhone = customerPhone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('8') || cleanPhone.startsWith('9')) {
+      cleanPhone = '65' + cleanPhone;
+    }
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  };
+
   // Job Summary calculations
   const jobSummaryData = useMemo(() => {
     let filtered = jobs;
@@ -2148,15 +2179,6 @@ Thank you for using our delivery service!`;
                                 <UserCheck size={16} /> Assign
                               </button>
                             )}
-                            {/* Copy Tracking Link Button */}
-                            <button 
-                              onClick={() => copyTrackingLink(j)}
-                              className="p-2 bg-purple-100 rounded hover:bg-purple-200 flex items-center gap-1 text-xs text-purple-700" 
-                              title="Copy Tracking Link"
-                            >
-                              <Link size={16} /> Copy Link
-                            </button>
-                            {/* Live Track Button - Opens Map */}
                             {/* Live Map Button - Shows for jobs with rider assigned */}
                             {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
                               <button 
@@ -2175,26 +2197,16 @@ Thank you for using our delivery service!`;
                             >
                               <MapPin size={16} /> Live Link
                             </button>
-                            {/* Track Location Button */}
-                            {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
-                              <button 
-                                onClick={() => setShowRiderTracking(j)}
-                                className="p-2 bg-green-100 rounded hover:bg-green-200 flex items-center gap-1 text-xs text-green-700" 
-                                title="Track & Notify"
-                              >
-                                <Navigation size={16} /> Route
-                              </button>
-                            )}
-                            {/* Send WhatsApp Update */}
+                            {/* Send WhatsApp with LIVE Tracking URL */}
                             {j.customer_phone && (
                               <a 
-                                href={generateTrackingWhatsApp(j, j.customer_phone)}
+                                href={generateLiveTrackingWhatsApp(j, j.customer_phone)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center gap-1 text-xs" 
-                                title="Send WhatsApp Update"
+                                title="Send Live Tracking via WhatsApp"
                               >
-                                <Send size={16} />
+                                <Send size={16} /> WhatsApp
                               </a>
                             )}
                             {/* Delete Button */}
