@@ -117,6 +117,73 @@ const DeliveryPlatform = () => {
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
+  // Public tracking page states (no login required)
+  const [publicTrackingMode, setPublicTrackingMode] = useState(false);
+  const [publicTrackingJob, setPublicTrackingJob] = useState<any>(null);
+  const [publicRiderLocation, setPublicRiderLocation] = useState<any>(null);
+  const [publicTrackingError, setPublicTrackingError] = useState('');
+  const publicRefreshIntervalRef = useRef<any>(null);
+
+  // Check URL for tracking parameter on load
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const trackingId = urlParams.get('track');
+      if (trackingId) {
+        loadPublicTracking(trackingId);
+      }
+    }
+  }, []);
+
+  // Load public tracking data (no auth required)
+  const loadPublicTracking = async (jobId: string) => {
+    setPublicTrackingMode(true);
+    setLoading(true);
+    try {
+      // Fetch job details
+      const jobData = await api(`jobs?id=eq.${jobId}`);
+      if (jobData && jobData.length > 0) {
+        setPublicTrackingJob(jobData[0]);
+        // Fetch rider location
+        await refreshPublicLocation(jobId);
+        // Start auto-refresh every 10 seconds
+        if (publicRefreshIntervalRef.current) {
+          clearInterval(publicRefreshIntervalRef.current);
+        }
+        publicRefreshIntervalRef.current = setInterval(() => {
+          refreshPublicLocation(jobId);
+        }, 10000);
+      } else {
+        setPublicTrackingError('Order not found');
+      }
+    } catch (e: any) {
+      setPublicTrackingError('Error loading tracking data');
+      console.error(e);
+    }
+    setLoading(false);
+  };
+
+  // Refresh public rider location
+  const refreshPublicLocation = async (jobId: string) => {
+    try {
+      const locations = await api(`rider_locations?job_id=eq.${jobId}&order=updated_at.desc&limit=1`);
+      if (locations && locations.length > 0) {
+        setPublicRiderLocation(locations[0]);
+      }
+    } catch (e: any) {
+      console.error('Error fetching location:', e);
+    }
+  };
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (publicRefreshIntervalRef.current) {
+        clearInterval(publicRefreshIntervalRef.current);
+      }
+    };
+  }, []);
+
   // Start GPS tracking for rider
   const startGPSTracking = async (jobId: string, riderId: string) => {
     if (!navigator.geolocation) {
@@ -922,7 +989,7 @@ Thank you for using our delivery service!`;
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
       <div className="text-center max-w-md p-6">
         <Package className="animate-pulse text-blue-600 mx-auto mb-4" size={64} />
-        <p className="text-xl font-semibold">Loading platform...</p>
+        <p className="text-xl font-semibold">{publicTrackingMode ? 'Loading tracking...' : 'Loading platform...'}</p>
         {error && (
           <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
             <p className="text-red-600 font-semibold flex items-center gap-2">
@@ -950,6 +1017,223 @@ Thank you for using our delivery service!`;
       </div>
     </div>
   );
+
+  // PUBLIC TRACKING PAGE - No login required
+  if (publicTrackingMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-4">
+        <div className="max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-white mb-2">🚚 Live Delivery Tracking</h1>
+            <p className="text-white opacity-90">Track your delivery in real-time</p>
+          </div>
+
+          {publicTrackingError ? (
+            <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
+              <XCircle className="text-red-500 mx-auto mb-4" size={64} />
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Tracking Not Available</h2>
+              <p className="text-gray-600">{publicTrackingError}</p>
+              <button
+                onClick={() => window.location.href = window.location.origin}
+                className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Go to Homepage
+              </button>
+            </div>
+          ) : publicTrackingJob ? (
+            <div className="space-y-4">
+              {/* Order Status Card */}
+              <div className="bg-white rounded-2xl shadow-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-800">Order Status</h2>
+                  <span className={`px-4 py-2 rounded-full text-sm font-bold ${
+                    publicTrackingJob.status === 'completed' ? 'bg-green-100 text-green-700' :
+                    publicTrackingJob.status === 'on-the-way' ? 'bg-blue-100 text-blue-700' :
+                    publicTrackingJob.status === 'picked-up' ? 'bg-yellow-100 text-yellow-700' :
+                    publicTrackingJob.status === 'accepted' ? 'bg-purple-100 text-purple-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {publicTrackingJob.status === 'on-the-way' ? '🚗 ON THE WAY' :
+                     publicTrackingJob.status === 'picked-up' ? '📦 PICKED UP' :
+                     publicTrackingJob.status === 'accepted' ? '✅ ACCEPTED' :
+                     publicTrackingJob.status === 'completed' ? '🎉 DELIVERED' :
+                     publicTrackingJob.status.toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mb-6">
+                  <div className="flex justify-between mb-2">
+                    {['Posted', 'Accepted', 'Picked Up', 'On The Way', 'Delivered'].map((step, idx) => {
+                      const statusOrder = ['posted', 'accepted', 'picked-up', 'on-the-way', 'completed'];
+                      const currentIdx = statusOrder.indexOf(publicTrackingJob.status);
+                      const isActive = idx <= currentIdx;
+                      return (
+                        <div key={step} className="flex flex-col items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            isActive ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
+                          }`}>
+                            {isActive ? '✓' : idx + 1}
+                          </div>
+                          <span className="text-xs mt-1 text-gray-600 hidden sm:block">{step}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-green-500 transition-all duration-500"
+                      style={{ 
+                        width: `${
+                          publicTrackingJob.status === 'completed' ? 100 :
+                          publicTrackingJob.status === 'on-the-way' ? 75 :
+                          publicTrackingJob.status === 'picked-up' ? 50 :
+                          publicTrackingJob.status === 'accepted' ? 25 : 0
+                        }%` 
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Order Details */}
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-green-100 p-2 rounded-full">
+                      <MapPin className="text-green-600" size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">PICKUP</p>
+                      <p className="font-semibold text-gray-800">{publicTrackingJob.pickup}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="bg-red-100 p-2 rounded-full">
+                      <MapPin className="text-red-600" size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">DELIVERY</p>
+                      <p className="font-semibold text-gray-800">{publicTrackingJob.delivery}</p>
+                    </div>
+                  </div>
+                  {publicTrackingJob.rider_name && (
+                    <div className="flex items-start gap-3">
+                      <div className="bg-blue-100 p-2 rounded-full">
+                        <User className="text-blue-600" size={20} />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">YOUR RIDER</p>
+                        <p className="font-semibold text-gray-800">{publicTrackingJob.rider_name}</p>
+                        {publicTrackingJob.rider_phone && (
+                          <a href={`tel:${publicTrackingJob.rider_phone}`} className="text-blue-600 text-sm">
+                            📞 {publicTrackingJob.rider_phone}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Live Map Card */}
+              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                <div className="p-4 bg-gray-50 border-b flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <MapPin className="text-orange-500" />
+                    Live Location
+                  </h2>
+                  {publicRiderLocation && (
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                      </span>
+                      <span className="text-xs text-green-600 font-medium">LIVE</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Map */}
+                <div className="relative" style={{ height: '300px' }}>
+                  {publicRiderLocation ? (
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      scrolling="no"
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${publicRiderLocation.longitude - 0.008}%2C${publicRiderLocation.latitude - 0.008}%2C${publicRiderLocation.longitude + 0.008}%2C${publicRiderLocation.latitude + 0.008}&layer=mapnik&marker=${publicRiderLocation.latitude}%2C${publicRiderLocation.longitude}`}
+                      style={{ border: 0 }}
+                    />
+                  ) : (
+                    <div className="h-full flex items-center justify-center bg-gray-100">
+                      <div className="text-center">
+                        <MapPin className="text-gray-300 mx-auto mb-2" size={48} />
+                        <p className="text-gray-500">Waiting for rider location...</p>
+                        <p className="text-xs text-gray-400 mt-1">Location will appear when rider starts GPS</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Location Info */}
+                <div className="p-4 bg-gray-50 border-t">
+                  {publicRiderLocation ? (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500">Last updated</p>
+                        <p className="font-semibold text-gray-700">
+                          {new Date(publicRiderLocation.updated_at).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => refreshPublicLocation(publicTrackingJob.id)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                      >
+                        🔄 Refresh
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-center text-sm text-gray-500">
+                      Auto-refreshing every 10 seconds...
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              {publicRiderLocation && (
+                <div className="grid grid-cols-2 gap-4">
+                  <a
+                    href={`https://www.openstreetmap.org/?mlat=${publicRiderLocation.latitude}&mlon=${publicRiderLocation.longitude}#map=17/${publicRiderLocation.latitude}/${publicRiderLocation.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-white p-4 rounded-xl shadow-lg text-center hover:bg-gray-50"
+                  >
+                    <Eye className="text-blue-600 mx-auto mb-2" size={24} />
+                    <p className="font-semibold text-gray-800">Open Full Map</p>
+                  </a>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${publicRiderLocation.latitude},${publicRiderLocation.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-white p-4 rounded-xl shadow-lg text-center hover:bg-gray-50"
+                  >
+                    <Navigation className="text-green-600 mx-auto mb-2" size={24} />
+                    <p className="font-semibold text-gray-800">Get Directions</p>
+                  </a>
+                </div>
+              )}
+
+              {/* Footer */}
+              <p className="text-center text-white text-sm opacity-75">
+                Powered by The Food Thinker Pte Ltd
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   if (!auth.isAuth) {
     if (view === 'select') {
