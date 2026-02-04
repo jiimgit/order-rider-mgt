@@ -1272,7 +1272,7 @@ Thank you for your order! 🙏`;
         <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
           <div className="max-w-4xl w-full">
             <div className="text-center mb-12">
-              <h1 className="text-5xl font-bold text-white mb-4">MLM Delivery Platform</h1>
+              <h1 className="text-5xl font-bold text-white mb-4">MoveIt</h1>
               <p className="text-lg text-white opacity-90">Choose your portal to get started</p>
             </div>
             <div className="grid md:grid-cols-3 gap-6">
