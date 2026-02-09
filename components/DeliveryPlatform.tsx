@@ -525,12 +525,12 @@ const DeliveryPlatform = () => {
     
     if (riderJobFilter.pickup) {
       availableJobs = availableJobs.filter((j: any) => 
-        j.pickup.toLowerCase().includes(riderJobFilter.pickup.toLowerCase())
+        j.pickup?.toLowerCase().includes(riderJobFilter.pickup.toLowerCase())
       );
     }
     if (riderJobFilter.dropoff) {
       availableJobs = availableJobs.filter((j: any) => 
-        j.delivery.toLowerCase().includes(riderJobFilter.dropoff.toLowerCase())
+        j.delivery?.toLowerCase().includes(riderJobFilter.dropoff.toLowerCase())
       );
     }
     if (riderJobFilter.customer) {
@@ -2455,8 +2455,8 @@ Thank you for your order! 🙏`;
                     >
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-semibold text-sm">Job #{idx + 1}: {job.pickup.substring(0, 20)}...</p>
-                          <p className="text-xs text-gray-500">{job.status.toUpperCase()}</p>
+                          <p className="font-semibold text-sm">Job #{idx + 1}: {job.pickup?.substring(0, 20) || 'N/A'}...</p>
+                          <p className="text-xs text-gray-500">{job.status?.toUpperCase() || 'UNKNOWN'}</p>
                         </div>
                         <span className="text-lg font-bold text-green-600">${job.price}</span>
                       </div>
