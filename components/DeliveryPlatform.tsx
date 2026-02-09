@@ -3446,7 +3446,8 @@ Thank you for your order! 🙏`;
                 </ul>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
         {/* Assign Rider Modal */}
         {showAssignRider && (
