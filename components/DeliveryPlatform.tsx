@@ -83,7 +83,16 @@ const DeliveryPlatform = () => {
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmt, setTopUpAmt] = useState('');
   const [payNowQR, setPayNowQR] = useState('');
-  const [jobForm, setJobForm] = useState({ pickup: '', delivery: '', timeframe: 'same-day', price: '10' });
+  const [jobForm, setJobForm] = useState({ 
+    pickup: '', 
+    delivery: '', 
+    timeframe: 'same-day', 
+    price: '10',
+    recipientName: '',
+    recipientPhone: '',
+    parcelSize: 'small',
+    remarks: ''
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
@@ -117,6 +126,32 @@ const DeliveryPlatform = () => {
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
+  // POD (Proof of Delivery) states
+  const [podImage, setPodImage] = useState<string | null>(null);
+  const [showPodModal, setShowPodModal] = useState(false);
+  const podInputRef = useRef<HTMLInputElement>(null);
+
+  // Multi-job support states
+  const [activeJobs, setActiveJobs] = useState<any[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+
+  // Rider navigation history for back button
+  const [riderViewHistory, setRiderViewHistory] = useState<string[]>(['home']);
+  const [currentRiderView, setCurrentRiderView] = useState('home');
+
+  // Admin dashboard stats
+  const [dashboardStats, setDashboardStats] = useState({
+    totalOrdersToday: 0,
+    pendingOrders: 0,
+    assignedOrders: 0,
+    outForDelivery: 0,
+    deliveredToday: 0,
+    activeRiders: 0,
+    totalRevenueToday: 0,
+    adminEarningsToday: 0,
+    riderEarningsToday: 0
+  });
+
   // Public tracking page states (no login required)
   const [publicTrackingMode, setPublicTrackingMode] = useState(false);
   const [publicTrackingJob, setPublicTrackingJob] = useState<any>(null);
@@ -131,6 +166,21 @@ const DeliveryPlatform = () => {
       const trackingId = urlParams.get('track');
       if (trackingId) {
         loadPublicTracking(trackingId);
+      }
+      
+      // Check for persistent login (Feature 1)
+      const savedAuth = localStorage.getItem('moveit_auth');
+      if (savedAuth) {
+        try {
+          const parsedAuth = JSON.parse(savedAuth);
+          if (parsedAuth.isAuth && parsedAuth.id) {
+            setAuth(parsedAuth);
+            setView(parsedAuth.type);
+          }
+        } catch (e) {
+          console.error('Error parsing saved auth:', e);
+          localStorage.removeItem('moveit_auth');
+        }
       }
     }
   }, []);
@@ -241,6 +291,120 @@ const DeliveryPlatform = () => {
     setCurrentLocation(null);
     alert('GPS tracking stopped.');
   };
+
+  // POD (Proof of Delivery) - Feature 2
+  const handlePodCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPodImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const submitPodAndComplete = async (jobId: string) => {
+    if (!podImage) {
+      alert('Please capture a photo as proof of delivery');
+      return;
+    }
+    
+    try {
+      // Save POD image reference and complete the job
+      await api(`jobs?id=eq.${jobId}`, 'PATCH', {
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        pod_image: podImage.substring(0, 500) + '...[truncated]', // Store reference (in production, upload to storage)
+        pod_timestamp: new Date().toISOString()
+      });
+      
+      // Update rider earnings
+      const job = jobs.find((j: any) => j.id === jobId);
+      if (job && auth.id) {
+        const riderData = riders.find((r: any) => r.id === auth.id);
+        if (riderData) {
+          const comm = calculateCommissions(job.price, riderData.tier, riderData.upline_chain || []);
+          await api(`riders?id=eq.${auth.id}`, 'PATCH', {
+            earnings: (riderData.earnings || 0) + comm.activeRider,
+            completed_jobs: (riderData.completed_jobs || 0) + 1
+          });
+        }
+      }
+      
+      setPodImage(null);
+      setShowPodModal(false);
+      stopGPSTracking();
+      alert('Delivery completed with proof of delivery!');
+      loadData();
+    } catch (e: any) {
+      alert('Error completing delivery: ' + e.message);
+    }
+  };
+
+  // Rider navigation - Back button (Feature 1)
+  const navigateRiderView = (newView: string) => {
+    setRiderViewHistory(prev => [...prev, currentRiderView]);
+    setCurrentRiderView(newView);
+  };
+
+  const goBackRider = () => {
+    if (riderViewHistory.length > 1) {
+      const newHistory = [...riderViewHistory];
+      const previousView = newHistory.pop();
+      setRiderViewHistory(newHistory);
+      setCurrentRiderView(newHistory[newHistory.length - 1] || 'home');
+    }
+  };
+
+  // Multi-job support - Get active jobs for rider (Feature 5)
+  const getActiveJobsForRider = useMemo(() => {
+    if (auth.type !== 'rider' || !auth.id) return [];
+    return jobs.filter((j: any) => 
+      j.rider_id === auth.id && 
+      ['accepted', 'picked-up', 'on-the-way'].includes(j.status)
+    );
+  }, [jobs, auth]);
+
+  // Admin Dashboard Stats (Feature 4)
+  const calculateDashboardStats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todayJobs = jobs.filter((j: any) => new Date(j.created_at) >= today);
+    
+    const pendingOrders = todayJobs.filter((j: any) => j.status === 'posted').length;
+    const assignedOrders = todayJobs.filter((j: any) => j.status === 'accepted').length;
+    const outForDelivery = todayJobs.filter((j: any) => ['picked-up', 'on-the-way'].includes(j.status)).length;
+    const deliveredToday = todayJobs.filter((j: any) => j.status === 'completed').length;
+    
+    const totalRevenueToday = todayJobs
+      .filter((j: any) => j.status === 'completed')
+      .reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+    
+    const adminEarningsToday = deliveredToday * 1; // $1 per completed delivery
+    const riderEarningsToday = totalRevenueToday - adminEarningsToday;
+    
+    const activeRiders = riders.filter((r: any) => {
+      const riderJobs = jobs.filter((j: any) => 
+        j.rider_id === r.id && 
+        ['accepted', 'picked-up', 'on-the-way'].includes(j.status)
+      );
+      return riderJobs.length > 0;
+    }).length;
+    
+    return {
+      totalOrdersToday: todayJobs.length,
+      pendingOrders,
+      assignedOrders,
+      outForDelivery,
+      deliveredToday,
+      activeRiders,
+      totalRevenueToday,
+      adminEarningsToday,
+      riderEarningsToday
+    };
+  }, [jobs, riders]);
 
   // Fetch rider's current location for admin/customer view
   const fetchRiderLocation = async (jobId: string) => {
@@ -798,7 +962,9 @@ Thank you for your order! 🙏`;
   const handleLogin = async (type: string) => {
     try {
       if (type === 'admin' && loginForm.email === 'admin@delivery.com' && loginForm.password === 'admin123') {
-        setAuth({ isAuth: true, type: 'admin', id: 'admin1' });
+        const authData = { isAuth: true, type: 'admin', id: 'admin1' };
+        setAuth(authData);
+        localStorage.setItem('moveit_auth', JSON.stringify(authData)); // Persistent login
         setLoginForm({ email: '', password: '' });
         return;
       }
@@ -807,7 +973,9 @@ Thank you for your order! 🙏`;
       const users = await api(`${table}?email=eq.${encodeURIComponent(loginForm.email)}&password=eq.${encodeURIComponent(loginForm.password)}`);
       console.log('Login response:', users);
       if (users && users.length > 0) {
-        setAuth({ isAuth: true, type, id: users[0].id });
+        const authData = { isAuth: true, type, id: users[0].id };
+        setAuth(authData);
+        localStorage.setItem('moveit_auth', JSON.stringify(authData)); // Persistent login
         setLoginForm({ email: '', password: '' });
         alert('Login successful!');
       } else {
@@ -882,10 +1050,25 @@ Thank you for your order! 🙏`;
     if (price < 3) return alert('Minimum price is $3');
     if (curr.credits < price) return alert('Insufficient credits. Please top up.');
     if (!jobForm.pickup || !jobForm.delivery) return alert('Please fill in pickup and delivery locations');
+    if (!jobForm.parcelSize) return alert('Please select a parcel size');
     try {
-      await api('jobs', 'POST', { customer_id: curr.id, customer_name: curr.name, customer_phone: curr.phone, pickup: jobForm.pickup, delivery: jobForm.delivery, timeframe: jobForm.timeframe, price, status: 'posted' });
+      await api('jobs', 'POST', { 
+        customer_id: curr.id, 
+        customer_name: curr.name, 
+        customer_phone: curr.phone, 
+        pickup: jobForm.pickup, 
+        delivery: jobForm.delivery, 
+        timeframe: jobForm.timeframe, 
+        price, 
+        status: 'posted',
+        // New fields (Feature 3)
+        recipient_name: jobForm.recipientName || null,
+        recipient_phone: jobForm.recipientPhone || null,
+        parcel_size: jobForm.parcelSize,
+        remarks: jobForm.remarks || null
+      });
       await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: curr.credits - price });
-      setJobForm({ pickup: '', delivery: '', timeframe: 'same-day', price: '10' });
+      setJobForm({ pickup: '', delivery: '', timeframe: 'same-day', price: '10', recipientName: '', recipientPhone: '', parcelSize: 'small', remarks: '' });
       alert('Job posted successfully!');
       loadData();
     } catch (e: any) { alert('Error posting job: ' + e.message); }
@@ -1490,7 +1673,12 @@ Thank you for your order! 🙏`;
               </>
             )}
             <button 
-              onClick={() => setAuth({ isAuth: false, type: null, id: null })} 
+              onClick={() => { 
+                setAuth({ isAuth: false, type: null, id: null }); 
+                localStorage.removeItem('moveit_auth'); // Clear persistent login
+                setCurrentRiderView('home'); // Reset rider view
+                setRiderViewHistory(['home']);
+              }} 
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
             >
               <LogOut size={16} />
@@ -1654,6 +1842,59 @@ Thank you for your order! 🙏`;
                     placeholder="10.00"
                   />
                 </div>
+                
+                {/* New fields - Feature 3: Enhanced job form */}
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="font-semibold text-gray-800 mb-3">📦 Recipient Details (Optional)</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Recipient Name</label>
+                      <input 
+                        type="text" 
+                        value={jobForm.recipientName} 
+                        onChange={(e) => setJobForm({...jobForm, recipientName: e.target.value})} 
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                        placeholder="Name of person receiving" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Recipient Phone</label>
+                      <input 
+                        type="tel" 
+                        value={jobForm.recipientPhone} 
+                        onChange={(e) => setJobForm({...jobForm, recipientPhone: e.target.value})} 
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                        placeholder="e.g., 91234567" 
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
+                  <select 
+                    value={jobForm.parcelSize} 
+                    onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
+                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
+                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
+                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Remarks / Special Instructions</label>
+                  <textarea 
+                    value={jobForm.remarks} 
+                    onChange={(e) => setJobForm({...jobForm, remarks: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                    placeholder="e.g., Fragile items, call before delivery, leave at door..."
+                    rows={3}
+                  />
+                </div>
+
                 <button 
                   onClick={createJob} 
                   className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
@@ -1703,6 +1944,18 @@ Thank you for your order! 🙏`;
 
         {auth.type === 'rider' && (
           <div className="space-y-6">
+            {/* Back Button - Feature 1 */}
+            {riderViewHistory.length > 1 && (
+              <button 
+                onClick={goBackRider}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-2"
+              >
+                <ChevronLeft size={20} />
+                Back
+              </button>
+            )}
+
+            {/* Rider Stats Header */}
             <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
               <div className="grid grid-cols-2 gap-6">
                 <div>
@@ -1714,6 +1967,15 @@ Thank you for your order! 🙏`;
                   <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
                 </div>
               </div>
+              
+              {/* Multi-job indicator - Feature 5 */}
+              {getActiveJobsForRider.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-green-400">
+                  <p className="text-green-100 text-sm">Active Jobs</p>
+                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
+                </div>
+              )}
+              
               <div className="mt-4 pt-4 border-t border-green-400">
                 <p className="text-green-100 text-sm">Your Referral Code</p>
                 <p className="text-2xl font-bold">{curr.referral_code}</p>
@@ -1727,6 +1989,32 @@ Thank you for your order! 🙏`;
               </div>
             )}
 
+            {/* Multi-Job List - Feature 5 */}
+            {getActiveJobsForRider.length > 1 && (
+              <div className="bg-white rounded-lg shadow-lg p-4">
+                <h4 className="font-bold text-gray-800 mb-3">📋 Your Active Jobs ({getActiveJobsForRider.length})</h4>
+                <div className="space-y-2">
+                  {getActiveJobsForRider.map((job: any, idx: number) => (
+                    <div 
+                      key={job.id} 
+                      className={`p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                        selectedJobId === job.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
+                      }`}
+                      onClick={() => setSelectedJobId(job.id)}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-semibold text-sm">Job #{idx + 1}: {job.pickup.substring(0, 20)}...</p>
+                          <p className="text-xs text-gray-500">{job.status.toUpperCase()}</p>
+                        </div>
+                        <span className="text-lg font-bold text-green-600">${job.price}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {activeJob && (
               <div className="bg-white rounded-lg shadow-xl p-6 border-2 border-blue-500">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
@@ -1737,6 +2025,16 @@ Thank you for your order! 🙏`;
                   <p className="font-semibold text-xl text-gray-900 mb-2">{activeJob.pickup} → {activeJob.delivery}</p>
                   <p className="text-gray-700">Customer: {activeJob.customer_name}</p>
                   <p className="text-gray-700">Phone: {activeJob.customer_phone}</p>
+                  {/* Show new fields if available */}
+                  {activeJob.recipient_name && (
+                    <p className="text-gray-700">Recipient: {activeJob.recipient_name} {activeJob.recipient_phone && `(${activeJob.recipient_phone})`}</p>
+                  )}
+                  {activeJob.parcel_size && (
+                    <p className="text-gray-700">Parcel Size: {activeJob.parcel_size}</p>
+                  )}
+                  {activeJob.remarks && (
+                    <p className="text-gray-600 text-sm mt-2 italic">📝 {activeJob.remarks}</p>
+                  )}
                   <p className="text-4xl font-bold text-blue-600 mt-4">${activeJob.price}</p>
                 </div>
 
@@ -1809,12 +2107,80 @@ Thank you for your order! 🙏`;
                   )}
                   {activeJob.status === 'on-the-way' && (
                     <button 
-                      onClick={completeJob} 
+                      onClick={() => setShowPodModal(true)} 
                       className="w-full bg-green-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                     >
-                      ✓ Complete Delivery
+                      📸 Complete with Photo Proof
                     </button>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* POD (Proof of Delivery) Modal - Feature 2 */}
+            {showPodModal && activeJob && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold">📸 Proof of Delivery</h3>
+                    <button onClick={() => { setShowPodModal(false); setPodImage(null); }} className="p-2 hover:bg-gray-100 rounded-full">
+                      <X size={24} />
+                    </button>
+                  </div>
+                  
+                  <p className="text-gray-600 mb-4">Please take a photo of the delivered package as proof of delivery.</p>
+                  
+                  <div className="space-y-4">
+                    {/* Camera Input */}
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                      {podImage ? (
+                        <div className="space-y-3">
+                          <img src={podImage} alt="POD" className="max-h-48 mx-auto rounded-lg" />
+                          <button 
+                            onClick={() => setPodImage(null)}
+                            className="text-red-600 text-sm hover:underline"
+                          >
+                            Remove & Retake
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <input
+                            ref={podInputRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handlePodCapture}
+                            className="hidden"
+                          />
+                          <button
+                            onClick={() => podInputRef.current?.click()}
+                            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700"
+                          >
+                            📷 Take Photo
+                          </button>
+                          <p className="text-sm text-gray-500 mt-2">or tap to select from gallery</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Submit Button */}
+                    <button
+                      onClick={() => submitPodAndComplete(activeJob.id)}
+                      disabled={!podImage}
+                      className={`w-full py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-2 ${
+                        podImage 
+                          ? 'bg-green-600 text-white hover:bg-green-700' 
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      ✓ Submit & Complete Delivery
+                    </button>
+                    
+                    <p className="text-xs text-gray-400 text-center">
+                      Photo will be timestamped: {new Date().toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -1868,6 +2234,45 @@ Thank you for your order! 🙏`;
 
         {auth.type === 'admin' && (
           <div className="space-y-6">
+            {/* Enhanced Admin Dashboard - Feature 4 */}
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg p-6 text-white">
+              <h2 className="text-2xl font-bold mb-4">📊 Today's Dashboard</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-purple-100 text-sm">Total Orders Today</p>
+                  <p className="text-3xl font-bold">{calculateDashboardStats.totalOrdersToday}</p>
+                </div>
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-purple-100 text-sm">Pending</p>
+                  <p className="text-3xl font-bold text-yellow-300">{calculateDashboardStats.pendingOrders}</p>
+                </div>
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-purple-100 text-sm">Out for Delivery</p>
+                  <p className="text-3xl font-bold text-blue-300">{calculateDashboardStats.outForDelivery}</p>
+                </div>
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-purple-100 text-sm">Delivered Today</p>
+                  <p className="text-3xl font-bold text-green-300">{calculateDashboardStats.deliveredToday}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-purple-100 text-sm">Active Riders</p>
+                  <p className="text-2xl font-bold">🏍️ {calculateDashboardStats.activeRiders}</p>
+                </div>
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-purple-100 text-sm">Revenue Today</p>
+                  <p className="text-2xl font-bold">💰 ${calculateDashboardStats.totalRevenueToday.toFixed(2)}</p>
+                </div>
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-purple-100 text-sm">Admin Earnings</p>
+                  <p className="text-2xl font-bold">📈 ${calculateDashboardStats.adminEarningsToday.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Stats Cards */}
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-white rounded-lg shadow p-6">
                 <User className="text-blue-600 mb-2" size={32} />
