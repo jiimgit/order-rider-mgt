@@ -152,6 +152,26 @@ const DeliveryPlatform = () => {
     riderEarningsToday: 0
   });
 
+  // Rider Performance Page states (Feature 9)
+  const [showRiderPerformance, setShowRiderPerformance] = useState(false);
+
+  // Customer Profile & Order History states (Feature 6 & 7)
+  const [showCustomerProfile, setShowCustomerProfile] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '' });
+  const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
+
+  // GPS Enforcement state (Feature 11)
+  const [gpsPermissionGranted, setGpsPermissionGranted] = useState<boolean | null>(null);
+  const [showGpsWarning, setShowGpsWarning] = useState(false);
+
+  // Admin POD Management states (Feature 13)
+  const [showPodManagement, setShowPodManagement] = useState(false);
+  const [selectedPodJob, setSelectedPodJob] = useState<any>(null);
+
+  // Job filter states for rider (Feature 10)
+  const [riderJobFilter, setRiderJobFilter] = useState({ pickup: '', dropoff: '', customer: '' });
+
   // Public tracking page states (no login required)
   const [publicTrackingMode, setPublicTrackingMode] = useState(false);
   const [publicTrackingJob, setPublicTrackingJob] = useState<any>(null);
@@ -184,6 +204,52 @@ const DeliveryPlatform = () => {
       }
     }
   }, []);
+
+  // GPS Permission Check for Riders (Feature 11)
+  useEffect(() => {
+    if (auth.type === 'rider' && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      navigator.permissions?.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'granted') {
+          setGpsPermissionGranted(true);
+        } else if (result.state === 'denied') {
+          setGpsPermissionGranted(false);
+          setShowGpsWarning(true);
+        } else {
+          // Prompt for permission
+          navigator.geolocation.getCurrentPosition(
+            () => {
+              setGpsPermissionGranted(true);
+              setShowGpsWarning(false);
+            },
+            () => {
+              setGpsPermissionGranted(false);
+              setShowGpsWarning(true);
+            }
+          );
+        }
+        
+        // Listen for permission changes
+        result.onchange = () => {
+          if (result.state === 'granted') {
+            setGpsPermissionGranted(true);
+            setShowGpsWarning(false);
+          } else {
+            setGpsPermissionGranted(false);
+            setShowGpsWarning(true);
+          }
+        };
+      }).catch(() => {
+        // Fallback for browsers that don't support permissions API
+        navigator.geolocation.getCurrentPosition(
+          () => setGpsPermissionGranted(true),
+          () => {
+            setGpsPermissionGranted(false);
+            setShowGpsWarning(true);
+          }
+        );
+      });
+    }
+  }, [auth.type]);
 
   // Load public tracking data (no auth required)
   const loadPublicTracking = async (jobId: string) => {
@@ -405,6 +471,147 @@ const DeliveryPlatform = () => {
       riderEarningsToday
     };
   }, [jobs, riders]);
+
+  // Rider Performance Stats (Feature 9)
+  const riderPerformanceStats = useMemo(() => {
+    if (auth.type !== 'rider' || !auth.id) return null;
+    
+    const riderJobs = jobs.filter((j: any) => j.rider_id === auth.id);
+    const completedJobs = riderJobs.filter((j: any) => j.status === 'completed');
+    const cancelledJobs = riderJobs.filter((j: any) => j.status === 'cancelled');
+    const acceptedJobs = riderJobs.filter((j: any) => j.status !== 'posted');
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayJobs = completedJobs.filter((j: any) => new Date(j.completed_at || j.created_at) >= today);
+    const todayEarnings = todayJobs.reduce((sum: number, j: any) => {
+      const rider = riders.find((r: any) => r.id === auth.id);
+      if (rider) {
+        const comm = calculateCommissions(j.price, rider.tier, rider.upline_chain || []);
+        return sum + comm.activeRider;
+      }
+      return sum;
+    }, 0);
+    
+    const thisWeek = new Date();
+    thisWeek.setDate(thisWeek.getDate() - 7);
+    const weekJobs = completedJobs.filter((j: any) => new Date(j.completed_at || j.created_at) >= thisWeek);
+    const weekEarnings = weekJobs.reduce((sum: number, j: any) => {
+      const rider = riders.find((r: any) => r.id === auth.id);
+      if (rider) {
+        const comm = calculateCommissions(j.price, rider.tier, rider.upline_chain || []);
+        return sum + comm.activeRider;
+      }
+      return sum;
+    }, 0);
+    
+    return {
+      totalJobs: riderJobs.length,
+      completedJobs: completedJobs.length,
+      cancelledJobs: cancelledJobs.length,
+      acceptanceRate: acceptedJobs.length > 0 ? ((acceptedJobs.length / riderJobs.length) * 100).toFixed(1) : '0',
+      completionRate: acceptedJobs.length > 0 ? ((completedJobs.length / acceptedJobs.length) * 100).toFixed(1) : '0',
+      todayDeliveries: todayJobs.length,
+      todayEarnings,
+      weekDeliveries: weekJobs.length,
+      weekEarnings,
+      avgRating: 4.8 // Placeholder - would come from customer ratings
+    };
+  }, [jobs, riders, auth]);
+
+  // Filtered available jobs for rider (Feature 10)
+  const filteredAvailableJobs = useMemo(() => {
+    let availableJobs = jobs.filter((j: any) => j.status === 'posted');
+    
+    if (riderJobFilter.pickup) {
+      availableJobs = availableJobs.filter((j: any) => 
+        j.pickup.toLowerCase().includes(riderJobFilter.pickup.toLowerCase())
+      );
+    }
+    if (riderJobFilter.dropoff) {
+      availableJobs = availableJobs.filter((j: any) => 
+        j.delivery.toLowerCase().includes(riderJobFilter.dropoff.toLowerCase())
+      );
+    }
+    if (riderJobFilter.customer) {
+      availableJobs = availableJobs.filter((j: any) => 
+        j.customer_name?.toLowerCase().includes(riderJobFilter.customer.toLowerCase())
+      );
+    }
+    
+    return availableJobs;
+  }, [jobs, riderJobFilter]);
+
+  // Customer Order History (Feature 7)
+  const customerOrderHistory = useMemo(() => {
+    if (auth.type !== 'customer' || !auth.id) return { all: [], completed: [], pending: [] };
+    
+    const customerJobs = jobs.filter((j: any) => j.customer_id === auth.id);
+    const completed = customerJobs.filter((j: any) => j.status === 'completed');
+    const pending = customerJobs.filter((j: any) => j.status !== 'completed' && j.status !== 'cancelled');
+    
+    return { all: customerJobs, completed, pending };
+  }, [jobs, auth]);
+
+  // Admin POD Management - Jobs with/without POD (Feature 13)
+  const podManagementData = useMemo(() => {
+    const completedJobs = jobs.filter((j: any) => j.status === 'completed');
+    const withPod = completedJobs.filter((j: any) => j.pod_image);
+    const withoutPod = completedJobs.filter((j: any) => !j.pod_image);
+    
+    return { completedJobs, withPod, withoutPod };
+  }, [jobs]);
+
+  // Save customer profile
+  const saveCustomerProfile = async () => {
+    if (!auth.id) return;
+    try {
+      await api(`customers?id=eq.${auth.id}`, 'PATCH', {
+        name: profileForm.name,
+        phone: profileForm.phone,
+        saved_address: profileForm.address
+      });
+      setEditingProfile(false);
+      alert('Profile updated successfully!');
+      loadData();
+    } catch (e: any) {
+      alert('Error saving profile: ' + e.message);
+    }
+  };
+
+  // Add saved address
+  const addSavedAddress = async (address: string) => {
+    if (!auth.id || !address) return;
+    const curr = customers.find((c: any) => c.id === auth.id);
+    const existingAddresses = curr?.saved_addresses || [];
+    if (existingAddresses.includes(address)) {
+      alert('Address already saved');
+      return;
+    }
+    try {
+      await api(`customers?id=eq.${auth.id}`, 'PATCH', {
+        saved_addresses: [...existingAddresses, address]
+      });
+      alert('Address saved!');
+      loadData();
+    } catch (e: any) {
+      alert('Error saving address: ' + e.message);
+    }
+  };
+
+  // Flag POD as invalid (Admin)
+  const flagPodInvalid = async (jobId: string) => {
+    try {
+      await api(`jobs?id=eq.${jobId}`, 'PATCH', {
+        pod_flagged: true,
+        pod_flagged_at: new Date().toISOString()
+      });
+      alert('POD flagged as invalid. Rider will be notified.');
+      loadData();
+    } catch (e: any) {
+      alert('Error flagging POD: ' + e.message);
+    }
+  };
 
   // Fetch rider's current location for admin/customer view
   const fetchRiderLocation = async (jobId: string) => {
@@ -1670,6 +1877,12 @@ Thank you for your order! 🙏`;
                 >
                   Jobs
                 </button>
+                <button 
+                  onClick={() => setAdminView('pod')} 
+                  className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'pod' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  📸 POD
+                </button>
               </>
             )}
             <button 
@@ -1905,7 +2118,116 @@ Thank you for your order! 🙏`;
             </div>
 
             <div className="bg-white rounded-lg shadow-lg p-6">
-              <h3 className="text-2xl font-bold mb-6">My Delivery Jobs</h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">My Delivery Jobs</h3>
+                <button
+                  onClick={() => setShowCustomerProfile(!showCustomerProfile)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  <User size={18} />
+                  {showCustomerProfile ? 'Hide Profile' : 'My Profile'}
+                </button>
+              </div>
+
+              {/* Customer Profile Section - Feature 6 */}
+              {showCustomerProfile && curr && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+                  <h4 className="font-bold text-lg mb-4">👤 My Profile</h4>
+                  {editingProfile ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={profileForm.name}
+                          onChange={(e) => setProfileForm({...profileForm, name: e.target.value})}
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                        <input
+                          type="tel"
+                          value={profileForm.phone}
+                          onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})}
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Default Address</label>
+                        <input
+                          type="text"
+                          value={profileForm.address}
+                          onChange={(e) => setProfileForm({...profileForm, address: e.target.value})}
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={saveCustomerProfile}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingProfile(false)}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p><span className="font-medium">Name:</span> {curr.name}</p>
+                      <p><span className="font-medium">Email:</span> {curr.email}</p>
+                      <p><span className="font-medium">Phone:</span> {curr.phone}</p>
+                      <p><span className="font-medium">Credits:</span> ${(curr.credits || 0).toFixed(2)}</p>
+                      {curr.saved_address && <p><span className="font-medium">Default Address:</span> {curr.saved_address}</p>}
+                      <button
+                        onClick={() => {
+                          setProfileForm({ name: curr.name, phone: curr.phone, address: curr.saved_address || '' });
+                          setEditingProfile(true);
+                        }}
+                        className="mt-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                      >
+                        <Edit2 size={16} className="inline mr-1" /> Edit Profile
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Saved Addresses */}
+                  {curr.saved_addresses && curr.saved_addresses.length > 0 && (
+                    <div className="mt-4 pt-4 border-t">
+                      <h5 className="font-medium mb-2">📍 Saved Addresses</h5>
+                      <div className="space-y-1">
+                        {curr.saved_addresses.map((addr: string, idx: number) => (
+                          <div key={idx} className="text-sm text-gray-600 flex items-center gap-2">
+                            <MapPin size={14} /> {addr}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Order History Summary - Feature 7 */}
+              <div className="mb-4 grid grid-cols-3 gap-3">
+                <div className="bg-blue-50 p-3 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-blue-600">{customerOrderHistory.all.length}</p>
+                  <p className="text-xs text-gray-600">Total Orders</p>
+                </div>
+                <div className="bg-yellow-50 p-3 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-yellow-600">{customerOrderHistory.pending.length}</p>
+                  <p className="text-xs text-gray-600">In Progress</p>
+                </div>
+                <div className="bg-green-50 p-3 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-green-600">{customerOrderHistory.completed.length}</p>
+                  <p className="text-xs text-gray-600">Completed</p>
+                </div>
+              </div>
+
               {jobs.filter(j => j.customer_id === auth.id).length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                   <Package size={48} className="mx-auto mb-4 opacity-50" />
@@ -1921,6 +2243,7 @@ Thank you for your order! 🙏`;
                           <p className="font-semibold text-lg text-gray-900">{job.pickup} → {job.delivery}</p>
                           <p className="text-sm text-gray-600">{job.timeframe}</p>
                           {job.rider_name && <p className="text-sm text-gray-600 mt-1">Rider: {job.rider_name}</p>}
+                          {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
                         </div>
                         <div className="text-right ml-4">
                           <p className="text-2xl font-bold text-blue-600">${job.price}</p>
@@ -1934,6 +2257,15 @@ Thank you for your order! 🙏`;
                           </span>
                         </div>
                       </div>
+                      {/* Save address button for completed jobs */}
+                      {job.status === 'completed' && (
+                        <button
+                          onClick={() => addSavedAddress(job.delivery)}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          + Save delivery address
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1944,6 +2276,43 @@ Thank you for your order! 🙏`;
 
         {auth.type === 'rider' && (
           <div className="space-y-6">
+            {/* GPS Warning Modal - Feature 11 */}
+            {showGpsWarning && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center">
+                  <div className="text-6xl mb-4">📍</div>
+                  <h3 className="text-2xl font-bold text-red-600 mb-2">GPS Required</h3>
+                  <p className="text-gray-600 mb-4">
+                    To use the MoveIt Rider app, you must enable GPS location services. 
+                    This is required to track deliveries and update customers in real-time.
+                  </p>
+                  <div className="bg-yellow-50 p-4 rounded-lg mb-4">
+                    <p className="text-sm text-yellow-800">
+                      <strong>How to enable:</strong><br/>
+                      1. Go to your device Settings<br/>
+                      2. Find Location / GPS settings<br/>
+                      3. Enable location for this browser/app<br/>
+                      4. Return here and refresh
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.geolocation.getCurrentPosition(
+                        () => {
+                          setGpsPermissionGranted(true);
+                          setShowGpsWarning(false);
+                        },
+                        () => alert('GPS still not enabled. Please enable it in your device settings.')
+                      );
+                    }}
+                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
+                  >
+                    I've Enabled GPS - Check Again
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Back Button - Feature 1 */}
             {riderViewHistory.length > 1 && (
               <button 
@@ -1953,6 +2322,88 @@ Thank you for your order! 🙏`;
                 <ChevronLeft size={20} />
                 Back
               </button>
+            )}
+
+            {/* Quick Actions Bar */}
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setShowRiderPerformance(!showRiderPerformance)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                  showRiderPerformance ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300'
+                }`}
+              >
+                <BarChart3 size={18} />
+                My Performance
+              </button>
+              {gpsPermissionGranted === false && (
+                <button
+                  onClick={() => setShowGpsWarning(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium"
+                >
+                  <AlertCircle size={18} />
+                  GPS Disabled
+                </button>
+              )}
+            </div>
+
+            {/* Rider Performance Page - Feature 9 */}
+            {showRiderPerformance && riderPerformanceStats && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <BarChart3 className="text-green-600" />
+                  My Performance
+                </h3>
+                
+                {/* Today's Stats */}
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white mb-4">
+                  <h4 className="font-semibold mb-2">📅 Today</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-blue-100 text-sm">Deliveries</p>
+                      <p className="text-3xl font-bold">{riderPerformanceStats.todayDeliveries}</p>
+                    </div>
+                    <div>
+                      <p className="text-blue-100 text-sm">Earnings</p>
+                      <p className="text-3xl font-bold">${riderPerformanceStats.todayEarnings.toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* This Week */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold mb-2">📊 This Week</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-gray-500 text-sm">Deliveries</p>
+                      <p className="text-2xl font-bold text-gray-800">{riderPerformanceStats.weekDeliveries}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-sm">Earnings</p>
+                      <p className="text-2xl font-bold text-green-600">${riderPerformanceStats.weekEarnings.toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Performance Metrics */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-green-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-green-600">{riderPerformanceStats.completionRate}%</p>
+                    <p className="text-sm text-gray-600">Completion Rate</p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-blue-600">{riderPerformanceStats.acceptanceRate}%</p>
+                    <p className="text-sm text-gray-600">Acceptance Rate</p>
+                  </div>
+                  <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-yellow-600">⭐ {riderPerformanceStats.avgRating}</p>
+                    <p className="text-sm text-gray-600">Avg Rating</p>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-purple-600">{riderPerformanceStats.completedJobs}</p>
+                    <p className="text-sm text-gray-600">Total Completed</p>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Rider Stats Header */}
@@ -2187,8 +2638,48 @@ Thank you for your order! 🙏`;
 
             {!activeJob && (
               <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-2xl font-bold mb-6">Available Jobs</h3>
-                {jobs.filter(j => j.status === 'posted').length === 0 ? (
+                <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
+                
+                {/* Job Filter - Feature 10 */}
+                <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Search size={18} className="text-gray-500" />
+                    <span className="font-medium text-gray-700">Filter Jobs</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Pickup location..."
+                      value={riderJobFilter.pickup}
+                      onChange={(e) => setRiderJobFilter({...riderJobFilter, pickup: e.target.value})}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Drop-off location..."
+                      value={riderJobFilter.dropoff}
+                      onChange={(e) => setRiderJobFilter({...riderJobFilter, dropoff: e.target.value})}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Customer name..."
+                      value={riderJobFilter.customer}
+                      onChange={(e) => setRiderJobFilter({...riderJobFilter, customer: e.target.value})}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                    />
+                  </div>
+                  {(riderJobFilter.pickup || riderJobFilter.dropoff || riderJobFilter.customer) && (
+                    <button
+                      onClick={() => setRiderJobFilter({ pickup: '', dropoff: '', customer: '' })}
+                      className="mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+
+                {filteredAvailableJobs.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
                     <Package size={48} className="mx-auto mb-4 opacity-50" />
                     <p>No jobs available right now</p>
@@ -2196,7 +2687,8 @@ Thank you for your order! 🙏`;
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {jobs.filter(j => j.status === 'posted').map(job => {
+                    <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
+                    {filteredAvailableJobs.map((job: any) => {
                       const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || []);
                       return (
                         <div key={job.id} className="border border-gray-200 rounded-lg p-4 hover:border-green-400 hover:shadow-lg transition-all">
@@ -2204,6 +2696,8 @@ Thank you for your order! 🙏`;
                             <div>
                               <p className="font-semibold text-lg">{job.pickup} → {job.delivery}</p>
                               <p className="text-sm text-gray-600">{job.timeframe}</p>
+                              {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
+                              {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
                             </div>
                             <p className="text-2xl font-bold text-gray-900">${job.price}</p>
                           </div>
@@ -2212,15 +2706,16 @@ Thank you for your order! 🙏`;
                             <p className="text-3xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
                             {comm.uplines.length > 0 && (
                               <p className="text-xs text-gray-500 mt-2">
-                                Upline commission: ${comm.uplines.reduce((sum, u) => sum + u.amount, 0).toFixed(2)}
+                                Upline commission: ${comm.uplines.reduce((sum: number, u: any) => sum + u.amount, 0).toFixed(2)}
                               </p>
                             )}
                           </div>
                           <button 
                             onClick={() => acceptJob(job.id)} 
                             className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                            disabled={gpsPermissionGranted === false}
                           >
-                            Accept Job
+                            {gpsPermissionGranted === false ? '⚠️ Enable GPS to Accept' : 'Accept Job'}
                           </button>
                         </div>
                       );
@@ -2664,6 +3159,97 @@ Thank you for your order! 🙏`;
                 )}
               </div>
             )}
+
+            {/* POD Management Section - Feature 13 */}
+            {adminView === 'pod' && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-2xl font-bold mb-6">📸 Proof of Delivery Management</h3>
+                
+                {/* POD Stats */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-green-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-green-600">{podManagementData.withPod.length}</p>
+                    <p className="text-sm text-gray-600">With POD</p>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-red-600">{podManagementData.withoutPod.length}</p>
+                    <p className="text-sm text-gray-600">Missing POD</p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-blue-600">{podManagementData.completedJobs.length}</p>
+                    <p className="text-sm text-gray-600">Total Completed</p>
+                  </div>
+                </div>
+
+                {/* Missing POD Alert */}
+                {podManagementData.withoutPod.length > 0 && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <h4 className="font-semibold text-red-800 mb-2">⚠️ Jobs Missing POD ({podManagementData.withoutPod.length})</h4>
+                    <p className="text-sm text-red-600 mb-3">These completed jobs do not have proof of delivery photos.</p>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {podManagementData.withoutPod.slice(0, 5).map((job: any) => (
+                        <div key={job.id} className="flex justify-between items-center p-2 bg-white rounded border">
+                          <div>
+                            <p className="font-medium text-sm">{job.pickup?.substring(0, 20)}... → {job.delivery?.substring(0, 20)}...</p>
+                            <p className="text-xs text-gray-500">Rider: {job.rider_name || 'Unknown'}</p>
+                          </div>
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">No POD</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* POD List */}
+                <h4 className="font-semibold text-gray-800 mb-3">Recent Jobs with POD</h4>
+                <div className="space-y-3">
+                  {podManagementData.withPod.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">No POD photos uploaded yet</p>
+                  ) : (
+                    podManagementData.withPod.slice(0, 10).map((job: any) => (
+                      <div key={job.id} className="border rounded-lg p-4 hover:border-purple-300 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-semibold">{job.pickup} → {job.delivery}</p>
+                            <p className="text-sm text-gray-600">Rider: {job.rider_name}</p>
+                            <p className="text-sm text-gray-600">Customer: {job.customer_name}</p>
+                            {job.pod_timestamp && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                📅 POD taken: {new Date(job.pod_timestamp).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="text-lg font-bold text-green-600">${job.price}</span>
+                            {job.pod_flagged ? (
+                              <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">⚠️ Flagged</span>
+                            ) : (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">✓ Verified</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => setSelectedPodJob(job)}
+                            className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200"
+                          >
+                            View POD
+                          </button>
+                          {!job.pod_flagged && (
+                            <button
+                              onClick={() => flagPodInvalid(job.id)}
+                              className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
+                            >
+                              Flag Invalid
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2860,8 +3446,7 @@ Thank you for your order! 🙏`;
                 </ul>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Assign Rider Modal */}
         {showAssignRider && (
@@ -3436,6 +4021,65 @@ Thank you for your order! 🙏`;
               <p className="text-xs text-gray-400 text-center mt-3">
                 Click "Refresh" to get the latest rider location. Rider must have GPS tracking enabled.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* POD View Modal */}
+        {selectedPodJob && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">📸 Proof of Delivery</h3>
+                <button onClick={() => setSelectedPodJob(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <p className="font-semibold">{selectedPodJob.pickup} → {selectedPodJob.delivery}</p>
+                <p className="text-sm text-gray-600">Rider: {selectedPodJob.rider_name}</p>
+                <p className="text-sm text-gray-600">Customer: {selectedPodJob.customer_name}</p>
+              </div>
+              
+              {selectedPodJob.pod_image ? (
+                <div className="text-center">
+                  <img 
+                    src={selectedPodJob.pod_image.includes('truncated') ? '/placeholder-pod.png' : selectedPodJob.pod_image} 
+                    alt="Proof of Delivery" 
+                    className="max-h-64 mx-auto rounded-lg border"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" fill="%23f0f0f0"><rect width="200" height="150"/><text x="50%" y="50%" fill="%23999" font-family="Arial" font-size="14" text-anchor="middle">POD Image</text></svg>';
+                    }}
+                  />
+                  {selectedPodJob.pod_timestamp && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      Captured: {new Date(selectedPodJob.pod_timestamp).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No POD image available</p>
+                </div>
+              )}
+              
+              <div className="mt-4 flex gap-2">
+                {!selectedPodJob.pod_flagged && (
+                  <button
+                    onClick={() => { flagPodInvalid(selectedPodJob.id); setSelectedPodJob(null); }}
+                    className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  >
+                    Flag as Invalid
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedPodJob(null)}
+                  className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}
