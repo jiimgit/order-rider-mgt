@@ -191,6 +191,70 @@ const DeliveryPlatform = () => {
   const [showRouteOptimization, setShowRouteOptimization] = useState(false);
   const [optimizedRoute, setOptimizedRoute] = useState<any[]>([]);
 
+  // Rider Profile & Delivery History states
+  const [showRiderProfile, setShowRiderProfile] = useState(false);
+  const [showDeliveryHistory, setShowDeliveryHistory] = useState(false);
+
+  // Customer Order History Page state
+  const [showOrderHistory, setShowOrderHistory] = useState(false);
+
+  // Customer Bulk Import state
+  const [showCustomerBulkImport, setShowCustomerBulkImport] = useState(false);
+  const [customerImportedJobs, setCustomerImportedJobs] = useState<any[]>([]);
+  const customerFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Admin - Rider Level Management state
+  const [showRiderLevelManager, setShowRiderLevelManager] = useState(false);
+  const [editingRiderLevel, setEditingRiderLevel] = useState<any>(null);
+
+  // Admin - Commission Configuration state
+  const [showCommissionConfig, setShowCommissionConfig] = useState(false);
+  const [commissionSettings, setCommissionSettings] = useState({
+    platformFee: 1,
+    tier1Earnings: 'remaining',
+    tier2Override: 2,
+    tier3Override: 2,
+    tier4PlusRiderPercent: 50
+  });
+
+  // Admin - Create Order for Customer state
+  const [showAdminCreateOrder, setShowAdminCreateOrder] = useState(false);
+  const [adminOrderForm, setAdminOrderForm] = useState({
+    customerId: '',
+    customerName: '',
+    customerPhone: '',
+    pickup: '',
+    delivery: '',
+    price: '10',
+    timeframe: 'same-day',
+    parcelSize: 'small',
+    remarks: ''
+  });
+
+  // Admin - Live Map View state
+  const [showLiveMapView, setShowLiveMapView] = useState(false);
+  const [allRiderLocations, setAllRiderLocations] = useState<any[]>([]);
+
+  // Admin - Promotions state
+  const [showPromotions, setShowPromotions] = useState(false);
+  const [promotions, setPromotions] = useState<any[]>([]);
+  const [newPromotion, setNewPromotion] = useState({
+    code: '',
+    discountType: 'fixed',
+    discountValue: 5,
+    minOrder: 0,
+    maxUses: 100,
+    expiryDate: ''
+  });
+
+  // Admin - Broadcast Messages state
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState({
+    target: 'all_riders',
+    subject: '',
+    message: ''
+  });
+
   // Public tracking page states (no login required)
   const [publicTrackingMode, setPublicTrackingMode] = useState(false);
   const [publicTrackingJob, setPublicTrackingJob] = useState<any>(null);
@@ -563,14 +627,77 @@ const DeliveryPlatform = () => {
 
   // Customer Order History (Feature 7)
   const customerOrderHistory = useMemo(() => {
-    if (auth.type !== 'customer' || !auth.id) return { all: [], completed: [], pending: [] };
+    if (auth.type !== 'customer' || !auth.id) return { all: [], completed: [], pending: [], cancelled: [] };
     
     const customerJobs = jobs.filter((j: any) => j.customer_id === auth.id);
     const completed = customerJobs.filter((j: any) => j.status === 'completed');
     const pending = customerJobs.filter((j: any) => j.status !== 'completed' && j.status !== 'cancelled');
+    const cancelled = customerJobs.filter((j: any) => j.status === 'cancelled');
     
-    return { all: customerJobs, completed, pending };
+    // Sort by date (newest first)
+    const sortedAll = [...customerJobs].sort((a: any, b: any) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    
+    return { all: sortedAll, completed, pending, cancelled };
   }, [jobs, auth]);
+
+  // Rider Delivery History
+  const riderDeliveryHistory = useMemo(() => {
+    if (auth.type !== 'rider' || !auth.id) return { all: [], completed: [], active: [], totalEarnings: 0 };
+    
+    const riderJobs = jobs.filter((j: any) => j.rider_id === auth.id);
+    const completed = riderJobs.filter((j: any) => j.status === 'completed');
+    const active = riderJobs.filter((j: any) => ['accepted', 'picked-up', 'on-the-way'].includes(j.status));
+    
+    // Calculate total earnings from completed jobs
+    const rider = riders.find((r: any) => r.id === auth.id);
+    let totalEarnings = 0;
+    if (rider) {
+      completed.forEach((job: any) => {
+        const comm = calculateCommissions(job.price, rider.tier, rider.upline_chain || []);
+        totalEarnings += comm.activeRider;
+      });
+    }
+    
+    // Sort by date (newest first)
+    const sortedAll = [...riderJobs].sort((a: any, b: any) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    
+    return { all: sortedAll, completed, active, totalEarnings };
+  }, [jobs, riders, auth]);
+
+  // Rider Downline/Subordinate Earnings
+  const riderDownlineData = useMemo(() => {
+    if (auth.type !== 'rider' || !auth.id) return { downlineRiders: [], totalDownlineEarnings: 0, overrideEarnings: 0 };
+    
+    const currentRider = riders.find((r: any) => r.id === auth.id);
+    if (!currentRider) return { downlineRiders: [], totalDownlineEarnings: 0, overrideEarnings: 0 };
+    
+    // Find all riders who have this rider in their upline chain
+    const downlineRiders = riders.filter((r: any) => 
+      r.upline_chain && r.upline_chain.some((u: any) => u.id === auth.id)
+    );
+    
+    // Calculate total earnings from downline
+    let totalDownlineEarnings = 0;
+    let overrideEarnings = 0;
+    
+    downlineRiders.forEach((downline: any) => {
+      totalDownlineEarnings += (downline.earnings || 0);
+    });
+    
+    // Calculate override earnings from completed jobs where this rider is in upline
+    jobs.filter((j: any) => j.status === 'completed' && j.commissions?.uplines).forEach((job: any) => {
+      const uplineEntry = job.commissions.uplines.find((u: any) => u.riderId === auth.id);
+      if (uplineEntry) {
+        overrideEarnings += uplineEntry.amount || 0;
+      }
+    });
+    
+    return { downlineRiders, totalDownlineEarnings, overrideEarnings };
+  }, [riders, jobs, auth]);
 
   // Admin POD Management - Jobs with/without POD (Feature 13)
   const podManagementData = useMemo(() => {
@@ -776,6 +903,242 @@ const DeliveryPlatform = () => {
     const destination = encodeURIComponent(jobsList[jobsList.length - 1].delivery);
     
     return `https://www.google.com/maps/dir/${origin}/${jobsList.map(j => encodeURIComponent(j.delivery)).join('/')}`;
+  };
+
+  // Calculate projected earnings for a job (Rider Preview)
+  const calculateProjectedEarnings = (jobPrice: number) => {
+    const rider = riders.find((r: any) => r.id === auth.id);
+    if (!rider) return { riderEarns: 0, platformFee: 1, uplineShare: 0 };
+    
+    const comm = calculateCommissions(jobPrice, rider.tier, rider.upline_chain || []);
+    const uplineTotal = comm.uplines.reduce((sum: number, u: any) => sum + u.amount, 0);
+    
+    return {
+      riderEarns: comm.activeRider,
+      platformFee: comm.platform,
+      uplineShare: uplineTotal
+    };
+  };
+
+  // Customer bulk import CSV parser
+  const handleCustomerBulkImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const parsed = parseCSV(text);
+      setCustomerImportedJobs(parsed);
+    };
+    reader.readAsText(file);
+  };
+
+  // Customer import jobs to database
+  const customerImportJobs = async () => {
+    if (customerImportedJobs.length === 0) {
+      alert('No jobs to import');
+      return;
+    }
+    
+    const totalCost = customerImportedJobs.reduce((sum, job) => sum + (parseFloat(job.price) || 10), 0);
+    if (curr.credits < totalCost) {
+      alert(`Insufficient credits. You need $${totalCost.toFixed(2)} but only have $${curr.credits.toFixed(2)}`);
+      return;
+    }
+    
+    try {
+      let successCount = 0;
+      for (const job of customerImportedJobs) {
+        await api('jobs', 'POST', {
+          customer_id: auth.id,
+          customer_name: curr.name,
+          customer_phone: curr.phone,
+          pickup: job.pickup,
+          delivery: job.delivery,
+          timeframe: job.timeframe || 'same-day',
+          price: parseFloat(job.price) || 10,
+          status: 'posted',
+          recipient_name: job.recipient_name || null,
+          recipient_phone: job.recipient_phone || null,
+          parcel_size: job.parcel_size || 'small',
+          remarks: job.notes || null
+        });
+        successCount++;
+      }
+      
+      // Deduct credits
+      await api(`customers?id=eq.${auth.id}`, 'PATCH', { 
+        credits: curr.credits - totalCost 
+      });
+      
+      alert(`Successfully imported ${successCount} jobs! $${totalCost.toFixed(2)} deducted from credits.`);
+      setCustomerImportedJobs([]);
+      setShowCustomerBulkImport(false);
+      loadData();
+    } catch (e: any) {
+      alert('Error importing jobs: ' + e.message);
+    }
+  };
+
+  // Admin - Update rider tier/level
+  const updateRiderTier = async (riderId: string, newTier: number) => {
+    try {
+      await api(`riders?id=eq.${riderId}`, 'PATCH', { tier: newTier });
+      await logAuditAction('update_rider_tier', { riderId, newTier });
+      alert('Rider tier updated successfully!');
+      loadData();
+    } catch (e: any) {
+      alert('Error updating tier: ' + e.message);
+    }
+  };
+
+  // Admin - Create order on behalf of customer
+  const adminCreateOrderForCustomer = async () => {
+    if (!adminOrderForm.customerId || !adminOrderForm.pickup || !adminOrderForm.delivery) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      await api('jobs', 'POST', {
+        customer_id: adminOrderForm.customerId,
+        customer_name: adminOrderForm.customerName,
+        customer_phone: adminOrderForm.customerPhone,
+        pickup: adminOrderForm.pickup,
+        delivery: adminOrderForm.delivery,
+        timeframe: adminOrderForm.timeframe,
+        price: parseFloat(adminOrderForm.price) || 10,
+        status: 'posted',
+        parcel_size: adminOrderForm.parcelSize,
+        remarks: adminOrderForm.remarks,
+        created_by_admin: true
+      });
+      
+      await logAuditAction('admin_create_order', { 
+        customerId: adminOrderForm.customerId, 
+        customerName: adminOrderForm.customerName 
+      });
+      
+      alert('Order created successfully!');
+      setAdminOrderForm({
+        customerId: '',
+        customerName: '',
+        customerPhone: '',
+        pickup: '',
+        delivery: '',
+        price: '10',
+        timeframe: 'same-day',
+        parcelSize: 'small',
+        remarks: ''
+      });
+      setShowAdminCreateOrder(false);
+      loadData();
+    } catch (e: any) {
+      alert('Error creating order: ' + e.message);
+    }
+  };
+
+  // Admin - Fetch all rider locations for live map
+  const fetchAllRiderLocations = async () => {
+    try {
+      const locations = await api('rider_locations?order=updated_at.desc');
+      // Group by rider, keep only latest
+      const latestByRider: any = {};
+      locations.forEach((loc: any) => {
+        if (!latestByRider[loc.rider_id] || new Date(loc.updated_at) > new Date(latestByRider[loc.rider_id].updated_at)) {
+          latestByRider[loc.rider_id] = loc;
+        }
+      });
+      setAllRiderLocations(Object.values(latestByRider));
+    } catch (e) {
+      console.error('Error fetching rider locations:', e);
+      setAllRiderLocations([]);
+    }
+  };
+
+  // Admin - Get delayed/stalled jobs
+  const getDelayedJobs = useMemo(() => {
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    
+    return jobs.filter((job: any) => {
+      if (job.status === 'completed' || job.status === 'cancelled') return false;
+      
+      // Job accepted but not picked up for 1+ hour
+      if (job.status === 'accepted' && job.accepted_at) {
+        if (new Date(job.accepted_at) < oneHourAgo) return true;
+      }
+      
+      // Job picked up but not delivered for 2+ hours
+      if (job.status === 'picked-up' && job.picked_up_at) {
+        if (new Date(job.picked_up_at) < twoHoursAgo) return true;
+      }
+      
+      // Job posted for 2+ hours without acceptance
+      if (job.status === 'posted' && job.created_at) {
+        if (new Date(job.created_at) < twoHoursAgo) return true;
+      }
+      
+      return false;
+    });
+  }, [jobs]);
+
+  // Admin - Create promotion
+  const createPromotion = async () => {
+    if (!newPromotion.code) {
+      alert('Please enter a promo code');
+      return;
+    }
+    try {
+      await api('promotions', 'POST', {
+        code: newPromotion.code.toUpperCase(),
+        discount_type: newPromotion.discountType,
+        discount_value: newPromotion.discountValue,
+        min_order: newPromotion.minOrder,
+        max_uses: newPromotion.maxUses,
+        expiry_date: newPromotion.expiryDate || null,
+        uses_count: 0,
+        active: true
+      });
+      alert('Promotion created!');
+      setNewPromotion({ code: '', discountType: 'fixed', discountValue: 5, minOrder: 0, maxUses: 100, expiryDate: '' });
+      loadPromotions();
+    } catch (e: any) {
+      alert('Error creating promotion: ' + e.message);
+    }
+  };
+
+  // Load promotions
+  const loadPromotions = async () => {
+    try {
+      const promos = await api('promotions?order=created_at.desc');
+      setPromotions(Array.isArray(promos) ? promos : []);
+    } catch (e) {
+      setPromotions([]);
+    }
+  };
+
+  // Admin - Send broadcast (placeholder - would integrate with actual messaging)
+  const sendBroadcast = async () => {
+    if (!broadcastMessage.message) {
+      alert('Please enter a message');
+      return;
+    }
+    
+    // In production, this would integrate with WhatsApp API, SMS, or push notifications
+    await logAuditAction('broadcast_sent', {
+      target: broadcastMessage.target,
+      subject: broadcastMessage.subject,
+      recipientCount: broadcastMessage.target === 'all_riders' ? riders.length : 
+                       broadcastMessage.target === 'all_customers' ? customers.length : 
+                       riders.length + customers.length
+    });
+    
+    alert(`Broadcast scheduled to ${broadcastMessage.target.replace('_', ' ')}!\n\nNote: In production, this would send via WhatsApp/SMS.`);
+    setBroadcastMessage({ target: 'all_riders', subject: '', message: '' });
+    setShowBroadcast(false);
   };
 
   // Save customer profile
@@ -2117,6 +2480,12 @@ Thank you for your order! 🙏`;
                 >
                   📋 Audit
                 </button>
+                <button 
+                  onClick={() => { setAdminView('settings'); loadPromotions(); }} 
+                  className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'settings' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  ⚙️ Settings
+                </button>
               </>
             )}
             <button 
@@ -2348,20 +2717,191 @@ Thank you for your order! 🙏`;
                 >
                   Post Job - ${jobForm.price}
                 </button>
+                
+                {/* Bulk Import Option */}
+                <div className="mt-4 pt-4 border-t">
+                  <button
+                    onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    <Upload size={18} />
+                    {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV)'}
+                  </button>
+                </div>
               </div>
+              
+              {/* Customer Bulk Import Section */}
+              {showCustomerBulkImport && (
+                <div className="mt-4 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-200">
+                  <h4 className="font-bold text-yellow-800 mb-3">📤 Bulk Import Orders</h4>
+                  <p className="text-sm text-yellow-700 mb-4">Upload a CSV file with multiple delivery orders.</p>
+                  
+                  {/* CSV Template */}
+                  <div className="mb-4 p-3 bg-white rounded-lg border">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Required CSV Columns:</p>
+                    <code className="text-xs text-gray-600">pickup, delivery, price, recipient_name, recipient_phone, parcel_size, notes</code>
+                    <button
+                      onClick={() => {
+                        const template = 'pickup,delivery,price,recipient_name,recipient_phone,parcel_size,notes\n"123 Orchard Rd","456 Marina Bay",12,"John Doe","91234567","small","Handle with care"\n"789 Bugis St","321 Tampines Ave",10,"Jane Smith","98765432","medium",""';
+                        const blob = new Blob([template], { type: 'text/csv' });
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = 'bulk_order_template.csv';
+                        link.click();
+                      }}
+                      className="mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Download Template
+                    </button>
+                  </div>
+                  
+                  {/* File Upload */}
+                  <input
+                    ref={customerFileInputRef}
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCustomerBulkImport}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-yellow-500 file:text-white hover:file:bg-yellow-600 file:cursor-pointer"
+                  />
+                  
+                  {/* Preview */}
+                  {customerImportedJobs.length > 0 && (
+                    <div className="mt-4">
+                      <p className="font-medium text-gray-700 mb-2">Preview ({customerImportedJobs.length} orders):</p>
+                      <div className="max-h-40 overflow-y-auto border rounded-lg">
+                        <table className="w-full text-xs">
+                          <thead className="bg-gray-100 sticky top-0">
+                            <tr>
+                              <th className="p-2 text-left">Pickup</th>
+                              <th className="p-2 text-left">Delivery</th>
+                              <th className="p-2 text-left">Price</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {customerImportedJobs.map((job, idx) => (
+                              <tr key={idx} className="border-t">
+                                <td className="p-2">{job.pickup?.substring(0, 20)}...</td>
+                                <td className="p-2">{job.delivery?.substring(0, 20)}...</td>
+                                <td className="p-2 font-medium">${job.price}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          Total Cost: <strong>${customerImportedJobs.reduce((sum, j) => sum + (parseFloat(j.price) || 10), 0).toFixed(2)}</strong>
+                          <span className="ml-2">(Your credits: ${curr?.credits?.toFixed(2) || '0.00'})</span>
+                        </p>
+                      </div>
+                      <button
+                        onClick={customerImportJobs}
+                        className="mt-3 w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                      >
+                        Import {customerImportedJobs.length} Orders
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-lg shadow-lg p-6">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold">My Delivery Jobs</h3>
-                <button
-                  onClick={() => setShowCustomerProfile(!showCustomerProfile)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                >
-                  <User size={18} />
-                  {showCustomerProfile ? 'Hide Profile' : 'My Profile'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowOrderHistory(!showOrderHistory)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                      showOrderHistory ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    }`}
+                  >
+                    <FileText size={18} />
+                    {showOrderHistory ? 'Hide History' : 'Order History'}
+                  </button>
+                  <button
+                    onClick={() => setShowCustomerProfile(!showCustomerProfile)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                      showCustomerProfile ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <User size={18} />
+                    {showCustomerProfile ? 'Hide Profile' : 'My Profile'}
+                  </button>
+                </div>
               </div>
+
+              {/* Customer Order History Page */}
+              {showOrderHistory && (
+                <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="font-bold text-lg mb-4 flex items-center gap-2">
+                    <FileText className="text-blue-600" />
+                    Order History
+                  </h4>
+                  
+                  {/* Stats Summary */}
+                  <div className="grid grid-cols-4 gap-3 mb-4">
+                    <div className="bg-white p-3 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-blue-600">{customerOrderHistory.all.length}</p>
+                      <p className="text-xs text-gray-600">Total Orders</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-green-600">{customerOrderHistory.completed.length}</p>
+                      <p className="text-xs text-gray-600">Completed</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-yellow-600">{customerOrderHistory.pending.length}</p>
+                      <p className="text-xs text-gray-600">In Progress</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-red-600">{customerOrderHistory.cancelled.length}</p>
+                      <p className="text-xs text-gray-600">Cancelled</p>
+                    </div>
+                  </div>
+                  
+                  {/* Order List */}
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {customerOrderHistory.all.length === 0 ? (
+                      <p className="text-center text-gray-500 py-4">No orders yet</p>
+                    ) : (
+                      customerOrderHistory.all.map((order: any) => (
+                        <div key={order.id} className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-800">{order.pickup}</p>
+                              <p className="text-sm text-gray-500">→ {order.delivery}</p>
+                              <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                                <span>📅 {new Date(order.created_at).toLocaleDateString()}</span>
+                                {order.rider_name && <span>🏍️ {order.rider_name}</span>}
+                                {order.parcel_size && <span>📦 {order.parcel_size}</span>}
+                              </div>
+                              {order.recipient_name && (
+                                <p className="text-xs text-gray-500 mt-1">Recipient: {order.recipient_name}</p>
+                              )}
+                            </div>
+                            <div className="text-right ml-4">
+                              <p className="text-xl font-bold text-blue-600">${order.price}</p>
+                              <span className={`inline-block mt-1 px-2 py-1 rounded text-xs font-medium ${
+                                order.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                order.status === 'posted' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-blue-100 text-blue-700'
+                              }`}>
+                                {(order.status || 'pending').toUpperCase()}
+                              </span>
+                              {order.completed_at && (
+                                <p className="text-xs text-gray-400 mt-1">
+                                  ✓ {new Date(order.completed_at).toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Customer Profile Section - Feature 6 */}
               {showCustomerProfile && curr && (
@@ -2561,6 +3101,24 @@ Thank you for your order! 🙏`;
             {/* Quick Actions Bar */}
             <div className="flex gap-2 flex-wrap">
               <button
+                onClick={() => setShowRiderProfile(!showRiderProfile)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                  showRiderProfile ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-300'
+                }`}
+              >
+                <User size={18} />
+                My Profile
+              </button>
+              <button
+                onClick={() => setShowDeliveryHistory(!showDeliveryHistory)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                  showDeliveryHistory ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
+                }`}
+              >
+                <FileText size={18} />
+                Delivery History
+              </button>
+              <button
                 onClick={() => setShowRiderPerformance(!showRiderPerformance)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
                   showRiderPerformance ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300'
@@ -2590,6 +3148,186 @@ Thank you for your order! 🙏`;
                 </button>
               )}
             </div>
+
+            {/* Rider Profile Page */}
+            {showRiderProfile && curr && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <User className="text-purple-600" />
+                  My Profile
+                </h3>
+                
+                {/* Basic Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-semibold text-gray-800 mb-3">👤 Personal Information</h4>
+                    <div className="space-y-2">
+                      <p><span className="text-gray-500">Name:</span> <strong>{curr.name}</strong></p>
+                      <p><span className="text-gray-500">Email:</span> {curr.email}</p>
+                      <p><span className="text-gray-500">Phone:</span> {curr.phone}</p>
+                      <p><span className="text-gray-500">Member Since:</span> {curr.created_at ? new Date(curr.created_at).toLocaleDateString() : 'N/A'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <h4 className="font-semibold text-purple-800 mb-3">🏆 Tier & Referral</h4>
+                    <div className="space-y-2">
+                      <p><span className="text-gray-500">Current Tier:</span> <strong className="text-purple-600">Tier {curr.tier}</strong></p>
+                      <p><span className="text-gray-500">Referral Code:</span> <strong className="text-blue-600">{curr.referral_code}</strong></p>
+                      <p><span className="text-gray-500">Downline Riders:</span> <strong>{riderDownlineData.downlineRiders.length}</strong></p>
+                      {curr.upline_chain && curr.upline_chain.length > 0 && (
+                        <p><span className="text-gray-500">Upline:</span> {curr.upline_chain[0]?.name || 'N/A'}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Earnings Overview */}
+                <div className="mt-6 bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white">
+                  <h4 className="font-semibold mb-3">💰 Earnings Overview</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <p className="text-3xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
+                      <p className="text-green-100 text-sm">Total Earnings</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-3xl font-bold">${riderDownlineData.overrideEarnings.toFixed(2)}</p>
+                      <p className="text-green-100 text-sm">Override Earnings</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-3xl font-bold">{curr.completed_jobs || 0}</p>
+                      <p className="text-green-100 text-sm">Completed Jobs</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Downline Riders */}
+                {riderDownlineData.downlineRiders.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="font-semibold text-gray-800 mb-3">👥 My Downline ({riderDownlineData.downlineRiders.length})</h4>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {riderDownlineData.downlineRiders.map((downline: any) => (
+                        <div key={downline.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="font-medium">{downline.name}</p>
+                            <p className="text-xs text-gray-500">Tier {downline.tier} • Code: {downline.referral_code}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-green-600">${(downline.earnings || 0).toFixed(2)}</p>
+                            <p className="text-xs text-gray-500">{downline.completed_jobs || 0} jobs</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 p-3 bg-yellow-50 rounded-lg">
+                      <p className="text-sm text-yellow-800">
+                        💡 You earn override commission when your downline completes deliveries!
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Share Referral Code */}
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                  <h4 className="font-semibold text-blue-800 mb-2">📢 Share Your Referral Code</h4>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={`Join MoveIt with my code: ${curr.referral_code}`}
+                      readOnly
+                      className="flex-1 px-3 py-2 border rounded-lg bg-white text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`Join MoveIt as a rider! Use my referral code: ${curr.referral_code}`);
+                        alert('Referral message copied!');
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Rider Delivery History Page */}
+            {showDeliveryHistory && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <FileText className="text-blue-600" />
+                  Delivery History
+                </h3>
+                
+                {/* Stats Summary */}
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  <div className="bg-blue-50 p-3 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-blue-600">{riderDeliveryHistory.all.length}</p>
+                    <p className="text-xs text-gray-600">Total Jobs</p>
+                  </div>
+                  <div className="bg-green-50 p-3 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-green-600">{riderDeliveryHistory.completed.length}</p>
+                    <p className="text-xs text-gray-600">Completed</p>
+                  </div>
+                  <div className="bg-yellow-50 p-3 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-yellow-600">{riderDeliveryHistory.active.length}</p>
+                    <p className="text-xs text-gray-600">Active</p>
+                  </div>
+                  <div className="bg-purple-50 p-3 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-purple-600">${riderDeliveryHistory.totalEarnings.toFixed(2)}</p>
+                    <p className="text-xs text-gray-600">Total Earned</p>
+                  </div>
+                </div>
+
+                {/* Delivery List */}
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {riderDeliveryHistory.all.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">No deliveries yet. Accept your first job!</p>
+                  ) : (
+                    riderDeliveryHistory.all.map((delivery: any) => (
+                      <div key={delivery.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-semibold text-gray-800">{delivery.pickup}</p>
+                            <p className="text-sm text-gray-500">→ {delivery.delivery}</p>
+                            <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                              <span>📅 {new Date(delivery.created_at).toLocaleDateString()}</span>
+                              <span>👤 {delivery.customer_name}</span>
+                              {delivery.parcel_size && <span>📦 {delivery.parcel_size}</span>}
+                            </div>
+                          </div>
+                          <div className="text-right ml-4">
+                            <p className="text-xl font-bold text-green-600">${delivery.price}</p>
+                            <span className={`inline-block mt-1 px-2 py-1 rounded text-xs font-medium ${
+                              delivery.status === 'completed' ? 'bg-green-100 text-green-700' :
+                              delivery.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                              ['accepted', 'picked-up', 'on-the-way'].includes(delivery.status) ? 'bg-blue-100 text-blue-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {(delivery.status || 'unknown').toUpperCase()}
+                            </span>
+                            {delivery.completed_at && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                ✓ {new Date(delivery.completed_at).toLocaleString()}
+                              </p>
+                            )}
+                            {delivery.pod_image && (
+                              <p className="text-xs text-green-500 mt-1">📸 POD Uploaded</p>
+                            )}
+                          </div>
+                        </div>
+                        {/* Earnings breakdown for completed jobs */}
+                        {delivery.status === 'completed' && delivery.commissions && (
+                          <div className="mt-2 pt-2 border-t text-xs text-gray-500">
+                            <span>Your earnings: ${delivery.commissions.activeRider?.toFixed(2) || 'N/A'}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Rider Performance Page - Feature 9 */}
             {showRiderPerformance && riderPerformanceStats && (
@@ -4036,6 +4774,484 @@ Thank you for your order! 🙏`;
                 </div>
               </div>
             )}
+
+            {/* Admin Settings Page */}
+            {adminView === 'settings' && (
+              <div className="space-y-6">
+                {/* Quick Actions Row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <button
+                    onClick={() => setShowAdminCreateOrder(true)}
+                    className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-center"
+                  >
+                    <Package className="mx-auto text-blue-600 mb-2" size={32} />
+                    <p className="font-semibold">Create Order</p>
+                    <p className="text-xs text-gray-500">For customer</p>
+                  </button>
+                  <button
+                    onClick={() => { setShowLiveMapView(true); fetchAllRiderLocations(); }}
+                    className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-center"
+                  >
+                    <MapPin className="mx-auto text-green-600 mb-2" size={32} />
+                    <p className="font-semibold">Live Map</p>
+                    <p className="text-xs text-gray-500">Track riders</p>
+                  </button>
+                  <button
+                    onClick={() => setShowPromotions(true)}
+                    className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-center"
+                  >
+                    <CreditCard className="mx-auto text-purple-600 mb-2" size={32} />
+                    <p className="font-semibold">Promotions</p>
+                    <p className="text-xs text-gray-500">Manage deals</p>
+                  </button>
+                  <button
+                    onClick={() => setShowBroadcast(true)}
+                    className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-center"
+                  >
+                    <Send className="mx-auto text-orange-600 mb-2" size={32} />
+                    <p className="font-semibold">Broadcast</p>
+                    <p className="text-xs text-gray-500">Send messages</p>
+                  </button>
+                </div>
+
+                {/* Delayed Jobs Alert */}
+                {getDelayedJobs.length > 0 && (
+                  <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                    <h4 className="font-bold text-red-800 mb-2 flex items-center gap-2">
+                      <AlertCircle className="text-red-600" />
+                      ⚠️ Delayed Jobs ({getDelayedJobs.length})
+                    </h4>
+                    <p className="text-sm text-red-700 mb-3">These jobs may need attention:</p>
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {getDelayedJobs.map((job: any) => (
+                        <div key={job.id} className="flex justify-between items-center p-2 bg-white rounded border">
+                          <div>
+                            <p className="font-medium text-sm">{job.pickup?.substring(0, 25)}...</p>
+                            <p className="text-xs text-gray-500">Rider: {job.rider_name || 'Unassigned'} | Status: {job.status}</p>
+                          </div>
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
+                            {job.status === 'posted' ? 'No rider' : 'Delayed'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Rider Level Management */}
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <UserCheck className="text-purple-600" />
+                    Rider Level Management
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="text-left p-3">Rider</th>
+                          <th className="text-center p-3">Current Tier</th>
+                          <th className="text-center p-3">Jobs</th>
+                          <th className="text-center p-3">Earnings</th>
+                          <th className="text-center p-3">Downline</th>
+                          <th className="text-center p-3">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {riders.map((rider: any) => {
+                          const downlineCount = riders.filter((r: any) => 
+                            r.upline_chain?.some((u: any) => u.id === rider.id)
+                          ).length;
+                          return (
+                            <tr key={rider.id} className="border-t hover:bg-gray-50">
+                              <td className="p-3">
+                                <p className="font-medium">{rider.name}</p>
+                                <p className="text-xs text-gray-500">{rider.email}</p>
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
+                                  Tier {rider.tier}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center">{rider.completed_jobs || 0}</td>
+                              <td className="p-3 text-center text-green-600 font-medium">
+                                ${(rider.earnings || 0).toFixed(2)}
+                              </td>
+                              <td className="p-3 text-center">{downlineCount}</td>
+                              <td className="p-3 text-center">
+                                <select
+                                  value={rider.tier}
+                                  onChange={(e) => updateRiderTier(rider.id, parseInt(e.target.value))}
+                                  className="px-2 py-1 border rounded text-sm"
+                                >
+                                  <option value="1">Tier 1</option>
+                                  <option value="2">Tier 2</option>
+                                  <option value="3">Tier 3</option>
+                                  <option value="4">Tier 4</option>
+                                  <option value="5">Tier 5</option>
+                                </select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Commission Configuration */}
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-xl font-bold mb-4">💰 Commission Configuration</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <h4 className="font-semibold mb-3">Current Settings</h4>
+                      <div className="space-y-2 text-sm">
+                        <p><span className="text-gray-500">Platform Fee:</span> <strong>$1.00</strong> per job</p>
+                        <p><span className="text-gray-500">Tier 1 Rider:</span> <strong>Keeps remaining</strong></p>
+                        <p><span className="text-gray-500">Tier 2 Override:</span> <strong>$2.00</strong> to upline</p>
+                        <p><span className="text-gray-500">Tier 3 Override:</span> <strong>$2.00</strong> each to uplines</p>
+                        <p><span className="text-gray-500">Tier 4+ Split:</span> <strong>50%</strong> rider, 50% uplines</p>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <h4 className="font-semibold mb-3">Commission Flow Example</h4>
+                      <p className="text-sm text-gray-600 mb-2">For a $10 job with Tier 3 rider:</p>
+                      <div className="space-y-1 text-sm">
+                        <p>• Platform: <strong>$1.00</strong></p>
+                        <p>• Tier 1 (grandparent): <strong>$2.00</strong></p>
+                        <p>• Tier 2 (parent): <strong>$2.00</strong></p>
+                        <p>• Tier 3 (rider): <strong>$5.00</strong></p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Admin Create Order Modal */}
+        {showAdminCreateOrder && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Create Order for Customer</h3>
+                <button onClick={() => setShowAdminCreateOrder(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Customer</label>
+                  <select
+                    value={adminOrderForm.customerId}
+                    onChange={(e) => {
+                      const cust = customers.find((c: any) => c.id === e.target.value);
+                      setAdminOrderForm({
+                        ...adminOrderForm,
+                        customerId: e.target.value,
+                        customerName: cust?.name || '',
+                        customerPhone: cust?.phone || ''
+                      });
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="">-- Select Customer --</option>
+                    {customers.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Address</label>
+                  <input
+                    type="text"
+                    value={adminOrderForm.pickup}
+                    onChange={(e) => setAdminOrderForm({...adminOrderForm, pickup: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="e.g., 123 Orchard Road"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address</label>
+                  <input
+                    type="text"
+                    value={adminOrderForm.delivery}
+                    onChange={(e) => setAdminOrderForm({...adminOrderForm, delivery: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="e.g., 456 Marina Bay"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                    <input
+                      type="number"
+                      value={adminOrderForm.price}
+                      onChange={(e) => setAdminOrderForm({...adminOrderForm, price: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      min="3"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Parcel Size</label>
+                    <select
+                      value={adminOrderForm.parcelSize}
+                      onChange={(e) => setAdminOrderForm({...adminOrderForm, parcelSize: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                  <textarea
+                    value={adminOrderForm.remarks}
+                    onChange={(e) => setAdminOrderForm({...adminOrderForm, remarks: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    rows={2}
+                  />
+                </div>
+                <button
+                  onClick={adminCreateOrderForCustomer}
+                  className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                >
+                  Create Order
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Live Map View Modal */}
+        {showLiveMapView && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold flex items-center gap-2">
+                  <MapPin className="text-green-600" />
+                  Live Rider Locations
+                </h3>
+                <button onClick={() => setShowLiveMapView(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="bg-green-50 p-4 rounded-lg text-center">
+                  <p className="text-3xl font-bold text-green-600">{allRiderLocations.length}</p>
+                  <p className="text-sm text-gray-600">Active Riders on GPS</p>
+                </div>
+                <div className="bg-blue-50 p-4 rounded-lg text-center">
+                  <p className="text-3xl font-bold text-blue-600">
+                    {jobs.filter((j: any) => ['accepted', 'picked-up', 'on-the-way'].includes(j.status)).length}
+                  </p>
+                  <p className="text-sm text-gray-600">Active Deliveries</p>
+                </div>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                {allRiderLocations.length > 0 ? (
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${
+                      Math.min(...allRiderLocations.map(l => l.longitude)) - 0.02
+                    }%2C${
+                      Math.min(...allRiderLocations.map(l => l.latitude)) - 0.02
+                    }%2C${
+                      Math.max(...allRiderLocations.map(l => l.longitude)) + 0.02
+                    }%2C${
+                      Math.max(...allRiderLocations.map(l => l.latitude)) + 0.02
+                    }&layer=mapnik`}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center bg-gray-100">
+                    <p className="text-gray-500">No riders currently sharing GPS location</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
+                {allRiderLocations.map((loc: any) => {
+                  const rider = riders.find((r: any) => r.id === loc.rider_id);
+                  return (
+                    <div key={loc.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium">{rider?.name || 'Unknown Rider'}</p>
+                        <p className="text-xs text-gray-500">Last update: {new Date(loc.updated_at).toLocaleTimeString()}</p>
+                      </div>
+                      <a
+                        href={`https://www.openstreetmap.org/?mlat=${loc.latitude}&mlon=${loc.longitude}#map=17/${loc.latitude}/${loc.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200"
+                      >
+                        View on Map
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={fetchAllRiderLocations}
+                className="mt-4 w-full py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                🔄 Refresh Locations
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Promotions Modal */}
+        {showPromotions && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">🎉 Promotions & Deals</h3>
+                <button onClick={() => setShowPromotions(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              {/* Create New Promotion */}
+              <div className="mb-6 p-4 bg-purple-50 rounded-lg">
+                <h4 className="font-semibold text-purple-800 mb-3">Create New Promotion</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Promo Code</label>
+                    <input
+                      type="text"
+                      value={newPromotion.code}
+                      onChange={(e) => setNewPromotion({...newPromotion, code: e.target.value.toUpperCase()})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      placeholder="e.g., SAVE10"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+                    <select
+                      value={newPromotion.discountType}
+                      onChange={(e) => setNewPromotion({...newPromotion, discountType: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="fixed">Fixed Amount ($)</option>
+                      <option value="percent">Percentage (%)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount Value</label>
+                    <input
+                      type="number"
+                      value={newPromotion.discountValue}
+                      onChange={(e) => setNewPromotion({...newPromotion, discountValue: parseFloat(e.target.value)})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Uses</label>
+                    <input
+                      type="number"
+                      value={newPromotion.maxUses}
+                      onChange={(e) => setNewPromotion({...newPromotion, maxUses: parseInt(e.target.value)})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={createPromotion}
+                  className="mt-4 w-full py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700"
+                >
+                  Create Promotion
+                </button>
+              </div>
+
+              {/* Existing Promotions */}
+              <h4 className="font-semibold text-gray-800 mb-3">Active Promotions</h4>
+              {promotions.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">No promotions created yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {promotions.map((promo: any) => (
+                    <div key={promo.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-bold text-purple-600">{promo.code}</p>
+                        <p className="text-sm text-gray-600">
+                          {promo.discount_type === 'fixed' ? `$${promo.discount_value} off` : `${promo.discount_value}% off`}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm">{promo.uses_count || 0} / {promo.max_uses} used</p>
+                        <span className={`text-xs px-2 py-1 rounded ${promo.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {promo.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Broadcast Modal */}
+        {showBroadcast && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">📢 Broadcast Message</h3>
+                <button onClick={() => setShowBroadcast(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Send To</label>
+                  <select
+                    value={broadcastMessage.target}
+                    onChange={(e) => setBroadcastMessage({...broadcastMessage, target: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="all_riders">All Riders ({riders.length})</option>
+                    <option value="all_customers">All Customers ({customers.length})</option>
+                    <option value="all">Everyone ({riders.length + customers.length})</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <input
+                    type="text"
+                    value={broadcastMessage.subject}
+                    onChange={(e) => setBroadcastMessage({...broadcastMessage, subject: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="e.g., Important Update"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                  <textarea
+                    value={broadcastMessage.message}
+                    onChange={(e) => setBroadcastMessage({...broadcastMessage, message: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    rows={4}
+                    placeholder="Type your message here..."
+                  />
+                </div>
+                <button
+                  onClick={sendBroadcast}
+                  className="w-full py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 flex items-center justify-center gap-2"
+                >
+                  <Send size={18} />
+                  Send Broadcast
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
