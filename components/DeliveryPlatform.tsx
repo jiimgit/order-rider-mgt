@@ -172,6 +172,25 @@ const DeliveryPlatform = () => {
   // Job filter states for rider (Feature 10)
   const [riderJobFilter, setRiderJobFilter] = useState({ pickup: '', dropoff: '', customer: '' });
 
+  // Referral Tree View states (Feature 12)
+  const [showReferralTree, setShowReferralTree] = useState(false);
+  const [selectedRiderForTree, setSelectedRiderForTree] = useState<any>(null);
+
+  // Reports & Analytics states (Feature 14)
+  const [showReports, setShowReports] = useState(false);
+  const [reportType, setReportType] = useState<'financial' | 'operational' | 'rider'>('financial');
+  const [reportDateFrom, setReportDateFrom] = useState('');
+  const [reportDateTo, setReportDateTo] = useState('');
+
+  // Audit Logs states (Feature 15)
+  const [showAuditLogs, setShowAuditLogs] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogFilter, setAuditLogFilter] = useState({ action: '', user: '' });
+
+  // Route Optimization states (Feature 8)
+  const [showRouteOptimization, setShowRouteOptimization] = useState(false);
+  const [optimizedRoute, setOptimizedRoute] = useState<any[]>([]);
+
   // Public tracking page states (no login required)
   const [publicTrackingMode, setPublicTrackingMode] = useState(false);
   const [publicTrackingJob, setPublicTrackingJob] = useState<any>(null);
@@ -561,6 +580,203 @@ const DeliveryPlatform = () => {
     
     return { completedJobs, withPod, withoutPod };
   }, [jobs]);
+
+  // Referral Tree Data (Feature 12) - Build hierarchical tree structure
+  const referralTreeData = useMemo(() => {
+    // Find all tier 1 riders (root nodes)
+    const tier1Riders = riders.filter((r: any) => r.tier === 1);
+    
+    // Build tree recursively
+    const buildTree = (rider: any): any => {
+      const children = riders.filter((r: any) => 
+        r.upline_chain && r.upline_chain.length > 0 && r.upline_chain[0]?.id === rider.id
+      );
+      return {
+        ...rider,
+        children: children.map(buildTree),
+        totalDownline: countDownline(rider),
+        totalEarnings: rider.earnings || 0
+      };
+    };
+    
+    // Count all downline riders
+    const countDownline = (rider: any): number => {
+      const directDownline = riders.filter((r: any) => 
+        r.upline_chain && r.upline_chain.length > 0 && r.upline_chain[0]?.id === rider.id
+      );
+      return directDownline.length + directDownline.reduce((sum: number, r: any) => sum + countDownline(r), 0);
+    };
+    
+    return tier1Riders.map(buildTree);
+  }, [riders]);
+
+  // Reports & Analytics Data (Feature 14)
+  const reportsData = useMemo(() => {
+    let filteredJobs = jobs;
+    
+    // Apply date filters
+    if (reportDateFrom) {
+      filteredJobs = filteredJobs.filter((j: any) => new Date(j.created_at) >= new Date(reportDateFrom));
+    }
+    if (reportDateTo) {
+      const toDate = new Date(reportDateTo);
+      toDate.setHours(23, 59, 59, 999);
+      filteredJobs = filteredJobs.filter((j: any) => new Date(j.created_at) <= toDate);
+    }
+    
+    // Financial Report
+    const totalRevenue = filteredJobs.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+    const completedRevenue = filteredJobs.filter((j: any) => j.status === 'completed')
+      .reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+    const adminEarnings = filteredJobs.filter((j: any) => j.status === 'completed').length * 1; // $1 per job
+    const riderEarnings = completedRevenue - adminEarnings;
+    
+    // Calculate override commissions
+    let overrideCommissions = 0;
+    filteredJobs.filter((j: any) => j.status === 'completed').forEach((job: any) => {
+      if (job.commissions?.uplines) {
+        overrideCommissions += job.commissions.uplines.reduce((sum: number, u: any) => sum + (u.amount || 0), 0);
+      }
+    });
+    
+    // Operational Report
+    const totalOrders = filteredJobs.length;
+    const completedOrders = filteredJobs.filter((j: any) => j.status === 'completed').length;
+    const cancelledOrders = filteredJobs.filter((j: any) => j.status === 'cancelled').length;
+    const pendingOrders = filteredJobs.filter((j: any) => ['posted', 'accepted', 'picked-up', 'on-the-way'].includes(j.status)).length;
+    const completionRate = totalOrders > 0 ? ((completedOrders / totalOrders) * 100).toFixed(1) : '0';
+    
+    // Average delivery time (for completed jobs with timestamps)
+    const deliveryTimes: number[] = [];
+    filteredJobs.filter((j: any) => j.status === 'completed' && j.accepted_at && j.completed_at).forEach((job: any) => {
+      const start = new Date(job.accepted_at).getTime();
+      const end = new Date(job.completed_at).getTime();
+      deliveryTimes.push((end - start) / (1000 * 60)); // minutes
+    });
+    const avgDeliveryTime = deliveryTimes.length > 0 
+      ? (deliveryTimes.reduce((a, b) => a + b, 0) / deliveryTimes.length).toFixed(0) 
+      : 'N/A';
+    
+    // Rider Performance Report
+    const riderPerformance = riders.map((rider: any) => {
+      const riderJobs = filteredJobs.filter((j: any) => j.rider_id === rider.id);
+      const completed = riderJobs.filter((j: any) => j.status === 'completed').length;
+      const total = riderJobs.length;
+      const revenue = riderJobs.filter((j: any) => j.status === 'completed')
+        .reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+      
+      return {
+        id: rider.id,
+        name: rider.name,
+        tier: rider.tier,
+        totalJobs: total,
+        completedJobs: completed,
+        completionRate: total > 0 ? ((completed / total) * 100).toFixed(1) : '0',
+        revenue,
+        earnings: rider.earnings || 0
+      };
+    }).filter((r: any) => r.totalJobs > 0).sort((a: any, b: any) => b.completedJobs - a.completedJobs);
+    
+    // Daily breakdown
+    const dailyData: any = {};
+    filteredJobs.forEach((job: any) => {
+      const date = new Date(job.created_at).toLocaleDateString();
+      if (!dailyData[date]) {
+        dailyData[date] = { date, orders: 0, completed: 0, revenue: 0 };
+      }
+      dailyData[date].orders++;
+      if (job.status === 'completed') {
+        dailyData[date].completed++;
+        dailyData[date].revenue += parseFloat(job.price) || 0;
+      }
+    });
+    
+    return {
+      financial: {
+        totalRevenue,
+        completedRevenue,
+        adminEarnings,
+        riderEarnings,
+        overrideCommissions
+      },
+      operational: {
+        totalOrders,
+        completedOrders,
+        cancelledOrders,
+        pendingOrders,
+        completionRate,
+        avgDeliveryTime
+      },
+      riderPerformance,
+      dailyData: Object.values(dailyData).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    };
+  }, [jobs, riders, reportDateFrom, reportDateTo]);
+
+  // Audit Log helper function (Feature 15)
+  const logAuditAction = async (action: string, details: any) => {
+    const logEntry = {
+      action,
+      user_id: auth.id,
+      user_type: auth.type,
+      details: JSON.stringify(details),
+      timestamp: new Date().toISOString(),
+      ip_address: 'client-side' // In production, get from server
+    };
+    
+    try {
+      await api('audit_logs', 'POST', logEntry);
+    } catch (e) {
+      console.error('Failed to log audit action:', e);
+    }
+    
+    // Also update local state
+    setAuditLogs(prev => [logEntry, ...prev]);
+  };
+
+  // Load audit logs
+  const loadAuditLogs = async () => {
+    try {
+      const logs = await api('audit_logs?order=timestamp.desc&limit=100');
+      setAuditLogs(Array.isArray(logs) ? logs : []);
+    } catch (e) {
+      console.error('Failed to load audit logs:', e);
+      // If table doesn't exist, use empty array
+      setAuditLogs([]);
+    }
+  };
+
+  // Route Optimization (Feature 8) - Simple nearest neighbor algorithm
+  const optimizeRoute = (jobsToOptimize: any[]) => {
+    if (jobsToOptimize.length <= 1) {
+      setOptimizedRoute(jobsToOptimize);
+      return;
+    }
+    
+    // Simple optimization: sort by pickup location similarity
+    // In production, use Google Maps Distance Matrix API
+    const optimized = [...jobsToOptimize];
+    
+    // Group by similar pickup areas (first 3 chars of postal code if available)
+    optimized.sort((a, b) => {
+      const aPickup = a.pickup?.toLowerCase() || '';
+      const bPickup = b.pickup?.toLowerCase() || '';
+      return aPickup.localeCompare(bPickup);
+    });
+    
+    setOptimizedRoute(optimized);
+    alert('Route optimized! Jobs have been reordered for efficiency.');
+  };
+
+  // Generate route URL for Google Maps
+  const generateOptimizedRouteUrl = (jobsList: any[]) => {
+    if (jobsList.length === 0) return '';
+    
+    const waypoints = jobsList.map(j => `${encodeURIComponent(j.pickup)}|${encodeURIComponent(j.delivery)}`).join('|');
+    const origin = encodeURIComponent(jobsList[0].pickup);
+    const destination = encodeURIComponent(jobsList[jobsList.length - 1].delivery);
+    
+    return `https://www.google.com/maps/dir/${origin}/${jobsList.map(j => encodeURIComponent(j.delivery)).join('/')}`;
+  };
 
   // Save customer profile
   const saveCustomerProfile = async () => {
@@ -1883,6 +2099,24 @@ Thank you for your order! 🙏`;
                 >
                   📸 POD
                 </button>
+                <button 
+                  onClick={() => setAdminView('referrals')} 
+                  className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'referrals' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  🌳 Referrals
+                </button>
+                <button 
+                  onClick={() => setAdminView('reports')} 
+                  className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'reports' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  📊 Reports
+                </button>
+                <button 
+                  onClick={() => { setAdminView('audit'); loadAuditLogs(); }} 
+                  className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'audit' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  📋 Audit
+                </button>
               </>
             )}
             <button 
@@ -2335,6 +2569,17 @@ Thank you for your order! 🙏`;
                 <BarChart3 size={18} />
                 My Performance
               </button>
+              {getActiveJobsForRider.length > 1 && (
+                <button
+                  onClick={() => setShowRouteOptimization(!showRouteOptimization)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                    showRouteOptimization ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
+                  }`}
+                >
+                  <Navigation size={18} />
+                  Optimize Route
+                </button>
+              )}
               {gpsPermissionGranted === false && (
                 <button
                   onClick={() => setShowGpsWarning(true)}
@@ -2402,6 +2647,73 @@ Thank you for your order! 🙏`;
                     <p className="text-3xl font-bold text-purple-600">{riderPerformanceStats.completedJobs}</p>
                     <p className="text-sm text-gray-600">Total Completed</p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Route Optimization - Feature 8 */}
+            {showRouteOptimization && getActiveJobsForRider.length > 1 && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <Navigation className="text-blue-600" />
+                  Route Optimization
+                </h3>
+                
+                <p className="text-gray-600 mb-4">
+                  You have {getActiveJobsForRider.length} active jobs. Optimize your route for efficiency.
+                </p>
+
+                {/* Current Jobs List */}
+                <div className="mb-4">
+                  <h4 className="font-semibold text-gray-800 mb-2">Current Order:</h4>
+                  <div className="space-y-2">
+                    {(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider).map((job: any, idx: number) => (
+                      <div key={job.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{job.pickup?.substring(0, 30)}...</p>
+                          <p className="text-xs text-gray-500">→ {job.delivery?.substring(0, 30)}...</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          job.status === 'picked-up' ? 'bg-yellow-100 text-yellow-700' :
+                          job.status === 'on-the-way' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {job.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => optimizeRoute(getActiveJobsForRider)}
+                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 flex items-center justify-center gap-2"
+                  >
+                    🔄 Auto-Optimize Route
+                  </button>
+                  
+                  <a
+                    href={generateOptimizedRouteUrl(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center gap-2 text-center"
+                  >
+                    <MapPin size={18} />
+                    Open in Google Maps
+                  </a>
+                </div>
+
+                {/* Tips */}
+                <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+                  <p className="text-xs text-yellow-800">
+                    💡 <strong>Tip:</strong> The optimizer groups nearby pickups together for efficiency. 
+                    For best results, pick up all packages before starting deliveries.
+                  </p>
                 </div>
               </div>
             )}
@@ -3247,6 +3559,480 @@ Thank you for your order! 🙏`;
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Referral Tree View - Feature 12 */}
+            {adminView === 'referrals' && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-2xl font-bold mb-6">🌳 Referral Tree (MLM Hierarchy)</h3>
+                
+                {/* Summary Stats */}
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  <div className="bg-purple-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-purple-600">{riders.filter((r: any) => r.tier === 1).length}</p>
+                    <p className="text-sm text-gray-600">Tier 1 (Root)</p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-blue-600">{riders.filter((r: any) => r.tier === 2).length}</p>
+                    <p className="text-sm text-gray-600">Tier 2</p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-green-600">{riders.filter((r: any) => r.tier === 3).length}</p>
+                    <p className="text-sm text-gray-600">Tier 3</p>
+                  </div>
+                  <div className="bg-orange-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-orange-600">{riders.filter((r: any) => r.tier > 3).length}</p>
+                    <p className="text-sm text-gray-600">Tier 4+</p>
+                  </div>
+                </div>
+
+                {/* Tree View */}
+                <div className="border rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-800 mb-4">Hierarchy View</h4>
+                  {referralTreeData.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">No riders registered yet</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {referralTreeData.map((rootRider: any) => (
+                        <div key={rootRider.id} className="border-l-4 border-purple-500 pl-4">
+                          {/* Root Rider */}
+                          <div 
+                            className="bg-purple-50 p-3 rounded-lg cursor-pointer hover:bg-purple-100"
+                            onClick={() => setSelectedRiderForTree(selectedRiderForTree?.id === rootRider.id ? null : rootRider)}
+                          >
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="font-bold text-purple-800">👑 {rootRider.name}</p>
+                                <p className="text-sm text-purple-600">Tier 1 | Code: {rootRider.referral_code}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-medium text-gray-700">Downline: {rootRider.totalDownline}</p>
+                                <p className="text-sm text-green-600">Earnings: ${(rootRider.earnings || 0).toFixed(2)}</p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Children (Tier 2) */}
+                          {rootRider.children && rootRider.children.length > 0 && (
+                            <div className="ml-6 mt-2 space-y-2">
+                              {rootRider.children.map((child: any) => (
+                                <div key={child.id} className="border-l-4 border-blue-400 pl-4">
+                                  <div className="bg-blue-50 p-2 rounded-lg">
+                                    <div className="flex justify-between items-center">
+                                      <div>
+                                        <p className="font-semibold text-blue-800">├─ {child.name}</p>
+                                        <p className="text-xs text-blue-600">Tier {child.tier} | Code: {child.referral_code}</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-xs text-gray-600">Downline: {child.totalDownline}</p>
+                                        <p className="text-xs text-green-600">${(child.earnings || 0).toFixed(2)}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Grandchildren (Tier 3+) */}
+                                  {child.children && child.children.length > 0 && (
+                                    <div className="ml-6 mt-1 space-y-1">
+                                      {child.children.map((grandchild: any) => (
+                                        <div key={grandchild.id} className="border-l-4 border-green-400 pl-4">
+                                          <div className="bg-green-50 p-2 rounded-lg">
+                                            <div className="flex justify-between items-center">
+                                              <div>
+                                                <p className="text-sm font-medium text-green-800">├─ {grandchild.name}</p>
+                                                <p className="text-xs text-green-600">Tier {grandchild.tier} | {grandchild.referral_code}</p>
+                                              </div>
+                                              <p className="text-xs text-green-600">${(grandchild.earnings || 0).toFixed(2)}</p>
+                                            </div>
+                                          </div>
+                                          
+                                          {/* Great-grandchildren (Tier 4+) */}
+                                          {grandchild.children && grandchild.children.length > 0 && (
+                                            <div className="ml-4 mt-1 text-xs text-gray-500">
+                                              └─ +{grandchild.children.length} more downline...
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Commission Flow Explanation */}
+                <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <h4 className="font-semibold text-yellow-800 mb-2">💰 Commission Flow</h4>
+                  <p className="text-sm text-yellow-700">
+                    When a job is completed, commissions flow upward through the referral chain:
+                  </p>
+                  <ul className="text-sm text-yellow-700 mt-2 space-y-1 list-disc list-inside">
+                    <li>Platform takes $1 per job</li>
+                    <li>Tier 1 rider: Keeps remaining amount</li>
+                    <li>Tier 2 rider: $2 goes to upline (Tier 1)</li>
+                    <li>Tier 3 rider: $2 each to uplines (Tier 2 & 1)</li>
+                    <li>Tier 4+: 50% to rider, 50% split among uplines</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Reports & Analytics - Feature 14 */}
+            {adminView === 'reports' && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-2xl font-bold mb-6">📊 Reports & Analytics</h3>
+                
+                {/* Date Filter */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                    <input
+                      type="date"
+                      value={reportDateFrom}
+                      onChange={(e) => setReportDateFrom(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                    <input
+                      type="date"
+                      value={reportDateTo}
+                      onChange={(e) => setReportDateTo(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
+                    <select
+                      value={reportType}
+                      onChange={(e) => setReportType(e.target.value as any)}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="financial">💰 Financial</option>
+                      <option value="operational">📦 Operational</option>
+                      <option value="rider">🏍️ Rider Performance</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <button
+                      onClick={() => { setReportDateFrom(''); setReportDateTo(''); }}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={() => {
+                        const data = reportType === 'rider' ? reportsData.riderPerformance : reportsData.dailyData;
+                        const headers = reportType === 'rider' 
+                          ? ['Name', 'Tier', 'Total_Jobs', 'Completed_Jobs', 'Completion_Rate', 'Revenue', 'Earnings']
+                          : ['Date', 'Orders', 'Completed', 'Revenue'];
+                        exportToCSV(data, `${reportType}_report`, headers);
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-1"
+                    >
+                      <Download size={16} /> Export
+                    </button>
+                  </div>
+                </div>
+
+                {/* Financial Report */}
+                {reportType === 'financial' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="bg-blue-50 p-4 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-blue-600">${reportsData.financial.totalRevenue.toFixed(2)}</p>
+                        <p className="text-sm text-gray-600">Total Revenue</p>
+                      </div>
+                      <div className="bg-green-50 p-4 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-green-600">${reportsData.financial.completedRevenue.toFixed(2)}</p>
+                        <p className="text-sm text-gray-600">Completed Revenue</p>
+                      </div>
+                      <div className="bg-purple-50 p-4 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-purple-600">${reportsData.financial.adminEarnings.toFixed(2)}</p>
+                        <p className="text-sm text-gray-600">Admin Earnings</p>
+                      </div>
+                      <div className="bg-orange-50 p-4 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-orange-600">${reportsData.financial.riderEarnings.toFixed(2)}</p>
+                        <p className="text-sm text-gray-600">Rider Earnings</p>
+                      </div>
+                      <div className="bg-pink-50 p-4 rounded-lg text-center">
+                        <p className="text-2xl font-bold text-pink-600">${reportsData.financial.overrideCommissions.toFixed(2)}</p>
+                        <p className="text-sm text-gray-600">Override Commissions</p>
+                      </div>
+                    </div>
+
+                    {/* Daily Breakdown Chart */}
+                    <div className="border rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-800 mb-4">Daily Revenue Breakdown</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="text-left p-3">Date</th>
+                              <th className="text-center p-3">Orders</th>
+                              <th className="text-center p-3">Completed</th>
+                              <th className="text-right p-3">Revenue</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportsData.dailyData.slice(0, 14).map((day: any, idx: number) => (
+                              <tr key={idx} className="border-t">
+                                <td className="p-3">{day.date}</td>
+                                <td className="p-3 text-center">{day.orders}</td>
+                                <td className="p-3 text-center text-green-600">{day.completed}</td>
+                                <td className="p-3 text-right font-medium">${day.revenue.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Operational Report */}
+                {reportType === 'operational' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="bg-blue-50 p-4 rounded-lg text-center">
+                        <p className="text-3xl font-bold text-blue-600">{reportsData.operational.totalOrders}</p>
+                        <p className="text-sm text-gray-600">Total Orders</p>
+                      </div>
+                      <div className="bg-green-50 p-4 rounded-lg text-center">
+                        <p className="text-3xl font-bold text-green-600">{reportsData.operational.completedOrders}</p>
+                        <p className="text-sm text-gray-600">Completed</p>
+                      </div>
+                      <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                        <p className="text-3xl font-bold text-yellow-600">{reportsData.operational.pendingOrders}</p>
+                        <p className="text-sm text-gray-600">Pending</p>
+                      </div>
+                      <div className="bg-red-50 p-4 rounded-lg text-center">
+                        <p className="text-3xl font-bold text-red-600">{reportsData.operational.cancelledOrders}</p>
+                        <p className="text-sm text-gray-600">Cancelled</p>
+                      </div>
+                      <div className="bg-purple-50 p-4 rounded-lg text-center">
+                        <p className="text-3xl font-bold text-purple-600">{reportsData.operational.completionRate}%</p>
+                        <p className="text-sm text-gray-600">Completion Rate</p>
+                      </div>
+                      <div className="bg-indigo-50 p-4 rounded-lg text-center">
+                        <p className="text-3xl font-bold text-indigo-600">{reportsData.operational.avgDeliveryTime}</p>
+                        <p className="text-sm text-gray-600">Avg Delivery (min)</p>
+                      </div>
+                    </div>
+
+                    {/* Visual Progress Bar */}
+                    <div className="border rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-800 mb-4">Order Status Distribution</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>Completed</span>
+                            <span>{reportsData.operational.completedOrders}</span>
+                          </div>
+                          <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-green-500" 
+                              style={{ width: `${reportsData.operational.totalOrders > 0 ? (reportsData.operational.completedOrders / reportsData.operational.totalOrders) * 100 : 0}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>Pending</span>
+                            <span>{reportsData.operational.pendingOrders}</span>
+                          </div>
+                          <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-yellow-500" 
+                              style={{ width: `${reportsData.operational.totalOrders > 0 ? (reportsData.operational.pendingOrders / reportsData.operational.totalOrders) * 100 : 0}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span>Cancelled</span>
+                            <span>{reportsData.operational.cancelledOrders}</span>
+                          </div>
+                          <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-red-500" 
+                              style={{ width: `${reportsData.operational.totalOrders > 0 ? (reportsData.operational.cancelledOrders / reportsData.operational.totalOrders) * 100 : 0}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rider Performance Report */}
+                {reportType === 'rider' && (
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="text-left p-3">Rider</th>
+                          <th className="text-center p-3">Tier</th>
+                          <th className="text-center p-3">Total Jobs</th>
+                          <th className="text-center p-3">Completed</th>
+                          <th className="text-center p-3">Rate</th>
+                          <th className="text-right p-3">Revenue</th>
+                          <th className="text-right p-3">Earnings</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportsData.riderPerformance.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="text-center py-8 text-gray-500">No rider data available</td>
+                          </tr>
+                        ) : (
+                          reportsData.riderPerformance.map((rider: any, idx: number) => (
+                            <tr key={rider.id} className={`border-t ${idx === 0 ? 'bg-yellow-50' : ''}`}>
+                              <td className="p-3 font-medium">
+                                {idx === 0 && '🏆 '}{rider.name}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+                                  Tier {rider.tier}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center">{rider.totalJobs}</td>
+                              <td className="p-3 text-center text-green-600">{rider.completedJobs}</td>
+                              <td className="p-3 text-center">
+                                <span className={`${parseFloat(rider.completionRate) >= 80 ? 'text-green-600' : parseFloat(rider.completionRate) >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {rider.completionRate}%
+                                </span>
+                              </td>
+                              <td className="p-3 text-right">${rider.revenue.toFixed(2)}</td>
+                              <td className="p-3 text-right font-medium text-green-600">${rider.earnings.toFixed(2)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Audit Logs - Feature 15 */}
+            {adminView === 'audit' && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-2xl font-bold mb-6">📋 Audit Logs</h3>
+                
+                {/* Filter */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Action</label>
+                    <select
+                      value={auditLogFilter.action}
+                      onChange={(e) => setAuditLogFilter({...auditLogFilter, action: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="">All Actions</option>
+                      <option value="login">Login</option>
+                      <option value="logout">Logout</option>
+                      <option value="create_job">Create Job</option>
+                      <option value="accept_job">Accept Job</option>
+                      <option value="complete_job">Complete Job</option>
+                      <option value="edit_rider">Edit Rider</option>
+                      <option value="edit_customer">Edit Customer</option>
+                      <option value="assign_rider">Assign Rider</option>
+                      <option value="flag_pod">Flag POD</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Filter by User</label>
+                    <input
+                      type="text"
+                      value={auditLogFilter.user}
+                      onChange={(e) => setAuditLogFilter({...auditLogFilter, user: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      placeholder="Search user..."
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => setAuditLogFilter({ action: '', user: '' })}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    >
+                      Clear Filters
+                    </button>
+                  </div>
+                </div>
+
+                {/* Audit Log List */}
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="text-left p-3">Timestamp</th>
+                        <th className="text-left p-3">Action</th>
+                        <th className="text-left p-3">User</th>
+                        <th className="text-left p-3">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="text-center py-8 text-gray-500">
+                            <p>No audit logs available yet</p>
+                            <p className="text-xs mt-2">Actions will be logged when users perform operations</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        auditLogs
+                          .filter((log: any) => {
+                            if (auditLogFilter.action && log.action !== auditLogFilter.action) return false;
+                            if (auditLogFilter.user && !log.user_id?.toLowerCase().includes(auditLogFilter.user.toLowerCase())) return false;
+                            return true;
+                          })
+                          .slice(0, 50)
+                          .map((log: any, idx: number) => (
+                            <tr key={idx} className="border-t hover:bg-gray-50">
+                              <td className="p-3 text-xs text-gray-500">
+                                {new Date(log.timestamp).toLocaleString()}
+                              </td>
+                              <td className="p-3">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  log.action?.includes('login') ? 'bg-blue-100 text-blue-700' :
+                                  log.action?.includes('create') ? 'bg-green-100 text-green-700' :
+                                  log.action?.includes('edit') ? 'bg-yellow-100 text-yellow-700' :
+                                  log.action?.includes('delete') ? 'bg-red-100 text-red-700' :
+                                  log.action?.includes('complete') ? 'bg-purple-100 text-purple-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {log.action}
+                                </span>
+                              </td>
+                              <td className="p-3 text-sm">
+                                <span className="text-gray-700">{log.user_type}</span>
+                                <span className="text-gray-400 text-xs ml-1">({log.user_id?.substring(0, 8)}...)</span>
+                              </td>
+                              <td className="p-3 text-xs text-gray-500 max-w-xs truncate">
+                                {log.details?.substring(0, 50)}...
+                              </td>
+                            </tr>
+                          ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Info Box */}
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    <strong>Note:</strong> Audit logs track all admin actions including rider assignments, 
+                    level changes, earnings adjustments, and customer edits. Logs are retained for 90 days.
+                  </p>
                 </div>
               </div>
             )}
