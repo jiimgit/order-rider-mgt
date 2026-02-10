@@ -7,27 +7,11 @@
   "display": "standalone",
   "start_url": "/",
   "short_name": "MoveIt",
-  "theme_color": "#3B82F6",
-  "description": "Delivery platform with live GPS tracking for riders and customers. Track your deliveries in real-time!",
-  "orientation": "any",
-  "background_color": "#3B82F6",
+  "theme_color": "#7C3AED",
+  "description": "MLM Delivery Platform - Customer Portal, Rider Portal & Admin Dashboard with GPS tracking, POD, and referral system.",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
   "prefer_related_applications": false,
-  "display_override": [
-    "window-controls-overlay"
-  ],
-  "screenshots": [
-    {
-      "src": "/icons/screenshot.png",
-      "sizes": "1280x720",
-      "type": "image/png"
-    }
-  ],
-  "features": [
-    "Live GPS Tracking",
-    "Real-time Updates",
-    "WhatsApp Integration",
-    "Delivery Management"
-  ],
   "icons": [
     {
       "src": "/icons/manifest-icon-192.maskable.png",
@@ -59,9 +43,6 @@
     "logistics",
     "productivity"
   ],
-  "launch_handler": {
-    "client_mode": "navigate-existing"
-  },
   "shortcuts": [
     {
       "name": "Customer Portal",
@@ -87,5 +68,7 @@
         }
       ]
     }
-  ]
+  ],
+  "version": "2.1.0",
+  "version_name": "February 2026 Update"
 }
