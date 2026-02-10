@@ -1,18 +1,35 @@
-import type { AppProps } from 'next/app'
-import Head from 'next/head'
-import { useEffect } from 'react'
-import './globals.css'
+import '@/styles/globals.css';
+import type { AppProps } from 'next/app';
+import Head from 'next/head';
+import { useEffect } from 'react';
 
 export default function App({ Component, pageProps }: AppProps) {
-  // Register service worker
+  
+  // Register Service Worker for PWA
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/sw.js')
         .then((registration) => {
-          console.log('Service Worker registered:', registration);
+          console.log('[PWA] Service Worker registered successfully:', registration.scope);
+          
+          // Check for updates
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New version available
+                  if (confirm('New version available! Reload to update?')) {
+                    window.location.reload();
+                  }
+                }
+              });
+            }
+          });
         })
         .catch((error) => {
-          console.log('Service Worker registration failed:', error);
+          console.log('[PWA] Service Worker registration failed:', error);
         });
     }
   }, []);
@@ -20,18 +37,26 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <>
       <Head>
+        {/* Primary Meta Tags */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-        <meta name="theme-color" content="#3B82F6" />
-        <meta name="description" content="Delivery platform with live GPS tracking for riders and customers" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="MoveIt" />
+        <meta name="theme-color" content="#7C3AED" />
+        <meta name="description" content="MoveIt Delivery - MLM Delivery Platform for Customers, Riders & Admin" />
+        
+        {/* PWA Meta Tags */}
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icons/manifest-icon-192.maskable.png" />
-        <link rel="icon" type="image/png" href="/icons/manifest-icon-192.maskable.png" />
-        <title>MoveIt - Delivery Platform</title>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="MoveIt" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        
+        {/* Favicon */}
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/manifest-icon-192.maskable.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icons/manifest-icon-192.maskable.png" />
+        
+        <title>MoveIt Delivery</title>
       </Head>
       <Component {...pageProps} />
     </>
-  )
+  );
 }
