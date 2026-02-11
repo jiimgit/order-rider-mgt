@@ -48,23 +48,56 @@ const api = async (endpoint: string, method = 'GET', body: any = null): Promise<
 
 const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChain: any[]): any => {
   const platformFee = 1;
-  const available = deliveryFee - platformFee;
-  let commissions = { platform: platformFee, activeRider: 0, uplines: [] };
-  if (riderTier <= 3) {
-    const numUplines = riderTier - 1;
-    const uplineTotal = numUplines * 2;
-    commissions.activeRider = available - uplineTotal;
-    uplineChain.slice(0, numUplines).forEach((upline, idx) => {
-      commissions.uplines.push({ riderId: upline.id, riderName: upline.name, tier: riderTier - idx - 1, amount: 2 });
-    });
+  const remaining = deliveryFee - platformFee;
+  
+  // New formula: 50% to rider, 50% split among uplines (max $2 each)
+  const riderShare = remaining / 2;
+  const uplinePool = remaining / 2;
+  
+  let commissions: any = { 
+    platform: platformFee, 
+    activeRider: riderShare, 
+    uplines: [],
+    companyExtra: 0 // Any excess goes to company
+  };
+  
+  if (uplineChain.length === 0) {
+    // No uplines - rider gets everything after platform fee
+    commissions.activeRider = remaining;
   } else {
-    commissions.activeRider = deliveryFee * 0.5;
-    const uplinePool = available - commissions.activeRider;
-    const perUpline = uplinePool / uplineChain.length;
-    uplineChain.forEach((upline) => {
-      commissions.uplines.push({ riderId: upline.id, riderName: upline.name, tier: upline.tier, amount: perUpline });
-    });
+    // Calculate upline share - max $2 each, divided equally
+    const maxPerUpline = 2;
+    const totalMaxUpline = uplineChain.length * maxPerUpline;
+    
+    if (uplinePool >= totalMaxUpline) {
+      // Enough for $2 each - give $2 to each upline, rest to rider
+      uplineChain.forEach((upline: any) => {
+        commissions.uplines.push({ 
+          riderId: upline.id, 
+          riderName: upline.name, 
+          tier: upline.tier, 
+          amount: maxPerUpline 
+        });
+      });
+      // Rider gets their 50% plus any unclaimed from upline pool
+      commissions.activeRider = riderShare + (uplinePool - totalMaxUpline);
+    } else {
+      // Not enough for $2 each - split equally among uplines
+      const perUpline = uplinePool / uplineChain.length;
+      uplineChain.forEach((upline: any) => {
+        commissions.uplines.push({ 
+          riderId: upline.id, 
+          riderName: upline.name, 
+          tier: upline.tier, 
+          amount: parseFloat(perUpline.toFixed(2))
+        });
+      });
+      // Handle rounding - any remainder goes to company
+      const totalUplinePaid = commissions.uplines.reduce((sum: number, u: any) => sum + u.amount, 0);
+      commissions.companyExtra = parseFloat((uplinePool - totalUplinePaid).toFixed(2));
+    }
   }
+  
   return commissions;
 };
 
@@ -86,7 +119,7 @@ const DeliveryPlatform = () => {
   const [jobForm, setJobForm] = useState({ 
     pickup: '', 
     delivery: '', 
-    timeframe: 'same-day', 
+    timeframe: '', 
     price: '10',
     recipientName: '',
     recipientPhone: '',
@@ -993,6 +1026,43 @@ const DeliveryPlatform = () => {
     }
   };
 
+  // Admin - Swap upline/downline positions
+  const swapUplineDownline = async (rider1Id: string, rider2Id: string) => {
+    try {
+      const rider1 = riders.find((r: any) => r.id === rider1Id);
+      const rider2 = riders.find((r: any) => r.id === rider2Id);
+      
+      if (!rider1 || !rider2) {
+        alert('Riders not found');
+        return;
+      }
+      
+      // Swap their upline chains
+      const rider1Upline = rider1.upline_chain || [];
+      const rider2Upline = rider2.upline_chain || [];
+      
+      // Update rider1 with rider2's upline
+      await api(`riders?id=eq.${rider1Id}`, 'PATCH', { 
+        upline_chain: rider2Upline 
+      });
+      
+      // Update rider2 with rider1's upline
+      await api(`riders?id=eq.${rider2Id}`, 'PATCH', { 
+        upline_chain: rider1Upline 
+      });
+      
+      await logAuditAction('swap_upline_downline', { 
+        rider1Id, rider1Name: rider1.name,
+        rider2Id, rider2Name: rider2.name
+      });
+      
+      alert(`Swapped positions: ${rider1.name} ↔ ${rider2.name}\nThis will affect future payouts only.`);
+      loadData();
+    } catch (e: any) {
+      alert('Error swapping positions: ' + e.message);
+    }
+  };
+
   // Admin - Create order on behalf of customer
   const adminCreateOrderForCustomer = async () => {
     if (!adminOrderForm.customerId || !adminOrderForm.pickup || !adminOrderForm.delivery) {
@@ -1216,18 +1286,21 @@ const DeliveryPlatform = () => {
   // Copy live tracking link
   const copyLiveTrackingLink = (job: any) => {
     const url = generateLiveTrackingUrl(job);
-    const message = `🚚 *Live Delivery Tracking*
+    const riderData = riders.find((r: any) => r.id === job.rider_id);
+    const message = `🚚 Live Delivery Tracking
 
-Track your delivery in real-time:
+Hi! You can track your delivery in real-time:
+
+📍 Live Tracking Link:
 ${url}
 
-📦 *Order Details:*
-• From: ${job.pickup}
-• To: ${job.delivery}
-• Rider: ${job.rider_name || 'Assigning...'}
-• Status: ${job.status.toUpperCase()}
+Rider Details:
+• Name: ${job.rider_name || 'Assigning...'}
+• Phone: ${riderData?.phone || 'N/A'}
 
-Thank you for your order!`;
+After delivery, you can also view your Proof of Delivery (POD) via the same link.
+
+Thank you for your order! 🙏`;
 
     navigator.clipboard.writeText(message).then(() => {
       alert('Live tracking link copied to clipboard!');
@@ -1416,24 +1489,20 @@ Thank you for using our delivery service!`;
   // Generate WhatsApp with LIVE tracking URL
   const generateLiveTrackingWhatsApp = (job: any, customerPhone: string): string => {
     const liveTrackingUrl = generateLiveTrackingUrl(job);
-    const statusEmoji = job.status === 'completed' ? '✅' : job.status === 'on-the-way' ? '🚗' : job.status === 'picked-up' ? '📦' : job.status === 'accepted' ? '👍' : '📋';
+    const riderData = riders.find((r: any) => r.id === job.rider_id);
     
-    const message = `🚚 *Live Delivery Tracking*
+    const message = `🚚 Live Delivery Tracking
 
-Hi! Track your delivery in real-time:
+Hi! You can track your delivery in real-time:
 
-📍 *LIVE TRACKING LINK:*
+📍 Live Tracking Link:
 ${liveTrackingUrl}
 
-${statusEmoji} *Status:* ${job.status.toUpperCase().replace('-', ' ')}
+Rider Details:
+• Name: ${job.rider_name || 'Assigning...'}
+• Phone: ${riderData?.phone || job.rider_phone || 'N/A'}
 
-📦 *Order Details:*
-• From: ${job.pickup}
-• To: ${job.delivery}
-${job.rider_name ? `• Rider: ${job.rider_name}` : ''}
-${job.rider_phone ? `• Rider Phone: ${job.rider_phone}` : ''}
-
-Click the link above to see your rider's live location on the map!
+After delivery, you can also view your Proof of Delivery (POD) via the same link.
 
 Thank you for your order! 🙏`;
     
@@ -2513,13 +2582,23 @@ Thank you for your order! 🙏`;
                   <p className="text-blue-100 text-sm">Available Credits</p>
                   <p className="text-5xl font-bold">${(curr.credits || 0).toFixed(2)}</p>
                 </div>
-                <button 
-                  onClick={() => setShowTopUp(true)} 
-                  className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 transition-colors shadow-lg"
-                >
-                  <CreditCard size={20} />
-                  Top Up via PayNow
-                </button>
+                <div className="flex gap-2">
+                  <a 
+                    href="https://wa.me/6580201980" 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-green-500 text-white px-4 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-green-600 transition-colors shadow-lg"
+                  >
+                    💬 Contact Us
+                  </a>
+                  <button 
+                    onClick={() => setShowTopUp(true)} 
+                    className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 transition-colors shadow-lg"
+                  >
+                    <CreditCard size={20} />
+                    Top Up
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2636,15 +2715,14 @@ Thank you for your order! 🙏`;
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Timeframe</label>
-                  <select 
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date</label>
+                  <input 
+                    type="date" 
                     value={jobForm.timeframe} 
                     onChange={(e) => setJobForm({...jobForm, timeframe: e.target.value})} 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="same-day">Same Day Delivery</option>
-                    <option value="next-day">Next Day Delivery</option>
-                  </select>
+                    min={new Date().toISOString().split('T')[0]}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Your Price (minimum $3)</label>
@@ -3185,15 +3263,17 @@ Thank you for your order! 🙏`;
                 {/* Earnings Overview */}
                 <div className="mt-6 bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white">
                   <h4 className="font-semibold mb-3">💰 Earnings Overview</h4>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className={`grid ${riderDownlineData.downlineRiders.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
                     <div className="text-center">
                       <p className="text-3xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
-                      <p className="text-green-100 text-sm">Total Earnings</p>
+                      <p className="text-green-100 text-sm">My Trip Earnings</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-3xl font-bold">${riderDownlineData.overrideEarnings.toFixed(2)}</p>
-                      <p className="text-green-100 text-sm">Override Earnings</p>
-                    </div>
+                    {riderDownlineData.downlineRiders.length > 0 && (
+                      <div className="text-center">
+                        <p className="text-3xl font-bold">${riderDownlineData.overrideEarnings.toFixed(2)}</p>
+                        <p className="text-green-100 text-sm">Team Commission</p>
+                      </div>
+                    )}
                     <div className="text-center">
                       <p className="text-3xl font-bold">{curr.completed_jobs || 0}</p>
                       <p className="text-green-100 text-sm">Completed Jobs</p>
@@ -3201,27 +3281,26 @@ Thank you for your order! 🙏`;
                   </div>
                 </div>
 
-                {/* Downline Riders */}
+                {/* Downline Riders - Only show count and names, not their earnings */}
                 {riderDownlineData.downlineRiders.length > 0 && (
                   <div className="mt-6">
-                    <h4 className="font-semibold text-gray-800 mb-3">👥 My Downline ({riderDownlineData.downlineRiders.length})</h4>
+                    <h4 className="font-semibold text-gray-800 mb-3">👥 My Team ({riderDownlineData.downlineRiders.length})</h4>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {riderDownlineData.downlineRiders.map((downline: any) => (
                         <div key={downline.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                           <div>
                             <p className="font-medium">{downline.name}</p>
-                            <p className="text-xs text-gray-500">Tier {downline.tier} • Code: {downline.referral_code}</p>
+                            <p className="text-xs text-gray-500">Code: {downline.referral_code}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-medium text-green-600">${(downline.earnings || 0).toFixed(2)}</p>
-                            <p className="text-xs text-gray-500">{downline.completed_jobs || 0} jobs</p>
+                            <p className="text-sm text-gray-600">{downline.completed_jobs || 0} jobs completed</p>
                           </div>
                         </div>
                       ))}
                     </div>
                     <div className="mt-3 p-3 bg-yellow-50 rounded-lg">
                       <p className="text-sm text-yellow-800">
-                        💡 You earn override commission when your downline completes deliveries!
+                        💡 You earn team commission when your team members complete deliveries!
                       </p>
                     </div>
                   </div>
@@ -3754,11 +3833,9 @@ Thank you for your order! 🙏`;
                           <div className="bg-green-50 p-4 rounded-lg mb-3">
                             <p className="text-sm text-gray-600 mb-1">You will earn:</p>
                             <p className="text-3xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
-                            {comm.uplines.length > 0 && (
-                              <p className="text-xs text-gray-500 mt-2">
-                                Upline commission: ${comm.uplines.reduce((sum: number, u: any) => sum + u.amount, 0).toFixed(2)}
-                              </p>
-                            )}
+                            <p className="text-xs text-gray-500 mt-2">
+                              Platform fee: $1.00
+                            </p>
                           </div>
                           <button 
                             onClick={() => acceptJob(job.id)} 
@@ -4304,7 +4381,7 @@ Thank you for your order! 🙏`;
             {/* Referral Tree View - Feature 12 */}
             {adminView === 'referrals' && (
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-2xl font-bold mb-6">🌳 Referral Tree (MLM Hierarchy)</h3>
+                <h3 className="text-2xl font-bold mb-6">🌳 Referral Tree (Team Hierarchy)</h3>
                 
                 {/* Summary Stats */}
                 <div className="grid grid-cols-4 gap-4 mb-6">
@@ -4842,17 +4919,17 @@ Thank you for your order! 🙏`;
                 <div className="bg-white rounded-lg shadow p-6">
                   <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                     <UserCheck className="text-purple-600" />
-                    Rider Level Management
+                    Rider Management
                   </h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-100">
                         <tr>
                           <th className="text-left p-3">Rider</th>
-                          <th className="text-center p-3">Current Tier</th>
+                          <th className="text-center p-3">Upline</th>
                           <th className="text-center p-3">Jobs</th>
                           <th className="text-center p-3">Earnings</th>
-                          <th className="text-center p-3">Downline</th>
+                          <th className="text-center p-3">Team Size</th>
                           <th className="text-center p-3">Actions</th>
                         </tr>
                       </thead>
@@ -4861,16 +4938,15 @@ Thank you for your order! 🙏`;
                           const downlineCount = riders.filter((r: any) => 
                             r.upline_chain?.some((u: any) => u.id === rider.id)
                           ).length;
+                          const uplineName = rider.upline_chain?.[0]?.name || 'None (Top Level)';
                           return (
                             <tr key={rider.id} className="border-t hover:bg-gray-50">
                               <td className="p-3">
                                 <p className="font-medium">{rider.name}</p>
-                                <p className="text-xs text-gray-500">{rider.email}</p>
+                                <p className="text-xs text-gray-500">{rider.referral_code}</p>
                               </td>
-                              <td className="p-3 text-center">
-                                <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full font-medium">
-                                  Tier {rider.tier}
-                                </span>
+                              <td className="p-3 text-center text-sm text-gray-600">
+                                {uplineName}
                               </td>
                               <td className="p-3 text-center">{rider.completed_jobs || 0}</td>
                               <td className="p-3 text-center text-green-600 font-medium">
@@ -4879,15 +4955,21 @@ Thank you for your order! 🙏`;
                               <td className="p-3 text-center">{downlineCount}</td>
                               <td className="p-3 text-center">
                                 <select
-                                  value={rider.tier}
-                                  onChange={(e) => updateRiderTier(rider.id, parseInt(e.target.value))}
-                                  className="px-2 py-1 border rounded text-sm"
+                                  defaultValue=""
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      if (confirm(`Swap ${rider.name} with ${riders.find((r: any) => r.id === e.target.value)?.name}?\n\nThis will only affect future payouts.`)) {
+                                        swapUplineDownline(rider.id, e.target.value);
+                                      }
+                                      e.target.value = '';
+                                    }
+                                  }}
+                                  className="px-2 py-1 border rounded text-xs"
                                 >
-                                  <option value="1">Tier 1</option>
-                                  <option value="2">Tier 2</option>
-                                  <option value="3">Tier 3</option>
-                                  <option value="4">Tier 4</option>
-                                  <option value="5">Tier 5</option>
+                                  <option value="">Swap with...</option>
+                                  {riders.filter((r: any) => r.id !== rider.id).map((r: any) => (
+                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                  ))}
                                 </select>
                               </td>
                             </tr>
@@ -4896,6 +4978,12 @@ Thank you for your order! 🙏`;
                       </tbody>
                     </table>
                   </div>
+                  <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      <strong>⚠️ Note:</strong> Swapping positions only affects <strong>future payouts</strong>. 
+                      Past earnings remain unchanged.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Commission Configuration */}
@@ -4903,23 +4991,30 @@ Thank you for your order! 🙏`;
                   <h3 className="text-xl font-bold mb-4">💰 Commission Configuration</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-semibold mb-3">Current Settings</h4>
+                      <h4 className="font-semibold mb-3">Current Formula</h4>
                       <div className="space-y-2 text-sm">
-                        <p><span className="text-gray-500">Platform Fee:</span> <strong>$1.00</strong> per job</p>
-                        <p><span className="text-gray-500">Tier 1 Rider:</span> <strong>Keeps remaining</strong></p>
-                        <p><span className="text-gray-500">Tier 2 Override:</span> <strong>$2.00</strong> to upline</p>
-                        <p><span className="text-gray-500">Tier 3 Override:</span> <strong>$2.00</strong> each to uplines</p>
-                        <p><span className="text-gray-500">Tier 4+ Split:</span> <strong>50%</strong> rider, 50% uplines</p>
+                        <p><span className="text-gray-500">1. Platform Fee:</span> <strong>$1.00</strong> (always deducted first)</p>
+                        <p><span className="text-gray-500">2. Remaining:</span> <strong>Job Fee - $1</strong></p>
+                        <p><span className="text-gray-500">3. Rider gets:</span> <strong>50%</strong> of remaining</p>
+                        <p><span className="text-gray-500">4. Uplines share:</span> <strong>50%</strong> of remaining (max $2 each)</p>
+                        <p><span className="text-gray-500">5. Excess:</span> Goes back to rider</p>
                       </div>
                     </div>
                     <div className="p-4 bg-blue-50 rounded-lg">
-                      <h4 className="font-semibold mb-3">Commission Flow Example</h4>
-                      <p className="text-sm text-gray-600 mb-2">For a $10 job with Tier 3 rider:</p>
-                      <div className="space-y-1 text-sm">
-                        <p>• Platform: <strong>$1.00</strong></p>
-                        <p>• Tier 1 (grandparent): <strong>$2.00</strong></p>
-                        <p>• Tier 2 (parent): <strong>$2.00</strong></p>
-                        <p>• Tier 3 (rider): <strong>$5.00</strong></p>
+                      <h4 className="font-semibold mb-3">Examples</h4>
+                      <div className="space-y-3 text-sm">
+                        <div className="p-2 bg-white rounded">
+                          <p className="font-medium">$5 job, 1 upline:</p>
+                          <p className="text-gray-600">Platform: $1 | Rider: $2 | Upline: $2</p>
+                        </div>
+                        <div className="p-2 bg-white rounded">
+                          <p className="font-medium">$5 job, 3 uplines:</p>
+                          <p className="text-gray-600">Platform: $1 | Rider: $2 | Each upline: $0.66</p>
+                        </div>
+                        <div className="p-2 bg-white rounded">
+                          <p className="font-medium">$10 job, 2 uplines:</p>
+                          <p className="text-gray-600">Platform: $1 | Rider: $4.50 + $0.50 = $5 | Each upline: $2</p>
+                        </div>
                       </div>
                     </div>
                   </div>
