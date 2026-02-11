@@ -1,4 +1,4 @@
-import '@/styles/globals.css';
+import '../styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useEffect } from 'react';
@@ -40,7 +40,7 @@ export default function App({ Component, pageProps }: AppProps) {
         {/* Primary Meta Tags */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <meta name="theme-color" content="#7C3AED" />
-        <meta name="description" content="MoveIt Delivery - MLM Delivery Platform for Customers, Riders & Admin" />
+        <meta name="description" content="MoveIt Delivery - Delivery Platform for Customers, Riders & Admin" />
         
         {/* PWA Meta Tags */}
         <link rel="manifest" href="/manifest.json" />
