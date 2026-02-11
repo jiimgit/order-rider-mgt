@@ -1923,7 +1923,7 @@ Thank you for your order! 🙏`;
         remarks: jobForm.remarks || null
       });
       await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: curr.credits - price });
-      setJobForm({ pickup: '', delivery: '', timeframe: 'same-day', price: '10', recipientName: '', recipientPhone: '', parcelSize: 'small', remarks: '' });
+      setJobForm({ pickup: '', delivery: '', timeframe: '', price: '10', recipientName: '', recipientPhone: '', parcelSize: 'small', remarks: '' });
       alert('Job posted successfully!');
       loadData();
     } catch (e: any) { alert('Error posting job: ' + e.message); }
@@ -2721,7 +2721,6 @@ Thank you for your order! 🙏`;
                     value={jobForm.timeframe} 
                     onChange={(e) => setJobForm({...jobForm, timeframe: e.target.value})} 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    min={new Date().toISOString().split('T')[0]}
                   />
                 </div>
                 <div>
