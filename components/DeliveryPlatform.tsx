@@ -1283,6 +1283,76 @@ const DeliveryPlatform = () => {
     return `${baseUrl}?track=${job.id}`;
   };
 
+  // Singapore Postal Code Lookup using OneMap API (free, no key required)
+  const lookupPostalCode = async (postalCode: string): Promise<string | null> => {
+    if (!/^\d{6}$/.test(postalCode)) return null;
+    
+    try {
+      const response = await fetch(
+        `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postalCode}&returnGeom=Y&getAddrDetails=Y&pageNum=1`
+      );
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        const result = data.results[0];
+        // Format: Block/Building + Street + Singapore + Postal
+        const address = [
+          result.BLK_NO,
+          result.ROAD_NAME,
+          result.BUILDING ? `(${result.BUILDING})` : '',
+          'Singapore',
+          postalCode
+        ].filter(Boolean).join(' ');
+        return address;
+      }
+      return null;
+    } catch (error) {
+      console.error('Postal code lookup failed:', error);
+      return null;
+    }
+  };
+
+  // Handle postal code input for pickup
+  const handlePickupPostalCode = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setJobForm({ ...jobForm, pickup: value });
+    
+    if (value.length === 6) {
+      const address = await lookupPostalCode(value);
+      if (address) {
+        setJobForm(prev => ({ ...prev, pickup: address }));
+      }
+    }
+  };
+
+  // Handle postal code input for stops
+  const handleStopPostalCode = async (index: number, value: string) => {
+    const postalCode = value.replace(/\D/g, '').slice(0, 6);
+    const newStops = [...jobForm.stops];
+    newStops[index].address = value;
+    setJobForm({ ...jobForm, stops: newStops });
+    
+    // Only lookup if exactly 6 digits and looks like a postal code
+    if (postalCode.length === 6 && /^\d{6}$/.test(value)) {
+      const address = await lookupPostalCode(postalCode);
+      if (address) {
+        const updatedStops = [...jobForm.stops];
+        updatedStops[index].address = address;
+        setJobForm(prev => ({ ...prev, stops: updatedStops }));
+      }
+    }
+  };
+
+  // Generate random reference number for PayNow top-up
+  const generateTopUpReference = (): string => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars: I,O,0,1
+    let result = 'TOPUP-';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
   // Copy live tracking link
   const copyLiveTrackingLink = (job: any) => {
     const url = generateLiveTrackingUrl(job);
@@ -2047,7 +2117,7 @@ Thank you for your order! 🙏`;
   const handleTopUp = () => {
     const amt = parseFloat(topUpAmt);
     if (!amt || amt < 5) return alert('Minimum top-up amount is $5');
-    const refNumber = 'TOP' + Date.now().toString().slice(-8);
+    const refNumber = generateTopUpReference(); // e.g., TOPUP-A7X3K9
     
     // Generate proper PayNow QR string
     const payNowString = generatePayNowString(PAYNOW_UEN, amt, refNumber, false);
@@ -2067,8 +2137,19 @@ Thank you for your order! 🙏`;
 
   const confirmTopUp = async () => {
     try {
+      const qrData = JSON.parse(payNowQR);
       await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: curr.credits + parseFloat(topUpAmt) });
-      alert('Credits added successfully!');
+      
+      // Log the top-up for admin reference (can be used for approval queue later)
+      await logAuditAction('customer_topup', {
+        customerId: auth.id,
+        customerName: curr.name,
+        amount: parseFloat(topUpAmt),
+        refNumber: qrData.refNumber,
+        status: 'self_confirmed' // For now - later can be 'pending_approval'
+      });
+      
+      alert(`Credits added successfully!\nReference: ${qrData.refNumber}`);
       setTopUpAmt('');
       setPayNowQR('');
       setShowTopUp(false);
@@ -2715,6 +2796,14 @@ Thank you for your order! 🙏`;
 
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-6">Post New Delivery Job</h3>
+              
+              {/* Postal Code Tip */}
+              <div className="bg-blue-50 p-3 rounded-lg mb-4">
+                <p className="text-sm text-blue-800">
+                  💡 <strong>Tip:</strong> Enter a 6-digit Singapore postal code to auto-fill the address!
+                </p>
+              </div>
+
               <div className="space-y-4">
                 {/* Pickup Location */}
                 <div className="relative">
@@ -2728,9 +2817,17 @@ Thank you for your order! 🙏`;
                       <input 
                         type="text" 
                         value={jobForm.pickup} 
-                        onChange={(e) => setJobForm({...jobForm, pickup: e.target.value})} 
+                        onChange={async (e) => {
+                          const value = e.target.value;
+                          setJobForm({...jobForm, pickup: value});
+                          // Auto-lookup if user enters exactly 6 digits
+                          if (/^\d{6}$/.test(value)) {
+                            const address = await lookupPostalCode(value);
+                            if (address) setJobForm(prev => ({...prev, pickup: address}));
+                          }
+                        }}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                        placeholder="Enter pickup address" 
+                        placeholder="Enter postal code (e.g., 238858) or full address" 
                       />
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <input 
@@ -2790,13 +2887,23 @@ Thank you for your order! 🙏`;
                         <input 
                           type="text" 
                           value={stop.address} 
-                          onChange={(e) => {
+                          onChange={async (e) => {
+                            const value = e.target.value;
                             const newStops = [...jobForm.stops];
-                            newStops[index].address = e.target.value;
+                            newStops[index].address = value;
                             setJobForm({...jobForm, stops: newStops});
+                            // Auto-lookup if user enters exactly 6 digits
+                            if (/^\d{6}$/.test(value)) {
+                              const address = await lookupPostalCode(value);
+                              if (address) {
+                                const updatedStops = [...jobForm.stops];
+                                updatedStops[index].address = address;
+                                setJobForm(prev => ({...prev, stops: updatedStops}));
+                              }
+                            }
                           }} 
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                          placeholder="Enter drop-off address" 
+                          placeholder="Enter postal code or full address" 
                         />
                         <div className="grid grid-cols-2 gap-2 mt-2">
                           <input 
