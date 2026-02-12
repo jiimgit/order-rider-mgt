@@ -118,11 +118,11 @@ const DeliveryPlatform = () => {
   const [payNowQR, setPayNowQR] = useState('');
   const [jobForm, setJobForm] = useState({ 
     pickup: '', 
-    delivery: '', 
+    pickupContact: '',
+    pickupPhone: '',
+    stops: [{ address: '', recipientName: '', recipientPhone: '' }], // Multi-stop support
     timeframe: '', 
     price: '10',
-    recipientName: '',
-    recipientPhone: '',
     parcelSize: 'small',
     remarks: ''
   });
@@ -1902,28 +1902,50 @@ Thank you for your order! 🙏`;
 
   const createJob = async () => {
     const price = parseFloat(jobForm.price);
-    if (price < 3) return alert('Minimum price is $3');
+    const minPrice = 3 + (jobForm.stops.length - 1) * 2; // $3 base + $2 per extra stop
+    if (price < minPrice) return alert(`Minimum price is $${minPrice} for ${jobForm.stops.length} stop(s)`);
     if (curr.credits < price) return alert('Insufficient credits. Please top up.');
-    if (!jobForm.pickup || !jobForm.delivery) return alert('Please fill in pickup and delivery locations');
+    if (!jobForm.pickup) return alert('Please fill in pickup location');
+    if (!jobForm.stops[0]?.address) return alert('Please fill in at least one drop-off location');
     if (!jobForm.parcelSize) return alert('Please select a parcel size');
+    
+    // Validate all stops have addresses
+    const emptyStops = jobForm.stops.filter(s => !s.address);
+    if (emptyStops.length > 0) return alert('Please fill in all drop-off addresses or remove empty stops');
+    
     try {
+      // For multi-stop, create the job with all stops stored as JSON
+      const deliveryAddresses = jobForm.stops.map(s => s.address).join(' → ');
+      
       await api('jobs', 'POST', { 
         customer_id: curr.id, 
         customer_name: curr.name, 
         customer_phone: curr.phone, 
         pickup: jobForm.pickup, 
-        delivery: jobForm.delivery, 
+        pickup_contact: jobForm.pickupContact || null,
+        pickup_phone: jobForm.pickupPhone || null,
+        delivery: deliveryAddresses, // Combined for display
+        stops: jobForm.stops, // Full stops array as JSON
+        total_stops: jobForm.stops.length,
         timeframe: jobForm.timeframe, 
         price, 
         status: 'posted',
-        // New fields (Feature 3)
-        recipient_name: jobForm.recipientName || null,
-        recipient_phone: jobForm.recipientPhone || null,
+        recipient_name: jobForm.stops[0]?.recipientName || null,
+        recipient_phone: jobForm.stops[0]?.recipientPhone || null,
         parcel_size: jobForm.parcelSize,
         remarks: jobForm.remarks || null
       });
       await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: curr.credits - price });
-      setJobForm({ pickup: '', delivery: '', timeframe: '', price: '10', recipientName: '', recipientPhone: '', parcelSize: 'small', remarks: '' });
+      setJobForm({ 
+        pickup: '', 
+        pickupContact: '',
+        pickupPhone: '',
+        stops: [{ address: '', recipientName: '', recipientPhone: '' }],
+        timeframe: '', 
+        price: '10', 
+        parcelSize: 'small', 
+        remarks: '' 
+      });
       alert('Job posted successfully!');
       loadData();
     } catch (e: any) { alert('Error posting job: ' + e.message); }
@@ -2694,26 +2716,132 @@ Thank you for your order! 🙏`;
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-6">Post New Delivery Job</h3>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Pickup Location</label>
-                  <input 
-                    type="text" 
-                    value={jobForm.pickup} 
-                    onChange={(e) => setJobForm({...jobForm, pickup: e.target.value})} 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                    placeholder="e.g., 123 Orchard Road" 
-                  />
+                {/* Pickup Location */}
+                <div className="relative">
+                  <div className="flex items-start gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-4 h-4 rounded-full bg-orange-500 border-2 border-orange-600"></div>
+                      <div className="w-0.5 h-full bg-gray-300 min-h-[60px]"></div>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Location</label>
+                      <input 
+                        type="text" 
+                        value={jobForm.pickup} 
+                        onChange={(e) => setJobForm({...jobForm, pickup: e.target.value})} 
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                        placeholder="Enter pickup address" 
+                      />
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <input 
+                          type="text" 
+                          value={jobForm.pickupContact} 
+                          onChange={(e) => setJobForm({...jobForm, pickupContact: e.target.value})} 
+                          className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                          placeholder="Contact name" 
+                        />
+                        <input 
+                          type="tel" 
+                          value={jobForm.pickupPhone} 
+                          onChange={(e) => setJobForm({...jobForm, pickupPhone: e.target.value})} 
+                          className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                          placeholder="Phone number" 
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Location</label>
-                  <input 
-                    type="text" 
-                    value={jobForm.delivery} 
-                    onChange={(e) => setJobForm({...jobForm, delivery: e.target.value})} 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                    placeholder="e.g., 456 Marina Bay" 
-                  />
-                </div>
+
+                {/* Drop-off Locations (Multi-stop) */}
+                {jobForm.stops.map((stop, index) => (
+                  <div key={index} className="relative">
+                    <div className="flex items-start gap-3">
+                      <div className="flex flex-col items-center">
+                        {index < jobForm.stops.length - 1 && (
+                          <div className="w-0.5 h-4 bg-gray-300"></div>
+                        )}
+                        <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-red-600 flex items-center justify-center">
+                          {jobForm.stops.length > 1 && (
+                            <span className="text-white text-xs font-bold">{index + 1}</span>
+                          )}
+                        </div>
+                        {index < jobForm.stops.length - 1 && (
+                          <div className="w-0.5 h-full bg-gray-300 min-h-[60px]"></div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-sm font-medium text-gray-700">
+                            {jobForm.stops.length === 1 ? 'Drop-off Location' : `Stop ${index + 1}`}
+                          </label>
+                          {jobForm.stops.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newStops = jobForm.stops.filter((_, i) => i !== index);
+                                setJobForm({...jobForm, stops: newStops});
+                              }}
+                              className="text-red-500 hover:text-red-700 text-sm"
+                            >
+                              ✕ Remove
+                            </button>
+                          )}
+                        </div>
+                        <input 
+                          type="text" 
+                          value={stop.address} 
+                          onChange={(e) => {
+                            const newStops = [...jobForm.stops];
+                            newStops[index].address = e.target.value;
+                            setJobForm({...jobForm, stops: newStops});
+                          }} 
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                          placeholder="Enter drop-off address" 
+                        />
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <input 
+                            type="text" 
+                            value={stop.recipientName} 
+                            onChange={(e) => {
+                              const newStops = [...jobForm.stops];
+                              newStops[index].recipientName = e.target.value;
+                              setJobForm({...jobForm, stops: newStops});
+                            }} 
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                            placeholder="Recipient name" 
+                          />
+                          <input 
+                            type="tel" 
+                            value={stop.recipientPhone} 
+                            onChange={(e) => {
+                              const newStops = [...jobForm.stops];
+                              newStops[index].recipientPhone = e.target.value;
+                              setJobForm({...jobForm, stops: newStops});
+                            }} 
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                            placeholder="Phone number" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add Stop Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setJobForm({
+                      ...jobForm, 
+                      stops: [...jobForm.stops, { address: '', recipientName: '', recipientPhone: '' }]
+                    });
+                  }}
+                  className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <span className="text-xl">+</span> Add Stop
+                </button>
+
+                {/* Delivery Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date</label>
                   <input 
@@ -2723,46 +2851,29 @@ Thank you for your order! 🙏`;
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+
+                {/* Price */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Your Price (minimum $3)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Your Price (minimum $3{jobForm.stops.length > 1 ? ` + $2 per extra stop` : ''})
+                  </label>
                   <input 
                     type="number" 
                     value={jobForm.price} 
                     onChange={(e) => setJobForm({...jobForm, price: e.target.value})} 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500" 
-                    min="3" 
+                    min={3 + (jobForm.stops.length - 1) * 2} 
                     step="0.5"
                     placeholder="10.00"
                   />
+                  {jobForm.stops.length > 1 && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      Suggested: ${3 + (jobForm.stops.length - 1) * 2} minimum for {jobForm.stops.length} stops
+                    </p>
+                  )}
                 </div>
                 
-                {/* New fields - Feature 3: Enhanced job form */}
-                <div className="border-t pt-4 mt-4">
-                  <h4 className="font-semibold text-gray-800 mb-3">📦 Recipient Details (Optional)</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Recipient Name</label>
-                      <input 
-                        type="text" 
-                        value={jobForm.recipientName} 
-                        onChange={(e) => setJobForm({...jobForm, recipientName: e.target.value})} 
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                        placeholder="Name of person receiving" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Recipient Phone</label>
-                      <input 
-                        type="tel" 
-                        value={jobForm.recipientPhone} 
-                        onChange={(e) => setJobForm({...jobForm, recipientPhone: e.target.value})} 
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                        placeholder="e.g., 91234567" 
-                      />
-                    </div>
-                  </div>
-                </div>
-                
+                {/* Parcel Size */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
                   <select 
@@ -2792,7 +2903,7 @@ Thank you for your order! 🙏`;
                   onClick={createJob} 
                   className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
                 >
-                  Post Job - ${jobForm.price}
+                  Post Job - ${jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
                 </button>
                 
                 {/* Bulk Import Option */}
