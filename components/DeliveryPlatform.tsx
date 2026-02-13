@@ -493,11 +493,11 @@ const DeliveryPlatform = () => {
     }
     
     try {
-      // Save POD image reference and complete the job
+      // Save POD image as full base64 (for demo - in production, upload to cloud storage)
       await api(`jobs?id=eq.${jobId}`, 'PATCH', {
         status: 'completed',
         completed_at: new Date().toISOString(),
-        pod_image: podImage.substring(0, 500) + '...[truncated]', // Store reference (in production, upload to storage)
+        pod_image: podImage, // Store full base64 image
         pod_timestamp: new Date().toISOString()
       });
       
