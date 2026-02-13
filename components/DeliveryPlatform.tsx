@@ -1792,18 +1792,57 @@ Thank you for your order! 🙏`;
   // WhatsApp Message Templates
   const whatsAppTemplates = {
     accepted: [
-      { id: 1, label: '👋 Job Accepted', message: 'Hi {customer}! I am {rider}, your delivery rider. I have accepted your delivery job from {pickup} to {delivery}. I will pick up your package soon!' },
-      { id: 2, label: '📦 Will Collect Soon', message: 'Hello {customer}! This is {rider}. I will be collecting your package from {pickup} shortly. Please ensure it is ready for pickup.' },
+      { id: 1, label: '📍 Live Tracking Link', message: `🚚 Live Delivery Tracking
+
+Hi! You can track your delivery in real-time:
+
+📍 Live Tracking Link:
+{tracking_link}
+
+Rider Details:
+• Name: {rider}
+• Phone: {rider_phone}
+
+After delivery, you can also view your Proof of Delivery (POD) via the same link.
+
+Thank you for your order! 🙏` },
+      { id: 2, label: '👋 Job Accepted', message: 'Hi {customer}! I am {rider}, your delivery rider. I have accepted your delivery job from {pickup} to {delivery}. I will pick up your package soon!' },
       { id: 3, label: '⏰ ETA Update', message: 'Hi {customer}! Your rider {rider} here. I expect to pick up your package in about 15-20 minutes. Thank you!' },
     ],
     'picked-up': [
-      { id: 4, label: '✅ Package Collected', message: 'Hi {customer}! Good news - I have collected your package from {pickup}. Now heading to {delivery}!' },
-      { id: 5, label: '📦 On My Way Soon', message: 'Hello {customer}! Package picked up successfully. I will be on my way to {delivery} shortly.' },
+      { id: 4, label: '📍 Live Tracking Link', message: `🚚 Live Delivery Tracking
+
+Hi! You can track your delivery in real-time:
+
+📍 Live Tracking Link:
+{tracking_link}
+
+Rider Details:
+• Name: {rider}
+• Phone: {rider_phone}
+
+After delivery, you can also view your Proof of Delivery (POD) via the same link.
+
+Thank you for your order! 🙏` },
+      { id: 5, label: '✅ Package Collected', message: 'Hi {customer}! Good news - I have collected your package from {pickup}. Now heading to {delivery}!' },
       { id: 6, label: '🚗 Starting Delivery', message: 'Hi {customer}! Your package is with me now. Starting my journey to deliver it to {delivery}. Stay tuned!' },
     ],
     'on-the-way': [
-      { id: 7, label: '🚗 On The Way', message: 'Hi {customer}! I am now on my way to {delivery} with your package. ETA approximately 15-20 minutes.' },
-      { id: 8, label: '📍 Almost There', message: 'Hello {customer}! I am getting close to {delivery}. Please be ready to receive your package!' },
+      { id: 7, label: '📍 Live Tracking Link', message: `🚚 Live Delivery Tracking
+
+Hi! You can track your delivery in real-time:
+
+📍 Live Tracking Link:
+{tracking_link}
+
+Rider Details:
+• Name: {rider}
+• Phone: {rider_phone}
+
+After delivery, you can also view your Proof of Delivery (POD) via the same link.
+
+Thank you for your order! 🙏` },
+      { id: 8, label: '🚗 On The Way', message: 'Hi {customer}! I am now on my way to {delivery} with your package. ETA approximately 15-20 minutes.' },
       { id: 9, label: '🔔 Arriving Soon', message: 'Hi {customer}! I will arrive at {delivery} in about 5-10 minutes. Please be available to receive your delivery.' },
     ],
     completed: [
@@ -1833,12 +1872,15 @@ Thank you for your order! 🙏`;
   };
 
   // Replace placeholders in template message
-  const formatTemplateMessage = (template: string, job: any, riderName: string): string => {
+  const formatTemplateMessage = (template: string, job: any, riderName: string, riderPhone?: string): string => {
+    const trackingLink = generateLiveTrackingUrl(job);
     return template
       .replace(/{customer}/g, job.customer_name || 'Customer')
       .replace(/{rider}/g, riderName || 'Your Rider')
+      .replace(/{rider_phone}/g, riderPhone || 'N/A')
       .replace(/{pickup}/g, job.pickup || 'pickup location')
-      .replace(/{delivery}/g, job.delivery || 'delivery location');
+      .replace(/{delivery}/g, job.delivery || 'delivery location')
+      .replace(/{tracking_link}/g, trackingLink);
   };
 
   const curr = auth.type === 'customer' ? customers.find(c => c.id === auth.id) : auth.type === 'rider' ? riders.find(r => r.id === auth.id) : null;
@@ -3311,7 +3353,6 @@ Thank you for your order! 🙏`;
                         <div className="flex-1">
                           <p className="font-semibold text-lg text-gray-900">{job.pickup} → {job.delivery}</p>
                           <p className="text-sm text-gray-600">{job.timeframe}</p>
-                          {job.rider_name && <p className="text-sm text-gray-600 mt-1">Rider: {job.rider_name}</p>}
                           {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
                         </div>
                         <div className="text-right ml-4">
@@ -3326,6 +3367,97 @@ Thank you for your order! 🙏`;
                           </span>
                         </div>
                       </div>
+                      
+                      {/* Rider Info - when assigned */}
+                      {job.rider_name && job.status !== 'posted' && (
+                        <div className="bg-blue-50 p-3 rounded-lg mb-3">
+                          <p className="text-sm font-medium text-blue-800 mb-1">🏍️ Assigned Rider</p>
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-semibold">{job.rider_name}</p>
+                              {job.rider_phone && <p className="text-sm text-gray-600">{job.rider_phone}</p>}
+                            </div>
+                            {job.rider_phone && (
+                              <div className="flex gap-2">
+                                <a
+                                  href={`tel:${job.rider_phone}`}
+                                  className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                                  title="Call Rider"
+                                >
+                                  📞
+                                </a>
+                                <a
+                                  href={`https://wa.me/65${job.rider_phone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                                  title="WhatsApp Rider"
+                                >
+                                  💬
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Tracking & Communication Buttons - for active jobs */}
+                      {job.status !== 'posted' && job.status !== 'cancelled' && (
+                        <div className="flex gap-2 mb-3">
+                          <a
+                            href={`?track=${job.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 py-2 px-3 bg-purple-100 text-purple-700 rounded-lg text-center text-sm font-medium hover:bg-purple-200 transition-colors"
+                          >
+                            📍 Track Live
+                          </a>
+                          <button
+                            onClick={() => {
+                              const url = `${window.location.origin}?track=${job.id}`;
+                              navigator.clipboard.writeText(url);
+                              alert('Tracking link copied!');
+                            }}
+                            className="flex-1 py-2 px-3 bg-blue-100 text-blue-700 rounded-lg text-center text-sm font-medium hover:bg-blue-200 transition-colors"
+                          >
+                            🔗 Copy Link
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* POD - for completed jobs */}
+                      {job.status === 'completed' && (
+                        <div className="bg-green-50 p-3 rounded-lg mb-3">
+                          <p className="text-sm font-medium text-green-800 mb-2">✅ Delivery Completed</p>
+                          {job.pod_image ? (
+                            <div>
+                              <p className="text-xs text-gray-600 mb-2">Proof of Delivery:</p>
+                              <img 
+                                src={job.pod_image} 
+                                alt="Proof of Delivery" 
+                                className="w-full max-w-xs rounded-lg border cursor-pointer hover:opacity-90"
+                                onClick={() => window.open(job.pod_image, '_blank')}
+                              />
+                              {job.pod_timestamp && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Delivered: {new Date(job.pod_timestamp).toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-500">No POD photo uploaded</p>
+                          )}
+                          <a
+                            href={`?track=${job.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block mt-2 text-xs text-green-700 hover:underline"
+                          >
+                            View delivery details →
+                          </a>
+                        </div>
+                      )}
+                      
                       {/* Save address button for completed jobs */}
                       {job.status === 'completed' && (
                         <button
@@ -3593,7 +3725,14 @@ Thank you for your order! 🙏`;
                             </div>
                           </div>
                           <div className="text-right ml-4">
-                            <p className="text-xl font-bold text-green-600">${delivery.price}</p>
+                            {delivery.commissions ? (
+                              <p className="text-xl font-bold text-green-600">${delivery.commissions.activeRider?.toFixed(2) || '0.00'}</p>
+                            ) : (
+                              (() => {
+                                const comm = calculateCommissions(delivery.price, curr?.tier || 1, curr?.upline_chain || []);
+                                return <p className="text-xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>;
+                              })()
+                            )}
                             <span className={`inline-block mt-1 px-2 py-1 rounded text-xs font-medium ${
                               delivery.status === 'completed' ? 'bg-green-100 text-green-700' :
                               delivery.status === 'cancelled' ? 'bg-red-100 text-red-700' :
@@ -3612,12 +3751,7 @@ Thank you for your order! 🙏`;
                             )}
                           </div>
                         </div>
-                        {/* Earnings breakdown for completed jobs */}
-                        {delivery.status === 'completed' && delivery.commissions && (
-                          <div className="mt-2 pt-2 border-t text-xs text-gray-500">
-                            <span>Your earnings: ${delivery.commissions.activeRider?.toFixed(2) || 'N/A'}</span>
-                          </div>
-                        )}
+                        {/* Remove duplicate earnings breakdown since it's now shown above */}
                       </div>
                     ))
                   )}
@@ -3786,6 +3920,94 @@ Thank you for your order! 🙏`;
               </div>
             )}
 
+            {/* Withdrawal Section */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                💰 Withdrawal
+              </h3>
+              
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Available Balance:</span>
+                  <span className="text-2xl font-bold text-green-600">${(curr.earnings || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm text-gray-500">
+                  <span>Minimum withdrawal:</span>
+                  <span>$50.00</span>
+                </div>
+              </div>
+              
+              {(curr.earnings || 0) >= 50 ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Withdrawal Amount</label>
+                    <input
+                      type="number"
+                      min="50"
+                      max={curr.earnings || 0}
+                      step="0.01"
+                      placeholder="Enter amount"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                      id="withdrawAmount"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account / PayNow Number</label>
+                    <input
+                      type="text"
+                      placeholder="Enter your bank account or phone number"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                      id="withdrawAccount"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      const amount = (document.getElementById('withdrawAmount') as HTMLInputElement)?.value;
+                      const account = (document.getElementById('withdrawAccount') as HTMLInputElement)?.value;
+                      if (!amount || parseFloat(amount) < 50) {
+                        alert('Minimum withdrawal is $50');
+                        return;
+                      }
+                      if (parseFloat(amount) > (curr.earnings || 0)) {
+                        alert('Insufficient balance');
+                        return;
+                      }
+                      if (!account) {
+                        alert('Please enter your bank account or PayNow number');
+                        return;
+                      }
+                      alert(`Withdrawal request submitted!\n\nAmount: $${parseFloat(amount).toFixed(2)}\nTo: ${account}\n\nYour request will be processed within 1-3 business days.`);
+                      logAuditAction('withdrawal_request', {
+                        riderId: auth.id,
+                        riderName: curr.name,
+                        amount: parseFloat(amount),
+                        account: account
+                      });
+                    }}
+                    className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                  >
+                    Request Withdrawal
+                  </button>
+                  <p className="text-xs text-gray-500 text-center">
+                    Withdrawals are processed within 1-3 business days via PayNow/Bank Transfer
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-gray-500">You need at least $50 to withdraw</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Current balance: ${(curr.earnings || 0).toFixed(2)} / $50.00 required
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+                    <div 
+                      className="bg-green-500 h-2 rounded-full transition-all" 
+                      style={{ width: `${Math.min(100, ((curr.earnings || 0) / 50) * 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Multi-Job List - Feature 5 */}
             {getActiveJobsForRider.length > 1 && (
               <div className="bg-white rounded-lg shadow-lg p-4">
@@ -3804,7 +4026,10 @@ Thank you for your order! 🙏`;
                           <p className="font-semibold text-sm">Job #{idx + 1}: {job.pickup?.substring(0, 20) || 'N/A'}...</p>
                           <p className="text-xs text-gray-500">{job.status?.toUpperCase() || 'UNKNOWN'}</p>
                         </div>
-                        <span className="text-lg font-bold text-green-600">${job.price}</span>
+                        {(() => {
+                          const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || []);
+                          return <span className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</span>;
+                        })()}
                       </div>
                     </div>
                   ))}
@@ -3832,7 +4057,15 @@ Thank you for your order! 🙏`;
                   {activeJob.remarks && (
                     <p className="text-gray-600 text-sm mt-2 italic">📝 {activeJob.remarks}</p>
                   )}
-                  <p className="text-4xl font-bold text-blue-600 mt-4">${activeJob.price}</p>
+                  {(() => {
+                    const earnings = calculateCommissions(activeJob.price, curr.tier, curr.upline_chain || []);
+                    return (
+                      <div className="mt-4">
+                        <p className="text-sm text-gray-600">Your earnings:</p>
+                        <p className="text-4xl font-bold text-green-600">${earnings.activeRider.toFixed(2)}</p>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* GPS Live Tracking Button */}
@@ -4045,14 +4278,10 @@ Thank you for your order! 🙏`;
                               {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
                               {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
                             </div>
-                            <p className="text-2xl font-bold text-gray-900">${job.price}</p>
                           </div>
                           <div className="bg-green-50 p-4 rounded-lg mb-3">
                             <p className="text-sm text-gray-600 mb-1">You will earn:</p>
                             <p className="text-3xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
-                            <p className="text-xs text-gray-500 mt-2">
-                              Platform fee: $1.00
-                            </p>
                           </div>
                           <button 
                             onClick={() => acceptJob(job.id)} 
@@ -6434,13 +6663,13 @@ Thank you for your order! 🙏`;
                     {(whatsAppTemplates[activeJob.status as keyof typeof whatsAppTemplates] || []).map((template) => (
                       <a
                         key={template.id}
-                        href={generateWhatsAppLink(activeJob.customer_phone, formatTemplateMessage(template.message, activeJob, curr?.name))}
+                        href={generateWhatsAppLink(activeJob.customer_phone, formatTemplateMessage(template.message, activeJob, curr?.name, curr?.phone))}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block w-full p-3 bg-white border-2 border-green-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all text-left"
                       >
                         <p className="font-semibold text-green-700">{template.label}</p>
-                        <p className="text-sm text-gray-600 mt-1">{formatTemplateMessage(template.message, activeJob, curr?.name)}</p>
+                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{formatTemplateMessage(template.message, activeJob, curr?.name, curr?.phone)}</p>
                       </a>
                     ))}
                   </div>
@@ -6455,13 +6684,13 @@ Thank you for your order! 🙏`;
                     {whatsAppTemplates.custom.map((template) => (
                       <a
                         key={template.id}
-                        href={generateWhatsAppLink(activeJob.customer_phone, formatTemplateMessage(template.message, activeJob, curr?.name))}
+                        href={generateWhatsAppLink(activeJob.customer_phone, formatTemplateMessage(template.message, activeJob, curr?.name, curr?.phone))}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block w-full p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
                       >
                         <p className="font-semibold text-gray-700">{template.label}</p>
-                        <p className="text-sm text-gray-600 mt-1">{formatTemplateMessage(template.message, activeJob, curr?.name)}</p>
+                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{formatTemplateMessage(template.message, activeJob, curr?.name, curr?.phone)}</p>
                       </a>
                     ))}
                   </div>
