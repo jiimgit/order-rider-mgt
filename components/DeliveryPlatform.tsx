@@ -3161,12 +3161,11 @@ Thank you for your order! 🙏` },
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:from-purple-700 hover:to-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     <CreditCard size={20} />
-                    Pay with PayNow / Card
+                    Pay with PayNow
                   </button>
                   
                   <div className="flex items-center justify-center gap-4 pt-2">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Stripe_logo%2C_blurple%2C_2016.svg/1200px-Stripe_logo%2C_blurple%2C_2016.svg.png" alt="Stripe" className="h-6 opacity-50" />
-                    <span className="text-xs text-gray-400">Secure payment powered by Stripe</span>
+                    <span className="text-xs text-gray-400">Secure PayNow payment powered by Stripe</span>
                   </div>
                 </div>
               </div>
