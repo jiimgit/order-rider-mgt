@@ -201,6 +201,7 @@ const DeliveryPlatform = () => {
   // Admin POD Management states (Feature 13)
   const [showPodManagement, setShowPodManagement] = useState(false);
   const [selectedPodJob, setSelectedPodJob] = useState<any>(null);
+  const [viewingPodImage, setViewingPodImage] = useState<string | null>(null); // For fullscreen POD view
 
   // Admin Withdrawal Management states
   const [showWithdrawalManagement, setShowWithdrawalManagement] = useState(false);
@@ -2559,14 +2560,14 @@ Thank you for your order! 🙏` },
                     <h2 className="text-xl font-bold text-gray-800">Delivery Completed</h2>
                   </div>
                   
-                  {publicTrackingJob.pod_image ? (
+                  {publicTrackingJob.pod_image && !publicTrackingJob.pod_image.includes('truncated') ? (
                     <div>
                       <p className="text-sm text-gray-600 mb-3">Proof of Delivery:</p>
                       <img 
                         src={publicTrackingJob.pod_image} 
                         alt="Proof of Delivery" 
                         className="w-full max-w-md mx-auto rounded-lg border-2 border-gray-200 shadow-md cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => window.open(publicTrackingJob.pod_image, '_blank')}
+                        onClick={() => setViewingPodImage(publicTrackingJob.pod_image)}
                       />
                       {publicTrackingJob.pod_timestamp && (
                         <p className="text-center text-sm text-gray-500 mt-3">
@@ -2685,6 +2686,32 @@ Thank you for your order! 🙏` },
               </p>
             </div>
           ) : null}
+
+          {/* Fullscreen POD Image Viewer for Public Tracking */}
+          {viewingPodImage && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50"
+              onClick={() => setViewingPodImage(null)}
+            >
+              <div className="relative max-w-4xl w-full">
+                <button
+                  onClick={() => setViewingPodImage(null)}
+                  className="absolute -top-12 right-0 text-white hover:text-gray-300 text-xl font-bold bg-black bg-opacity-50 rounded-full w-10 h-10 flex items-center justify-center"
+                >
+                  ✕
+                </button>
+                <img
+                  src={viewingPodImage}
+                  alt="Proof of Delivery - Full Size"
+                  className="max-h-[85vh] max-w-full mx-auto rounded-lg shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <p className="text-center text-white mt-4 text-sm opacity-75">
+                  Click anywhere outside the image to close
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -3676,14 +3703,14 @@ Thank you for your order! 🙏` },
                       {job.status === 'completed' && (
                         <div className="bg-green-50 p-3 rounded-lg mb-3">
                           <p className="text-sm font-medium text-green-800 mb-2">✅ Delivery Completed</p>
-                          {job.pod_image ? (
+                          {job.pod_image && !job.pod_image.includes('truncated') ? (
                             <div>
                               <p className="text-xs text-gray-600 mb-2">Proof of Delivery:</p>
                               <img 
                                 src={job.pod_image} 
                                 alt="Proof of Delivery" 
                                 className="w-full max-w-xs rounded-lg border cursor-pointer hover:opacity-90"
-                                onClick={() => window.open(job.pod_image, '_blank')}
+                                onClick={() => setViewingPodImage(job.pod_image)}
                               />
                               {job.pod_timestamp && (
                                 <p className="text-xs text-gray-500 mt-1">
@@ -7183,6 +7210,32 @@ Thank you for your order! 🙏` },
                   Clicking a message will open WhatsApp with the pre-filled text. You can edit it before sending.
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fullscreen POD Image Viewer Modal */}
+        {viewingPodImage && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50"
+            onClick={() => setViewingPodImage(null)}
+          >
+            <div className="relative max-w-4xl w-full">
+              <button
+                onClick={() => setViewingPodImage(null)}
+                className="absolute -top-12 right-0 text-white hover:text-gray-300 text-xl font-bold bg-black bg-opacity-50 rounded-full w-10 h-10 flex items-center justify-center"
+              >
+                ✕
+              </button>
+              <img
+                src={viewingPodImage}
+                alt="Proof of Delivery - Full Size"
+                className="max-h-[85vh] max-w-full mx-auto rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <p className="text-center text-white mt-4 text-sm opacity-75">
+                Click anywhere outside the image to close
+              </p>
             </div>
           </div>
         )}
