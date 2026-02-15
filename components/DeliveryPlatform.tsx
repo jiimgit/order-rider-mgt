@@ -310,6 +310,22 @@ const DeliveryPlatform = () => {
         loadPublicTracking(trackingId);
       }
       
+      // Handle Stripe payment return
+      const topupStatus = urlParams.get('topup');
+      const sessionId = urlParams.get('session_id');
+      if (topupStatus === 'success' && sessionId) {
+        // Payment successful - show success message and reload data
+        setTimeout(() => {
+          alert('🎉 Payment successful! Your credits have been added to your account.');
+          // Clear URL parameters
+          window.history.replaceState({}, '', window.location.pathname);
+          loadData();
+        }, 500);
+      } else if (topupStatus === 'cancelled') {
+        alert('Payment was cancelled. No charges were made.');
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+      
       // Check for persistent login (Feature 1)
       const savedAuth = localStorage.getItem('moveit_auth');
       if (savedAuth) {
@@ -3025,88 +3041,134 @@ Thank you for your order! 🙏` },
               <div className="bg-white rounded-lg shadow-xl p-6 border-2 border-blue-500">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-2xl font-bold flex items-center gap-2">
-                    <QrCode className="text-blue-600" />
-                    PayNow Top-Up
+                    <CreditCard className="text-blue-600" />
+                    Top Up Credits
                   </h3>
                   <button 
-                    onClick={() => { setShowTopUp(false); setPayNowQR(''); setTopUpAmt(''); }} 
+                    onClick={() => { setShowTopUp(false); setTopUpAmt(''); }} 
                     className="text-gray-500 hover:text-gray-700 p-2"
                   >
                     <X size={28} />
                   </button>
                 </div>
-                {!payNowQR ? (
-                  <div className="space-y-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-sm font-semibold text-blue-900 mb-2">Payment Details:</p>
-                      <p className="text-sm text-blue-800">Merchant: {MERCHANT_NAME}</p>
-                      <p className="text-sm text-blue-800">UEN: {PAYNOW_UEN}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Top-Up Amount (minimum $5)</label>
-                      <input 
-                        type="number" 
-                        value={topUpAmt} 
-                        onChange={(e) => setTopUpAmt(e.target.value)} 
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500" 
-                        placeholder="Enter amount" 
-                        min="5" 
-                        step="0.5"
-                      />
-                    </div>
-                    <button 
-                      onClick={handleTopUp} 
-                      className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Generate PayNow Instructions
-                    </button>
+                
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg">
+                    <p className="text-sm font-semibold text-purple-900 mb-2">💳 Secure Payment via Stripe</p>
+                    <p className="text-xs text-purple-700">Pay using PayNow, Cards, or other methods</p>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {(() => {
-                      const qrData = JSON.parse(payNowQR);
-                      return (
-                        <>
-                          <div className="flex justify-center">
-                            <div className="bg-white p-4 rounded-lg border-2 border-purple-500 shadow-lg">
-                              <img 
-                                src={qrData.qrUrl} 
-                                alt="PayNow QR Code" 
-                                className="w-48 h-48"
-                              />
-                            </div>
-                          </div>
-                          <div className="bg-purple-50 p-4 rounded-lg text-center">
-                            <p className="text-lg font-bold text-purple-900">Scan with PayNow</p>
-                            <p className="text-2xl font-bold text-purple-700 mt-2">SGD ${qrData.amount.toFixed(2)}</p>
-                            <div className="mt-3 text-sm text-purple-800">
-                              <p><span className="font-semibold">To:</span> {qrData.merchantName}</p>
-                              <p><span className="font-semibold">UEN:</span> {qrData.uen}</p>
-                              <p><span className="font-semibold">Ref:</span> {qrData.refNumber}</p>
-                            </div>
-                          </div>
-                          <div className="bg-yellow-50 p-3 rounded-lg">
-                            <p className="text-xs text-yellow-800 text-center">
-                              Open your banking app → Scan QR → Confirm payment → Click button below
-                            </p>
-                          </div>
-                        </>
-                      );
-                    })()}
-                    <button 
-                      onClick={confirmTopUp} 
-                      className="w-full bg-green-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      ✓ I've Paid - Add ${topUpAmt} Credits
-                    </button>
-                    <button 
-                      onClick={() => setPayNowQR('')} 
-                      className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-                    >
-                      Cancel
-                    </button>
+                  
+                  {/* Quick Amount Buttons */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Quick Select</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[10, 20, 50, 100].map((amt) => (
+                        <button
+                          key={amt}
+                          onClick={() => setTopUpAmt(amt.toString())}
+                          className={`py-3 rounded-lg font-semibold transition-colors ${
+                            topUpAmt === amt.toString()
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          ${amt}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                )}
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Or Enter Custom Amount (minimum $5)</label>
+                    <input 
+                      type="number" 
+                      value={topUpAmt} 
+                      onChange={(e) => setTopUpAmt(e.target.value)} 
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500" 
+                      placeholder="Enter amount" 
+                      min="5" 
+                      step="1"
+                    />
+                  </div>
+                  
+                  {topUpAmt && parseFloat(topUpAmt) >= 5 && (
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700">Amount to pay:</span>
+                        <span className="text-2xl font-bold text-green-600">${parseFloat(topUpAmt).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-gray-500 text-sm">Credits you'll receive:</span>
+                        <span className="text-lg font-semibold text-green-700">${parseFloat(topUpAmt).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <button 
+                    onClick={async () => {
+                      const amt = parseFloat(topUpAmt);
+                      if (!amt || amt < 5) {
+                        alert('Minimum top-up amount is $5');
+                        return;
+                      }
+                      
+                      try {
+                        // Show loading state
+                        const btn = document.getElementById('stripe-checkout-btn');
+                        if (btn) {
+                          btn.textContent = 'Redirecting to payment...';
+                          btn.setAttribute('disabled', 'true');
+                        }
+                        
+                        // Create Stripe checkout session
+                        const response = await fetch('/api/create-checkout-session', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            amount: amt,
+                            customerId: auth.id,
+                            customerEmail: curr?.email || '',
+                            customerName: curr?.name || '',
+                          }),
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.error) {
+                          alert('Error: ' + data.error);
+                          if (btn) {
+                            btn.textContent = 'Pay with PayNow / Card';
+                            btn.removeAttribute('disabled');
+                          }
+                          return;
+                        }
+                        
+                        // Redirect to Stripe checkout
+                        if (data.url) {
+                          window.location.href = data.url;
+                        }
+                      } catch (error: any) {
+                        alert('Payment error: ' + error.message);
+                        const btn = document.getElementById('stripe-checkout-btn');
+                        if (btn) {
+                          btn.textContent = 'Pay with PayNow / Card';
+                          btn.removeAttribute('disabled');
+                        }
+                      }
+                    }}
+                    id="stripe-checkout-btn"
+                    disabled={!topUpAmt || parseFloat(topUpAmt) < 5}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:from-purple-700 hover:to-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <CreditCard size={20} />
+                    Pay with PayNow / Card
+                  </button>
+                  
+                  <div className="flex items-center justify-center gap-4 pt-2">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Stripe_logo%2C_blurple%2C_2016.svg/1200px-Stripe_logo%2C_blurple%2C_2016.svg.png" alt="Stripe" className="h-6 opacity-50" />
+                    <span className="text-xs text-gray-400">Secure payment powered by Stripe</span>
+                  </div>
+                </div>
               </div>
             )}
 
