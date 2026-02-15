@@ -26,28 +26,3 @@
     "eslint-config-next": "14.2.21"
   }
 }
-"dependencies": {
-  "stripe": "^14.0.0",
-  "micro": "^10.0.1"
-}
-```
-
----
-
-### **New Top-Up Flow:**
-
-1. Customer clicks **"Top Up"** button
-2. Selects amount ($10, $20, $50, $100) or enters custom amount
-3. Clicks **"Pay with PayNow / Card"**
-4. Redirects to **Stripe Checkout** (PayNow QR or card payment)
-5. After payment → Redirects back to app
-6. **Webhook automatically adds credits** to customer account
-7. Success message shown
-
----
-
-### **Webhook URL for Stripe Dashboard:**
-
-After deployment, add this webhook in Stripe:
-```
-https://order-rider-mgt.vercel.app/api/stripe-webhook
