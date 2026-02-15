@@ -202,6 +202,11 @@ const DeliveryPlatform = () => {
   const [showPodManagement, setShowPodManagement] = useState(false);
   const [selectedPodJob, setSelectedPodJob] = useState<any>(null);
 
+  // Admin Withdrawal Management states
+  const [showWithdrawalManagement, setShowWithdrawalManagement] = useState(false);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
+  const [withdrawalFilter, setWithdrawalFilter] = useState({ status: 'all', search: '', dateFrom: '', dateTo: '' });
+
   // Job filter states for rider (Feature 10)
   const [riderJobFilter, setRiderJobFilter] = useState({ pickup: '', dropoff: '', customer: '' });
 
@@ -902,6 +907,200 @@ const DeliveryPlatform = () => {
       console.error('Failed to load audit logs:', e);
       // If table doesn't exist, use empty array
       setAuditLogs([]);
+    }
+  };
+
+  // Load withdrawal requests for admin management
+  const loadWithdrawalRequests = async () => {
+    try {
+      const logs = await api('audit_logs?action=eq.withdrawal_request&order=timestamp.desc');
+      setWithdrawalRequests(Array.isArray(logs) ? logs : []);
+    } catch (e) {
+      console.error('Failed to load withdrawal requests:', e);
+      setWithdrawalRequests([]);
+    }
+  };
+
+  // Approve/Reject withdrawal request
+  const processWithdrawalRequest = async (requestId: string, action: 'approved' | 'rejected', request: any) => {
+    try {
+      // Update the withdrawal request status
+      await api(`audit_logs?id=eq.${requestId}`, 'PATCH', {
+        details: {
+          ...request.details,
+          status: action,
+          processedAt: new Date().toISOString(),
+          processedBy: 'admin'
+        }
+      });
+
+      // If approved, deduct from rider's earnings
+      if (action === 'approved') {
+        const rider = riders.find(r => r.id === request.details.riderId);
+        if (rider) {
+          const newEarnings = (rider.earnings || 0) - request.details.amount;
+          await api(`riders?id=eq.${request.details.riderId}`, 'PATCH', {
+            earnings: Math.max(0, newEarnings)
+          });
+        }
+      }
+
+      // Log the action
+      await logAuditAction(`withdrawal_${action}`, {
+        requestId,
+        riderId: request.details.riderId,
+        riderName: request.details.riderName,
+        amount: request.details.amount,
+        account: request.details.account
+      });
+
+      alert(`Withdrawal request ${action}!`);
+      loadWithdrawalRequests();
+      loadData(); // Refresh rider data
+    } catch (e: any) {
+      alert('Error processing request: ' + e.message);
+    }
+  };
+
+  // Export withdrawal report
+  const exportWithdrawalReport = (format: 'csv' | 'pdf') => {
+    const filteredRequests = withdrawalRequests.filter((req: any) => {
+      if (withdrawalFilter.status !== 'all') {
+        const status = req.details?.status || 'pending';
+        if (status !== withdrawalFilter.status) return false;
+      }
+      if (withdrawalFilter.search && !req.details?.riderName?.toLowerCase().includes(withdrawalFilter.search.toLowerCase())) return false;
+      if (withdrawalFilter.dateFrom && new Date(req.timestamp) < new Date(withdrawalFilter.dateFrom)) return false;
+      if (withdrawalFilter.dateTo && new Date(req.timestamp) > new Date(withdrawalFilter.dateTo + 'T23:59:59')) return false;
+      return true;
+    });
+
+    if (format === 'csv') {
+      const headers = ['Date', 'Rider Name', 'Phone', 'Amount', 'Account', 'Status'];
+      const rows = filteredRequests.map((req: any) => [
+        new Date(req.timestamp).toLocaleDateString(),
+        req.details?.riderName || 'N/A',
+        req.details?.riderPhone || 'N/A',
+        `$${req.details?.amount?.toFixed(2) || '0.00'}`,
+        req.details?.account || 'N/A',
+        req.details?.status || 'pending'
+      ]);
+      
+      const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `withdrawal_report_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+    }
+
+    if (format === 'pdf') {
+      // Calculate totals
+      const totalAmount = filteredRequests.reduce((sum: number, req: any) => sum + (req.details?.amount || 0), 0);
+      const pendingCount = filteredRequests.filter((r: any) => !r.details?.status || r.details?.status === 'pending').length;
+      const approvedCount = filteredRequests.filter((r: any) => r.details?.status === 'approved').length;
+      const rejectedCount = filteredRequests.filter((r: any) => r.details?.status === 'rejected').length;
+
+      // Generate HTML for PDF
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Withdrawal Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #7C3AED; padding-bottom: 20px; }
+            .header h1 { color: #7C3AED; margin: 0; }
+            .header p { color: #666; margin: 5px 0; }
+            .summary { display: flex; justify-content: space-around; margin-bottom: 30px; }
+            .summary-box { text-align: center; padding: 15px 25px; border-radius: 8px; }
+            .summary-box.pending { background: #FEF3C7; }
+            .summary-box.approved { background: #D1FAE5; }
+            .summary-box.rejected { background: #FEE2E2; }
+            .summary-box.total { background: #E0E7FF; }
+            .summary-box h3 { margin: 0; font-size: 24px; }
+            .summary-box p { margin: 5px 0 0; font-size: 12px; color: #666; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #7C3AED; color: white; padding: 12px; text-align: left; }
+            td { padding: 10px 12px; border-bottom: 1px solid #ddd; }
+            tr:nth-child(even) { background: #f9f9f9; }
+            .status { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+            .status.pending { background: #FEF3C7; color: #92400E; }
+            .status.approved { background: #D1FAE5; color: #065F46; }
+            .status.rejected { background: #FEE2E2; color: #991B1B; }
+            .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+            .amount { text-align: right; font-weight: bold; color: #059669; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>💰 Withdrawal Report</h1>
+            <p>Generated: ${new Date().toLocaleString()}</p>
+            ${withdrawalFilter.dateFrom || withdrawalFilter.dateTo ? 
+              `<p>Period: ${withdrawalFilter.dateFrom || 'Start'} to ${withdrawalFilter.dateTo || 'Present'}</p>` : ''}
+          </div>
+
+          <div class="summary">
+            <div class="summary-box pending">
+              <h3>${pendingCount}</h3>
+              <p>Pending</p>
+            </div>
+            <div class="summary-box approved">
+              <h3>${approvedCount}</h3>
+              <p>Approved</p>
+            </div>
+            <div class="summary-box rejected">
+              <h3>${rejectedCount}</h3>
+              <p>Rejected</p>
+            </div>
+            <div class="summary-box total">
+              <h3>$${totalAmount.toFixed(2)}</h3>
+              <p>Total Amount</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Rider Name</th>
+                <th>Phone</th>
+                <th>Amount</th>
+                <th>Account</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredRequests.map((req: any) => `
+                <tr>
+                  <td>${new Date(req.timestamp).toLocaleDateString()}</td>
+                  <td>${req.details?.riderName || 'N/A'}</td>
+                  <td>${req.details?.riderPhone || 'N/A'}</td>
+                  <td class="amount">$${req.details?.amount?.toFixed(2) || '0.00'}</td>
+                  <td>${req.details?.account || 'N/A'}</td>
+                  <td><span class="status ${req.details?.status || 'pending'}">${(req.details?.status || 'pending').toUpperCase()}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>MoveIt Delivery Platform - Withdrawal Report</p>
+            <p>Total Records: ${filteredRequests.length}</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Open print dialog (user can save as PDF)
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      }
     }
   };
 
@@ -1884,7 +2083,10 @@ Thank you for your order! 🙏` },
   };
 
   const curr = auth.type === 'customer' ? customers.find(c => c.id === auth.id) : auth.type === 'rider' ? riders.find(r => r.id === auth.id) : null;
-  const activeJob = jobs.find(j => j.rider_id === auth.id && j.status !== 'completed' && j.status !== 'cancelled');
+  // Multi-job capability: get ALL active jobs for this rider
+  const activeJobsList = jobs.filter(j => j.rider_id === auth.id && j.status !== 'completed' && j.status !== 'cancelled');
+  // For backwards compatibility, activeJob is the currently selected one or first one
+  const activeJob = selectedJobId ? activeJobsList.find(j => j.id === selectedJobId) : activeJobsList[0];
 
   useEffect(() => { loadData(); }, []);
 
@@ -2349,6 +2551,45 @@ Thank you for your order! 🙏` },
                 </div>
               </div>
 
+              {/* POD (Proof of Delivery) - Show when completed */}
+              {publicTrackingJob.status === 'completed' && (
+                <div className="bg-white rounded-2xl shadow-2xl p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <CheckCircle className="text-green-500" size={24} />
+                    <h2 className="text-xl font-bold text-gray-800">Delivery Completed</h2>
+                  </div>
+                  
+                  {publicTrackingJob.pod_image ? (
+                    <div>
+                      <p className="text-sm text-gray-600 mb-3">Proof of Delivery:</p>
+                      <img 
+                        src={publicTrackingJob.pod_image} 
+                        alt="Proof of Delivery" 
+                        className="w-full max-w-md mx-auto rounded-lg border-2 border-gray-200 shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => window.open(publicTrackingJob.pod_image, '_blank')}
+                      />
+                      {publicTrackingJob.pod_timestamp && (
+                        <p className="text-center text-sm text-gray-500 mt-3">
+                          📸 Photo taken: {new Date(publicTrackingJob.pod_timestamp).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 bg-gray-50 rounded-lg">
+                      <p className="text-gray-500">No proof of delivery photo available</p>
+                    </div>
+                  )}
+                  
+                  {publicTrackingJob.completed_at && (
+                    <div className="mt-4 p-3 bg-green-50 rounded-lg text-center">
+                      <p className="text-green-700">
+                        ✅ Delivered on {new Date(publicTrackingJob.completed_at).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Live Map Card */}
               <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
                 <div className="p-4 bg-gray-50 border-b flex items-center justify-between">
@@ -2675,6 +2916,12 @@ Thank you for your order! 🙏` },
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'pod' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   📸 POD
+                </button>
+                <button 
+                  onClick={() => { setAdminView('withdrawals'); loadWithdrawalRequests(); }} 
+                  className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'withdrawals' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  💰 Withdrawals
                 </button>
                 <button 
                   onClick={() => setAdminView('referrals')} 
@@ -3946,7 +4193,7 @@ Thank you for your order! 🙏` },
                       min="50"
                       max={curr.earnings || 0}
                       step="0.01"
-                      placeholder="Enter amount"
+                      placeholder="Enter amount (min $50)"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                       id="withdrawAmount"
                     />
@@ -3961,7 +4208,7 @@ Thank you for your order! 🙏` },
                     />
                   </div>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const amount = (document.getElementById('withdrawAmount') as HTMLInputElement)?.value;
                       const account = (document.getElementById('withdrawAccount') as HTMLInputElement)?.value;
                       if (!amount || parseFloat(amount) < 50) {
@@ -3976,20 +4223,35 @@ Thank you for your order! 🙏` },
                         alert('Please enter your bank account or PayNow number');
                         return;
                       }
-                      alert(`Withdrawal request submitted!\n\nAmount: $${parseFloat(amount).toFixed(2)}\nTo: ${account}\n\nYour request will be processed within 1-3 business days.`);
-                      logAuditAction('withdrawal_request', {
-                        riderId: auth.id,
-                        riderName: curr.name,
-                        amount: parseFloat(amount),
-                        account: account
-                      });
+                      try {
+                        // Save withdrawal request to audit_logs with specific action type
+                        await api('audit_logs', 'POST', {
+                          action: 'withdrawal_request',
+                          user_id: auth.id,
+                          details: {
+                            riderId: auth.id,
+                            riderName: curr.name,
+                            riderPhone: curr.phone,
+                            amount: parseFloat(amount),
+                            account: account,
+                            status: 'pending',
+                            requestedAt: new Date().toISOString()
+                          }
+                        });
+                        alert(`Withdrawal request submitted!\n\nAmount: $${parseFloat(amount).toFixed(2)}\nTo: ${account}\n\nYour request will be reviewed by admin within 1-3 business days.`);
+                        // Clear the form
+                        (document.getElementById('withdrawAmount') as HTMLInputElement).value = '';
+                        (document.getElementById('withdrawAccount') as HTMLInputElement).value = '';
+                      } catch (e: any) {
+                        alert('Error submitting withdrawal request: ' + e.message);
+                      }
                     }}
                     className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
                   >
                     Request Withdrawal
                   </button>
                   <p className="text-xs text-gray-500 text-center">
-                    Withdrawals are processed within 1-3 business days via PayNow/Bank Transfer
+                    Withdrawals are reviewed by admin and processed within 1-3 business days via PayNow/Bank Transfer
                   </p>
                 </div>
               ) : (
@@ -4037,11 +4299,33 @@ Thank you for your order! 🙏` },
               </div>
             )}
 
+            {/* Multi-Job Selector - Show when rider has multiple active jobs */}
+            {activeJobsList.length > 1 && (
+              <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
+                <h4 className="font-semibold text-gray-700 mb-3">📋 Your Active Jobs ({activeJobsList.length})</h4>
+                <div className="flex flex-wrap gap-2">
+                  {activeJobsList.map((job: any, idx: number) => (
+                    <button
+                      key={job.id}
+                      onClick={() => setSelectedJobId(job.id)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        (selectedJobId === job.id || (!selectedJobId && idx === 0))
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Job {idx + 1}: {job.delivery?.substring(0, 15)}...
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {activeJob && (
               <div className="bg-white rounded-lg shadow-xl p-6 border-2 border-blue-500">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <Package className="text-blue-600" />
-                  Active Delivery
+                  Active Delivery {activeJobsList.length > 1 && `(${activeJobsList.indexOf(activeJob) + 1}/${activeJobsList.length})`}
                 </h3>
                 <div className="bg-blue-50 p-6 rounded-lg mb-6">
                   <p className="font-semibold text-xl text-gray-900 mb-2">{activeJob.pickup} → {activeJob.delivery}</p>
@@ -4820,6 +5104,193 @@ Thank you for your order! 🙏` },
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Admin Withdrawal Management */}
+            {adminView === 'withdrawals' && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-2xl font-bold mb-6">💰 Withdrawal Management</h3>
+                
+                {/* Summary Stats */}
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-yellow-600">
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'pending' || !r.details?.status).length}
+                    </p>
+                    <p className="text-sm text-gray-600">Pending</p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-green-600">
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'approved').length}
+                    </p>
+                    <p className="text-sm text-gray-600">Approved</p>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-red-600">
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'rejected').length}
+                    </p>
+                    <p className="text-sm text-gray-600">Rejected</p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-blue-600">
+                      ${withdrawalRequests.filter((r: any) => r.details?.status === 'approved')
+                        .reduce((sum: number, r: any) => sum + (r.details?.amount || 0), 0).toFixed(2)}
+                    </p>
+                    <p className="text-sm text-gray-600">Total Paid</p>
+                  </div>
+                </div>
+
+                {/* Filters */}
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={withdrawalFilter.status}
+                      onChange={(e) => setWithdrawalFilter({...withdrawalFilter, status: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Search Rider</label>
+                    <input
+                      type="text"
+                      value={withdrawalFilter.search}
+                      onChange={(e) => setWithdrawalFilter({...withdrawalFilter, search: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      placeholder="Rider name..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                    <input
+                      type="date"
+                      value={withdrawalFilter.dateFrom}
+                      onChange={(e) => setWithdrawalFilter({...withdrawalFilter, dateFrom: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                    <input
+                      type="date"
+                      value={withdrawalFilter.dateTo}
+                      onChange={(e) => setWithdrawalFilter({...withdrawalFilter, dateTo: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                {/* Export Buttons */}
+                <div className="flex gap-2 mb-6">
+                  <button
+                    onClick={() => exportWithdrawalReport('csv')}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Export CSV
+                  </button>
+                  <button
+                    onClick={() => exportWithdrawalReport('pdf')}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
+                  >
+                    <FileText size={16} /> Export PDF
+                  </button>
+                  <button
+                    onClick={() => loadWithdrawalRequests()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+
+                {/* Withdrawal Requests Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="text-left p-3 font-medium">Date</th>
+                        <th className="text-left p-3 font-medium">Rider</th>
+                        <th className="text-left p-3 font-medium">Phone</th>
+                        <th className="text-right p-3 font-medium">Amount</th>
+                        <th className="text-left p-3 font-medium">Account</th>
+                        <th className="text-center p-3 font-medium">Status</th>
+                        <th className="text-center p-3 font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {withdrawalRequests
+                        .filter((req: any) => {
+                          if (withdrawalFilter.status !== 'all') {
+                            const status = req.details?.status || 'pending';
+                            if (status !== withdrawalFilter.status) return false;
+                          }
+                          if (withdrawalFilter.search && !req.details?.riderName?.toLowerCase().includes(withdrawalFilter.search.toLowerCase())) return false;
+                          if (withdrawalFilter.dateFrom && new Date(req.timestamp) < new Date(withdrawalFilter.dateFrom)) return false;
+                          if (withdrawalFilter.dateTo && new Date(req.timestamp) > new Date(withdrawalFilter.dateTo + 'T23:59:59')) return false;
+                          return true;
+                        })
+                        .map((req: any) => (
+                          <tr key={req.id} className="border-t hover:bg-gray-50">
+                            <td className="p-3 text-sm">
+                              {new Date(req.timestamp).toLocaleDateString()}<br/>
+                              <span className="text-gray-500 text-xs">{new Date(req.timestamp).toLocaleTimeString()}</span>
+                            </td>
+                            <td className="p-3 font-medium">{req.details?.riderName || 'N/A'}</td>
+                            <td className="p-3 text-sm">{req.details?.riderPhone || 'N/A'}</td>
+                            <td className="p-3 text-right font-bold text-green-600">${req.details?.amount?.toFixed(2) || '0.00'}</td>
+                            <td className="p-3 text-sm font-mono">{req.details?.account || 'N/A'}</td>
+                            <td className="p-3 text-center">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                req.details?.status === 'approved' ? 'bg-green-100 text-green-700' :
+                                req.details?.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                'bg-yellow-100 text-yellow-700'
+                              }`}>
+                                {(req.details?.status || 'pending').toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              {(!req.details?.status || req.details?.status === 'pending') && (
+                                <div className="flex justify-center gap-2">
+                                  <button
+                                    onClick={() => processWithdrawalRequest(req.id, 'approved', req)}
+                                    className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                  >
+                                    ✓ Approve
+                                  </button>
+                                  <button
+                                    onClick={() => processWithdrawalRequest(req.id, 'rejected', req)}
+                                    className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                                  >
+                                    ✕ Reject
+                                  </button>
+                                </div>
+                              )}
+                              {req.details?.status === 'approved' && (
+                                <span className="text-xs text-gray-500">
+                                  Processed {req.details?.processedAt ? new Date(req.details.processedAt).toLocaleDateString() : ''}
+                                </span>
+                              )}
+                              {req.details?.status === 'rejected' && (
+                                <span className="text-xs text-gray-500">Rejected</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      {withdrawalRequests.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-gray-500">
+                            No withdrawal requests yet
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
