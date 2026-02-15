@@ -2,7 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2023-10-16',
 });
 
@@ -14,18 +14,23 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Check if API key is configured
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return res.status(500).json({ error: 'Stripe API key not configured. Please add STRIPE_SECRET_KEY to Vercel environment variables.' });
+  }
+
   try {
     const { amount, customerId, customerEmail, customerName } = req.body;
 
-    // Validate amount (minimum $1, in cents for Stripe)
+    // Validate amount (minimum $5, in cents for Stripe)
     const amountInCents = Math.round(parseFloat(amount) * 100);
-    if (amountInCents < 100) {
-      return res.status(400).json({ error: 'Minimum top-up amount is $1' });
+    if (amountInCents < 500) {
+      return res.status(400).json({ error: 'Minimum top-up amount is $5' });
     }
 
-    // Create Stripe Checkout Session with PayNow
+    // Create Stripe Checkout Session with PayNow ONLY
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['paynow'], // PayNow for Singapore
+      payment_method_types: ['paynow'], // PayNow only for Singapore
       line_items: [
         {
           price_data: {
