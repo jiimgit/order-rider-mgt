@@ -3055,7 +3055,7 @@ Thank you for your order! 🙏` },
                 <div className="space-y-4">
                   <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg">
                     <p className="text-sm font-semibold text-purple-900 mb-2">💳 Secure Payment via Stripe</p>
-                    <p className="text-xs text-purple-700">Pay using PayNow, Cards, or other methods</p>
+                    <p className="text-xs text-purple-700">Pay securely using PayNow QR</p>
                   </div>
                   
                   {/* Quick Amount Buttons */}
