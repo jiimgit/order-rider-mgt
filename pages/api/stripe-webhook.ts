@@ -9,9 +9,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
 
-// Supabase connection for updating credits
-const SUPABASE_URL = 'https://esylsugzysfjtukxmxks.supabase.co/rest/v1';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeWxzdWd6eXNmanR1a214a3MiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczOTA0ODI4MSwiZXhwIjoyMDU0NjI0MjgxfQ.LdbK29uDGte1ue7LSAzEoHjAJNjYToAA2zyHWloS2fI';
+// Supabase connection for updating credits - CORRECT CREDENTIALS
+const SUPABASE_URL = 'https://esylsugzysfjntukmxks.supabase.co/rest/v1';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeWxzdWd6eXNmam50dWtteGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDgyODEsImV4cCI6MjA4NDYyNDI4MX0.Ldbk29uDGte1ue7LSAzEoHjAJNjYToAA2zyHWloS2fI';
 
 // Disable body parsing, we need raw body for webhook verification
 export const config = {
@@ -36,7 +36,8 @@ async function updateCustomerCredits(customerId: string, amount: number): Promis
     });
     
     const responseText = await getResponse.text();
-    console.log(`[Webhook] Customer fetch response: ${responseText}`);
+    console.log(`[Webhook] Customer fetch response status: ${getResponse.status}`);
+    console.log(`[Webhook] Customer fetch response: ${responseText.substring(0, 200)}`);
     
     let customers;
     try {
@@ -70,7 +71,7 @@ async function updateCustomerCredits(customerId: string, amount: number): Promis
     });
 
     const updateText = await updateResponse.text();
-    console.log(`[Webhook] Update response status: ${updateResponse.status}, body: ${updateText}`);
+    console.log(`[Webhook] Update response status: ${updateResponse.status}`);
 
     if (!updateResponse.ok) {
       console.error('[Webhook] Failed to update credits:', updateText);
