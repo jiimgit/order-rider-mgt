@@ -310,6 +310,12 @@ const DeliveryPlatform = () => {
         loadPublicTracking(trackingId);
       }
       
+      // Handle direct portal access via URL parameter
+      const portalParam = urlParams.get('portal');
+      if (portalParam && ['customer', 'rider', 'admin'].includes(portalParam)) {
+        setView(portalParam);
+      }
+      
       // Handle Stripe payment return
       const topupStatus = urlParams.get('topup');
       const sessionId = urlParams.get('session_id');
