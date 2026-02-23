@@ -167,6 +167,7 @@ const DeliveryPlatform = () => {
   // Multi-job support states
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [selectedJobsForAccept, setSelectedJobsForAccept] = useState<string[]>([]); // Multi-job selection
 
   // Rider navigation history for back button
   const [riderViewHistory, setRiderViewHistory] = useState<string[]>(['home']);
@@ -945,14 +946,15 @@ const DeliveryPlatform = () => {
   };
 
   // Approve/Reject withdrawal request
-  const processWithdrawalRequest = async (requestId: string, action: 'approved' | 'rejected', request: any) => {
+  const processWithdrawalRequest = async (requestId: string, action: 'approved' | 'rejected' | 'completed', request: any) => {
     try {
       // Update the withdrawal request status
       await api(`audit_logs?id=eq.${requestId}`, 'PATCH', {
         details: {
           ...request.details,
           status: action,
-          processedAt: new Date().toISOString(),
+          processedAt: action === 'completed' ? request.details.processedAt : new Date().toISOString(),
+          completedAt: action === 'completed' ? new Date().toISOString() : request.details.completedAt,
           processedBy: 'admin'
         }
       });
@@ -977,7 +979,15 @@ const DeliveryPlatform = () => {
         account: request.details.account
       });
 
-      alert(`Withdrawal request ${action}!`);
+      // Show appropriate message
+      if (action === 'approved') {
+        alert(`Withdrawal request APPROVED!\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\nAccount: ${request.details.account}\n\nThe rider will be notified that the request is being processed.`);
+      } else if (action === 'rejected') {
+        alert(`Withdrawal request REJECTED.\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\n\nThe rider will be notified to resubmit if needed.`);
+      } else if (action === 'completed') {
+        alert(`Payment COMPLETED!\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\n\nThe rider will be notified that payment has been received.`);
+      }
+      
       loadWithdrawalRequests();
       loadData(); // Refresh rider data
     } catch (e: any) {
@@ -2128,9 +2138,14 @@ Thank you for your order! 🙏` },
       const j = await api('jobs?select=*&order=created_at.desc');
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
+      // Also load audit logs for withdrawal notifications
+      const logs = await api('audit_logs?order=timestamp.desc&limit=100');
+      console.log('[LoadData] Audit logs loaded:', logs?.length || 0);
+      
       setRiders(Array.isArray(r) ? r : []);
       setCustomers(Array.isArray(c) ? c : []);
       setJobs(Array.isArray(j) ? j : []);
+      setAuditLogs(Array.isArray(logs) ? logs : []);
       console.log('[LoadData] All data loaded successfully!');
     } catch (e: any) { 
       const errorMessage = e.message || 'Unknown error';
@@ -2188,10 +2203,10 @@ Thank you for your order! 🙏` },
         email: regForm.email, 
         password: regForm.password, 
         phone: regForm.phone, 
-        credits: 20 
+        credits: 0 
       });
       console.log('Registration result:', result);
-      alert('Registration successful! You received $20 credits.\n\nYou can now login with:\nEmail: ' + regForm.email + '\nPassword: (your password)');
+      alert('Registration successful!\n\nYou can now login with:\nEmail: ' + regForm.email + '\nPassword: (your password)');
       setIsReg(false);
       setRegForm({ name: '', email: '', password: '', phone: '', referralCode: '' });
       loadData();
@@ -2834,12 +2849,10 @@ Thank you for your order! 🙏` },
                     </button>
                   </div>
                 )}
-                {view !== 'admin' && (
+                {view !== 'admin' && view === 'rider' && (
                   <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                     <p className="text-xs text-blue-800">
-                      {view === 'customer' 
-                        ? 'New customers get $20 welcome credits upon registration!' 
-                        : 'Register to get your unique referral code and start earning!'}
+                      Register to get your unique referral code and start earning!
                     </p>
                   </div>
                 )}
@@ -4255,11 +4268,59 @@ Thank you for your order! 🙏` },
               </div>
             </div>
 
-            {curr.earnings >= 200 && (
-              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4">
-                <p className="text-yellow-800 font-semibold">🎉 You can now withdraw your earnings! (Feature coming soon)</p>
-              </div>
-            )}
+            {/* Withdrawal Notifications - Show status of rider's withdrawal requests */}
+            {(() => {
+              const myWithdrawals = auditLogs.filter((log: any) => 
+                log.action === 'withdrawal_request' && log.user_id === auth.id
+              ).slice(0, 3);
+              
+              if (myWithdrawals.length === 0) return null;
+              
+              return (
+                <div className="bg-white rounded-lg shadow-lg p-4">
+                  <h4 className="font-bold text-gray-800 mb-3">📋 Your Withdrawal Requests</h4>
+                  <div className="space-y-2">
+                    {myWithdrawals.map((req: any) => (
+                      <div 
+                        key={req.id} 
+                        className={`p-3 rounded-lg border-l-4 ${
+                          req.details?.status === 'completed' ? 'bg-blue-50 border-blue-500' :
+                          req.details?.status === 'approved' ? 'bg-green-50 border-green-500' :
+                          req.details?.status === 'rejected' ? 'bg-red-50 border-red-500' :
+                          'bg-yellow-50 border-yellow-500'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-semibold">${req.details?.amount?.toFixed(2)}</p>
+                            <p className="text-xs text-gray-500">{new Date(req.timestamp).toLocaleDateString()}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              req.details?.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                              req.details?.status === 'approved' ? 'bg-green-100 text-green-700' :
+                              req.details?.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                              'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {(req.details?.status || 'pending').toUpperCase()}
+                            </span>
+                            {req.details?.status === 'approved' && (
+                              <p className="text-xs text-green-600 mt-1">Being processed</p>
+                            )}
+                            {req.details?.status === 'completed' && (
+                              <p className="text-xs text-blue-600 mt-1">Payment sent! ✓</p>
+                            )}
+                            {req.details?.status === 'rejected' && (
+                              <p className="text-xs text-red-600 mt-1">Please resubmit</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Withdrawal Section */}
             <div className="bg-white rounded-lg shadow-lg p-6">
@@ -4349,17 +4410,46 @@ Thank you for your order! 🙏` },
                   </p>
                 </div>
               ) : (
-                <div className="text-center py-4">
-                  <p className="text-gray-500">You need at least $50 to withdraw</p>
-                  <p className="text-sm text-gray-400 mt-1">
-                    Current balance: ${(curr.earnings || 0).toFixed(2)} / $50.00 required
-                  </p>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
-                    <div 
-                      className="bg-green-500 h-2 rounded-full transition-all" 
-                      style={{ width: `${Math.min(100, ((curr.earnings || 0) / 50) * 100)}%` }}
-                    ></div>
+                <div className="space-y-3">
+                  <div className="bg-yellow-50 p-3 rounded-lg mb-2">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ You need at least <strong>$50.00</strong> to withdraw. 
+                      Current balance: <strong>${(curr.earnings || 0).toFixed(2)}</strong>
+                    </p>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                      <div 
+                        className="bg-yellow-500 h-2 rounded-full transition-all" 
+                        style={{ width: `${Math.min(100, ((curr.earnings || 0) / 50) * 100)}%` }}
+                      ></div>
+                    </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Withdrawal Amount</label>
+                    <input
+                      type="number"
+                      placeholder="Enter amount (min $50)"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed"
+                      disabled
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Bank Account / PayNow Number</label>
+                    <input
+                      type="text"
+                      placeholder="Enter your bank account or phone number"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed"
+                      disabled
+                    />
+                  </div>
+                  <button
+                    disabled
+                    className="w-full py-3 bg-gray-300 text-gray-500 rounded-lg font-semibold cursor-not-allowed"
+                  >
+                    Request Withdrawal
+                  </button>
+                  <p className="text-xs text-gray-400 text-center">
+                    Complete more deliveries to reach the minimum withdrawal amount
+                  </p>
                 </div>
               )}
             </div>
@@ -4644,33 +4734,106 @@ Thank you for your order! 🙏` },
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
+                      {selectedJobsForAccept.length > 0 && (
+                        <span className="text-sm font-medium text-green-600">
+                          {selectedJobsForAccept.length} selected
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Select All / Clear All */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedJobsForAccept(filteredAvailableJobs.map((j: any) => j.id))}
+                        className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => setSelectedJobsForAccept([])}
+                        className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    
                     {filteredAvailableJobs.map((job: any) => {
                       const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || []);
+                      const isSelected = selectedJobsForAccept.includes(job.id);
                       return (
-                        <div key={job.id} className="border border-gray-200 rounded-lg p-4 hover:border-green-400 hover:shadow-lg transition-all">
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <p className="font-semibold text-lg">{job.pickup} → {job.delivery}</p>
-                              <p className="text-sm text-gray-600">{job.timeframe}</p>
-                              {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
-                              {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
+                        <div 
+                          key={job.id} 
+                          className={`border rounded-lg p-4 transition-all cursor-pointer ${
+                            isSelected 
+                              ? 'border-green-500 bg-green-50 shadow-md' 
+                              : 'border-gray-200 hover:border-green-400 hover:shadow-lg'
+                          }`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedJobsForAccept(selectedJobsForAccept.filter(id => id !== job.id));
+                            } else {
+                              setSelectedJobsForAccept([...selectedJobsForAccept, job.id]);
+                            }
+                          }}
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* Checkbox */}
+                            <div className="pt-1">
+                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
+                                isSelected 
+                                  ? 'bg-green-500 border-green-500' 
+                                  : 'border-gray-300 bg-white'
+                              }`}>
+                                {isSelected && <Check size={16} className="text-white" />}
+                              </div>
+                            </div>
+                            
+                            {/* Job Details */}
+                            <div className="flex-1">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <p className="font-semibold text-lg">{job.pickup} → {job.delivery}</p>
+                                  <p className="text-sm text-gray-600">{job.timeframe}</p>
+                                  {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
+                                  {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm text-gray-500">Earn:</p>
+                                  <p className="text-2xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="bg-green-50 p-4 rounded-lg mb-3">
-                            <p className="text-sm text-gray-600 mb-1">You will earn:</p>
-                            <p className="text-3xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
-                          </div>
-                          <button 
-                            onClick={() => acceptJob(job.id)} 
-                            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-                            disabled={gpsPermissionGranted === false}
-                          >
-                            {gpsPermissionGranted === false ? '⚠️ Enable GPS to Accept' : 'Accept Job'}
-                          </button>
                         </div>
                       );
                     })}
+                    
+                    {/* Accept Selected Jobs Button */}
+                    {selectedJobsForAccept.length > 0 && (
+                      <div className="sticky bottom-0 bg-white pt-4 pb-2 border-t">
+                        <button 
+                          onClick={async () => {
+                            if (gpsPermissionGranted === false) {
+                              alert('Please enable GPS to accept jobs');
+                              return;
+                            }
+                            // Accept all selected jobs
+                            for (const jobId of selectedJobsForAccept) {
+                              await acceptJob(jobId);
+                            }
+                            setSelectedJobsForAccept([]);
+                          }} 
+                          className="w-full bg-green-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors"
+                          disabled={gpsPermissionGranted === false}
+                        >
+                          {gpsPermissionGranted === false 
+                            ? '⚠️ Enable GPS to Accept' 
+                            : `Accept ${selectedJobsForAccept.length} Job${selectedJobsForAccept.length > 1 ? 's' : ''}`}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -5208,7 +5371,7 @@ Thank you for your order! 🙏` },
                 <h3 className="text-2xl font-bold mb-6">💰 Withdrawal Management</h3>
                 
                 {/* Summary Stats */}
-                <div className="grid grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-5 gap-4 mb-6">
                   <div className="bg-yellow-50 p-4 rounded-lg text-center">
                     <p className="text-3xl font-bold text-yellow-600">
                       {withdrawalRequests.filter((r: any) => r.details?.status === 'pending' || !r.details?.status).length}
@@ -5221,15 +5384,21 @@ Thank you for your order! 🙏` },
                     </p>
                     <p className="text-sm text-gray-600">Approved</p>
                   </div>
+                  <div className="bg-blue-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-blue-600">
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'completed').length}
+                    </p>
+                    <p className="text-sm text-gray-600">Completed</p>
+                  </div>
                   <div className="bg-red-50 p-4 rounded-lg text-center">
                     <p className="text-3xl font-bold text-red-600">
                       {withdrawalRequests.filter((r: any) => r.details?.status === 'rejected').length}
                     </p>
                     <p className="text-sm text-gray-600">Rejected</p>
                   </div>
-                  <div className="bg-blue-50 p-4 rounded-lg text-center">
-                    <p className="text-3xl font-bold text-blue-600">
-                      ${withdrawalRequests.filter((r: any) => r.details?.status === 'approved')
+                  <div className="bg-purple-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-purple-600">
+                      ${withdrawalRequests.filter((r: any) => r.details?.status === 'completed')
                         .reduce((sum: number, r: any) => sum + (r.details?.amount || 0), 0).toFixed(2)}
                     </p>
                     <p className="text-sm text-gray-600">Total Paid</p>
@@ -5248,6 +5417,7 @@ Thank you for your order! 🙏` },
                       <option value="all">All Status</option>
                       <option value="pending">Pending</option>
                       <option value="approved">Approved</option>
+                      <option value="completed">Completed</option>
                       <option value="rejected">Rejected</option>
                     </select>
                   </div>
@@ -5342,6 +5512,7 @@ Thank you for your order! 🙏` },
                             <td className="p-3 text-center">
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                 req.details?.status === 'approved' ? 'bg-green-100 text-green-700' :
+                                req.details?.status === 'completed' ? 'bg-blue-100 text-blue-700' :
                                 req.details?.status === 'rejected' ? 'bg-red-100 text-red-700' :
                                 'bg-yellow-100 text-yellow-700'
                               }`}>
@@ -5366,12 +5537,29 @@ Thank you for your order! 🙏` },
                                 </div>
                               )}
                               {req.details?.status === 'approved' && (
-                                <span className="text-xs text-gray-500">
-                                  Processed {req.details?.processedAt ? new Date(req.details.processedAt).toLocaleDateString() : ''}
-                                </span>
+                                <div className="flex flex-col items-center gap-1">
+                                  <button
+                                    onClick={() => processWithdrawalRequest(req.id, 'completed', req)}
+                                    className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                  >
+                                    💰 Mark Completed
+                                  </button>
+                                  <span className="text-xs text-gray-500">
+                                    Approved {req.details?.processedAt ? new Date(req.details.processedAt).toLocaleDateString() : ''}
+                                  </span>
+                                </div>
+                              )}
+                              {req.details?.status === 'completed' && (
+                                <div className="text-center">
+                                  <span className="text-xs text-green-600 font-medium">✓ Payment Sent</span>
+                                  <br/>
+                                  <span className="text-xs text-gray-500">
+                                    {req.details?.completedAt ? new Date(req.details.completedAt).toLocaleDateString() : ''}
+                                  </span>
+                                </div>
                               )}
                               {req.details?.status === 'rejected' && (
-                                <span className="text-xs text-gray-500">Rejected</span>
+                                <span className="text-xs text-red-500">Rejected</span>
                               )}
                             </td>
                           </tr>
