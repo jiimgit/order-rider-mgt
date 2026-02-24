@@ -593,7 +593,7 @@ const DeliveryPlatform = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const todayJobs = jobs.filter((j: any) => new Date(j.created_at) >= today);
+    const todayJobs = jobs.filter((j: any) => j.created_at && new Date(j.created_at) >= today);
     
     const pendingOrders = todayJobs.filter((j: any) => j.status === 'posted').length;
     const assignedOrders = todayJobs.filter((j: any) => j.status === 'accepted').length;
@@ -639,7 +639,10 @@ const DeliveryPlatform = () => {
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayJobs = completedJobs.filter((j: any) => new Date(j.completed_at || j.created_at) >= today);
+    const todayJobs = completedJobs.filter((j: any) => {
+      const dateStr = j.completed_at || j.created_at;
+      return dateStr && new Date(dateStr) >= today;
+    });
     const todayEarnings = todayJobs.reduce((sum: number, j: any) => {
       const rider = riders.find((r: any) => r.id === auth.id);
       if (rider) {
@@ -651,7 +654,10 @@ const DeliveryPlatform = () => {
     
     const thisWeek = new Date();
     thisWeek.setDate(thisWeek.getDate() - 7);
-    const weekJobs = completedJobs.filter((j: any) => new Date(j.completed_at || j.created_at) >= thisWeek);
+    const weekJobs = completedJobs.filter((j: any) => {
+      const dateStr = j.completed_at || j.created_at;
+      return dateStr && new Date(dateStr) >= thisWeek;
+    });
     const weekEarnings = weekJobs.reduce((sum: number, j: any) => {
       const rider = riders.find((r: any) => r.id === auth.id);
       if (rider) {
