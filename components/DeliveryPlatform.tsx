@@ -118,9 +118,10 @@ const DeliveryPlatform = () => {
   const [payNowQR, setPayNowQR] = useState('');
   const [jobForm, setJobForm] = useState({ 
     pickup: '', 
+    pickupUnitNo: '', // New unit no field
     pickupContact: '',
     pickupPhone: '',
-    stops: [{ address: '', recipientName: '', recipientPhone: '' }], // Multi-stop support
+    stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }], // Multi-stop support with unit no
     timeframe: '', 
     price: '10',
     parcelSize: 'small',
@@ -208,6 +209,17 @@ const DeliveryPlatform = () => {
   const [showWithdrawalManagement, setShowWithdrawalManagement] = useState(false);
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([]);
   const [withdrawalFilter, setWithdrawalFilter] = useState({ status: 'all', search: '', dateFrom: '', dateTo: '' });
+
+  // Rider Withdrawal Form state
+  const [withdrawMethod, setWithdrawMethod] = useState<'paynow' | 'bank'>('paynow');
+  const [withdrawForm, setWithdrawForm] = useState({
+    amount: '',
+    fullName: '',
+    mobileNumber: '',
+    bankName: '',
+    paynowNo: '',
+    bankAccountNo: ''
+  });
 
   // Job filter states for rider (Feature 10)
   const [riderJobFilter, setRiderJobFilter] = useState({ pickup: '', dropoff: '', customer: '' });
@@ -959,13 +971,13 @@ const DeliveryPlatform = () => {
         }
       });
 
-      // If approved, deduct from rider's earnings
-      if (action === 'approved') {
+      // If rejected, return the balance to rider (since it was deducted on submission)
+      if (action === 'rejected') {
         const rider = riders.find(r => r.id === request.details.riderId);
         if (rider) {
-          const newEarnings = (rider.earnings || 0) - request.details.amount;
+          const newEarnings = (rider.earnings || 0) + request.details.amount;
           await api(`riders?id=eq.${request.details.riderId}`, 'PATCH', {
-            earnings: Math.max(0, newEarnings)
+            earnings: newEarnings
           });
         }
       }
@@ -976,14 +988,18 @@ const DeliveryPlatform = () => {
         riderId: request.details.riderId,
         riderName: request.details.riderName,
         amount: request.details.amount,
-        account: request.details.account
+        withdrawMethod: request.details.withdrawMethod,
+        bankName: request.details.bankName
       });
 
       // Show appropriate message
       if (action === 'approved') {
-        alert(`Withdrawal request APPROVED!\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\nAccount: ${request.details.account}\n\nThe rider will be notified that the request is being processed.`);
+        const paymentDetails = request.details.withdrawMethod === 'paynow' 
+          ? `PayNow: ${request.details.paynowNo}` 
+          : `Bank: ${request.details.bankName} - ${request.details.bankAccountNo}`;
+        alert(`Withdrawal request APPROVED!\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\n${paymentDetails}\n\nThe rider will be notified that the request is being processed.`);
       } else if (action === 'rejected') {
-        alert(`Withdrawal request REJECTED.\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\n\nThe rider will be notified to resubmit if needed.`);
+        alert(`Withdrawal request REJECTED.\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\n\nThe balance has been returned to the rider. The rider will be notified to resubmit if needed.`);
       } else if (action === 'completed') {
         alert(`Payment COMPLETED!\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\n\nThe rider will be notified that payment has been received.`);
       }
@@ -2146,6 +2162,11 @@ Thank you for your order! 🙏` },
       setCustomers(Array.isArray(c) ? c : []);
       setJobs(Array.isArray(j) ? j : []);
       setAuditLogs(Array.isArray(logs) ? logs : []);
+      
+      // Also set withdrawal requests from audit logs
+      const withdrawals = (Array.isArray(logs) ? logs : []).filter((log: any) => log.action === 'withdrawal_request');
+      setWithdrawalRequests(withdrawals);
+      
       console.log('[LoadData] All data loaded successfully!');
     } catch (e: any) { 
       const errorMessage = e.message || 'Unknown error';
@@ -2258,26 +2279,30 @@ Thank you for your order! 🙏` },
     if (price < minPrice) return alert(`Minimum price is $${minPrice} for ${jobForm.stops.length} stop(s)`);
     if (curr.credits < price) return alert('Insufficient credits. Please top up.');
     if (!jobForm.pickup) return alert('Please fill in pickup location');
+    if (!jobForm.pickupUnitNo) return alert('Please fill in pickup Unit No (enter "N/A" if not applicable)');
     if (!jobForm.stops[0]?.address) return alert('Please fill in at least one drop-off location');
     if (!jobForm.parcelSize) return alert('Please select a parcel size');
     
-    // Validate all stops have addresses
+    // Validate all stops have addresses and unit numbers
     const emptyStops = jobForm.stops.filter(s => !s.address);
     if (emptyStops.length > 0) return alert('Please fill in all drop-off addresses or remove empty stops');
     
+    const missingUnitNo = jobForm.stops.filter(s => !s.unitNo);
+    if (missingUnitNo.length > 0) return alert('Please fill in Unit No for all drop-off locations (enter "N/A" if not applicable)');
+    
     try {
       // For multi-stop, create the job with all stops stored as JSON
-      const deliveryAddresses = jobForm.stops.map(s => s.address).join(' → ');
+      const deliveryAddresses = jobForm.stops.map(s => `${s.address} ${s.unitNo}`).join(' → ');
       
       await api('jobs', 'POST', { 
         customer_id: curr.id, 
         customer_name: curr.name, 
         customer_phone: curr.phone, 
-        pickup: jobForm.pickup, 
+        pickup: `${jobForm.pickup} ${jobForm.pickupUnitNo}`, // Include unit no in pickup
         pickup_contact: jobForm.pickupContact || null,
         pickup_phone: jobForm.pickupPhone || null,
         delivery: deliveryAddresses, // Combined for display
-        stops: jobForm.stops, // Full stops array as JSON
+        stops: jobForm.stops, // Full stops array as JSON (includes unit numbers)
         total_stops: jobForm.stops.length,
         timeframe: jobForm.timeframe, 
         price, 
@@ -2290,9 +2315,10 @@ Thank you for your order! 🙏` },
       await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: curr.credits - price });
       setJobForm({ 
         pickup: '', 
+        pickupUnitNo: '',
         pickupContact: '',
         pickupPhone: '',
-        stops: [{ address: '', recipientName: '', recipientPhone: '' }],
+        stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
         timeframe: '', 
         price: '10', 
         parcelSize: 'small', 
@@ -2981,9 +3007,15 @@ Thank you for your order! 🙏` },
                 </button>
                 <button 
                   onClick={() => { setAdminView('withdrawals'); loadWithdrawalRequests(); }} 
-                  className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'withdrawals' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  className={`px-4 py-2 rounded text-sm font-medium relative ${adminView === 'withdrawals' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   💰 Withdrawals
+                  {/* Pending withdrawals badge */}
+                  {withdrawalRequests.filter((r: any) => !r.details?.status || r.details?.status === 'pending').length > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      {withdrawalRequests.filter((r: any) => !r.details?.status || r.details?.status === 'pending').length}
+                    </span>
+                  )}
                 </button>
                 <button 
                   onClick={() => setAdminView('referrals')} 
@@ -3225,6 +3257,20 @@ Thank you for your order! 🙏` },
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                         placeholder="Enter postal code (e.g., 238858) or full address" 
                       />
+                      <div className="mt-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Unit No <span className="text-red-500">*</span>
+                          <span className="text-xs text-gray-500 ml-1">(Enter "N/A" if not applicable)</span>
+                        </label>
+                        <input 
+                          type="text" 
+                          value={jobForm.pickupUnitNo} 
+                          onChange={(e) => setJobForm({...jobForm, pickupUnitNo: e.target.value})} 
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" 
+                          placeholder="e.g., #01-23 or N/A for houses" 
+                          required
+                        />
+                      </div>
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <input 
                           type="text" 
@@ -3301,6 +3347,24 @@ Thank you for your order! 🙏` },
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                           placeholder="Enter postal code or full address" 
                         />
+                        <div className="mt-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Unit No <span className="text-red-500">*</span>
+                            <span className="text-xs text-gray-500 ml-1">(Enter "N/A" if not applicable)</span>
+                          </label>
+                          <input 
+                            type="text" 
+                            value={stop.unitNo || ''} 
+                            onChange={(e) => {
+                              const newStops = [...jobForm.stops];
+                              newStops[index].unitNo = e.target.value;
+                              setJobForm({...jobForm, stops: newStops});
+                            }} 
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" 
+                            placeholder="e.g., #01-23 or N/A for houses" 
+                            required
+                          />
+                        </div>
                         <div className="grid grid-cols-2 gap-2 mt-2">
                           <input 
                             type="text" 
@@ -4340,46 +4404,160 @@ Thank you for your order! 🙏` },
               </div>
               
               {(curr.earnings || 0) >= 50 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
+                  {/* Withdrawal Method Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Withdrawal Amount</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Withdrawal Method</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setWithdrawMethod('paynow')}
+                        className={`py-3 px-4 rounded-lg font-medium border-2 transition-colors ${
+                          withdrawMethod === 'paynow'
+                            ? 'border-purple-500 bg-purple-50 text-purple-700'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        📱 PayNow
+                      </button>
+                      <button
+                        onClick={() => setWithdrawMethod('bank')}
+                        className={`py-3 px-4 rounded-lg font-medium border-2 transition-colors ${
+                          withdrawMethod === 'bank'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        🏦 Bank Account
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Withdrawal Amount <span className="text-red-500">*</span></label>
                     <input
                       type="number"
                       min="50"
                       max={curr.earnings || 0}
                       step="0.01"
+                      value={withdrawForm.amount}
+                      onChange={(e) => setWithdrawForm({...withdrawForm, amount: e.target.value})}
                       placeholder="Enter amount (min $50)"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                      id="withdrawAmount"
                     />
                   </div>
+
+                  {/* Full Name */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account / PayNow Number</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
                     <input
                       type="text"
-                      placeholder="Enter your bank account or phone number"
+                      value={withdrawForm.fullName}
+                      onChange={(e) => setWithdrawForm({...withdrawForm, fullName: e.target.value})}
+                      placeholder="Enter your full name"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                      id="withdrawAccount"
                     />
                   </div>
+
+                  {/* Mobile Number */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number <span className="text-red-500">*</span></label>
+                    <input
+                      type="tel"
+                      value={withdrawForm.mobileNumber}
+                      onChange={(e) => setWithdrawForm({...withdrawForm, mobileNumber: e.target.value})}
+                      placeholder="Enter your mobile number"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  {/* Bank Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name <span className="text-red-500">*</span></label>
+                    <select
+                      value={withdrawForm.bankName}
+                      onChange={(e) => setWithdrawForm({...withdrawForm, bankName: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">Select Bank</option>
+                      <option value="DBS">DBS Bank</option>
+                      <option value="OCBC">OCBC Bank</option>
+                      <option value="UOB">UOB Bank</option>
+                      <option value="Standard Chartered">Standard Chartered</option>
+                      <option value="Citibank">Citibank</option>
+                      <option value="HSBC">HSBC</option>
+                      <option value="Maybank">Maybank</option>
+                      <option value="CIMB">CIMB Bank</option>
+                      <option value="Bank of China">Bank of China</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* PayNow Number - only show if PayNow selected */}
+                  {withdrawMethod === 'paynow' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">PayNow Number <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        value={withdrawForm.paynowNo}
+                        onChange={(e) => setWithdrawForm({...withdrawForm, paynowNo: e.target.value})}
+                        placeholder="Enter your PayNow number (mobile/NRIC)"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  )}
+
+                  {/* Bank Account Number - only show if Bank selected */}
+                  {withdrawMethod === 'bank' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account Number <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        value={withdrawForm.bankAccountNo}
+                        onChange={(e) => setWithdrawForm({...withdrawForm, bankAccountNo: e.target.value})}
+                        placeholder="Enter your bank account number"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+
                   <button
                     onClick={async () => {
-                      const amount = (document.getElementById('withdrawAmount') as HTMLInputElement)?.value;
-                      const account = (document.getElementById('withdrawAccount') as HTMLInputElement)?.value;
-                      if (!amount || parseFloat(amount) < 50) {
+                      const amount = parseFloat(withdrawForm.amount);
+                      if (!amount || amount < 50) {
                         alert('Minimum withdrawal is $50');
                         return;
                       }
-                      if (parseFloat(amount) > (curr.earnings || 0)) {
+                      if (amount > (curr.earnings || 0)) {
                         alert('Insufficient balance');
                         return;
                       }
-                      if (!account) {
-                        alert('Please enter your bank account or PayNow number');
+                      if (!withdrawForm.fullName) {
+                        alert('Please enter your full name');
+                        return;
+                      }
+                      if (!withdrawForm.mobileNumber) {
+                        alert('Please enter your mobile number');
+                        return;
+                      }
+                      if (!withdrawForm.bankName) {
+                        alert('Please select a bank');
+                        return;
+                      }
+                      if (withdrawMethod === 'paynow' && !withdrawForm.paynowNo) {
+                        alert('Please enter your PayNow number');
+                        return;
+                      }
+                      if (withdrawMethod === 'bank' && !withdrawForm.bankAccountNo) {
+                        alert('Please enter your bank account number');
                         return;
                       }
                       try {
-                        // Save withdrawal request to audit_logs with specific action type
+                        // Deduct balance immediately on submission
+                        const newBalance = (curr.earnings || 0) - amount;
+                        await api(`riders?id=eq.${auth.id}`, 'PATCH', { earnings: newBalance });
+                        
+                        // Save withdrawal request to audit_logs
                         await api('audit_logs', 'POST', {
                           action: 'withdrawal_request',
                           user_id: auth.id,
@@ -4387,16 +4565,30 @@ Thank you for your order! 🙏` },
                             riderId: auth.id,
                             riderName: curr.name,
                             riderPhone: curr.phone,
-                            amount: parseFloat(amount),
-                            account: account,
+                            amount: amount,
+                            withdrawMethod: withdrawMethod,
+                            fullName: withdrawForm.fullName,
+                            mobileNumber: withdrawForm.mobileNumber,
+                            bankName: withdrawForm.bankName,
+                            paynowNo: withdrawMethod === 'paynow' ? withdrawForm.paynowNo : null,
+                            bankAccountNo: withdrawMethod === 'bank' ? withdrawForm.bankAccountNo : null,
                             status: 'pending',
                             requestedAt: new Date().toISOString()
                           }
                         });
-                        alert(`Withdrawal request submitted!\n\nAmount: $${parseFloat(amount).toFixed(2)}\nTo: ${account}\n\nYour request will be reviewed by admin within 1-3 business days.`);
+                        
+                        alert(`Withdrawal request submitted!\n\nAmount: $${amount.toFixed(2)}\nMethod: ${withdrawMethod === 'paynow' ? 'PayNow' : 'Bank Transfer'}\n\nYour request has been submitted to the administrator for review and approval.`);
+                        
                         // Clear the form
-                        (document.getElementById('withdrawAmount') as HTMLInputElement).value = '';
-                        (document.getElementById('withdrawAccount') as HTMLInputElement).value = '';
+                        setWithdrawForm({
+                          amount: '',
+                          fullName: '',
+                          mobileNumber: '',
+                          bankName: '',
+                          paynowNo: '',
+                          bankAccountNo: ''
+                        });
+                        loadData();
                       } catch (e: any) {
                         alert('Error submitting withdrawal request: ' + e.message);
                       }
@@ -4406,7 +4598,7 @@ Thank you for your order! 🙏` },
                     Request Withdrawal
                   </button>
                   <p className="text-xs text-gray-500 text-center">
-                    Withdrawals are reviewed by admin and processed within 1-3 business days via PayNow/Bank Transfer
+                    Balance will be deducted upon submission. If rejected, balance will be returned.
                   </p>
                 </div>
               ) : (
@@ -4423,28 +4615,42 @@ Thank you for your order! 🙏` },
                       ></div>
                     </div>
                   </div>
+                  
+                  {/* Disabled Method Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">Withdrawal Method</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="py-3 px-4 rounded-lg font-medium border-2 border-gray-200 bg-gray-100 text-gray-400 text-center cursor-not-allowed">
+                        📱 PayNow
+                      </div>
+                      <div className="py-3 px-4 rounded-lg font-medium border-2 border-gray-200 bg-gray-100 text-gray-400 text-center cursor-not-allowed">
+                        🏦 Bank Account
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div>
                     <label className="block text-sm font-medium text-gray-400 mb-1">Withdrawal Amount</label>
-                    <input
-                      type="number"
-                      placeholder="Enter amount (min $50)"
-                      className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed"
-                      disabled
-                    />
+                    <input type="number" placeholder="Enter amount (min $50)" className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed" disabled />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Bank Account / PayNow Number</label>
-                    <input
-                      type="text"
-                      placeholder="Enter your bank account or phone number"
-                      className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed"
-                      disabled
-                    />
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Full Name</label>
+                    <input type="text" placeholder="Enter your full name" className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed" disabled />
                   </div>
-                  <button
-                    disabled
-                    className="w-full py-3 bg-gray-300 text-gray-500 rounded-lg font-semibold cursor-not-allowed"
-                  >
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Mobile Number</label>
+                    <input type="tel" placeholder="Enter your mobile number" className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed" disabled />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Bank Name</label>
+                    <input type="text" placeholder="Select bank" className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed" disabled />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">PayNow No / Bank Account No</label>
+                    <input type="text" placeholder="Enter PayNow or bank account number" className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed" disabled />
+                  </div>
+                  
+                  <button disabled className="w-full py-3 bg-gray-300 text-gray-500 rounded-lg font-semibold cursor-not-allowed">
                     Request Withdrawal
                   </button>
                   <p className="text-xs text-gray-400 text-center">
@@ -4734,106 +4940,37 @@ Thank you for your order! 🙏` },
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
-                      {selectedJobsForAccept.length > 0 && (
-                        <span className="text-sm font-medium text-green-600">
-                          {selectedJobsForAccept.length} selected
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Select All / Clear All */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setSelectedJobsForAccept(filteredAvailableJobs.map((j: any) => j.id))}
-                        className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                      >
-                        Select All
-                      </button>
-                      <button
-                        onClick={() => setSelectedJobsForAccept([])}
-                        className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                      >
-                        Clear All
-                      </button>
-                    </div>
+                    <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
                     
                     {filteredAvailableJobs.map((job: any) => {
                       const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || []);
-                      const isSelected = selectedJobsForAccept.includes(job.id);
                       return (
                         <div 
                           key={job.id} 
-                          className={`border rounded-lg p-4 transition-all cursor-pointer ${
-                            isSelected 
-                              ? 'border-green-500 bg-green-50 shadow-md' 
-                              : 'border-gray-200 hover:border-green-400 hover:shadow-lg'
-                          }`}
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedJobsForAccept(selectedJobsForAccept.filter(id => id !== job.id));
-                            } else {
-                              setSelectedJobsForAccept([...selectedJobsForAccept, job.id]);
-                            }
-                          }}
+                          className="border border-gray-200 rounded-lg p-4 hover:border-green-400 hover:shadow-lg transition-all"
                         >
-                          <div className="flex items-start gap-3">
-                            {/* Checkbox */}
-                            <div className="pt-1">
-                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
-                                isSelected 
-                                  ? 'bg-green-500 border-green-500' 
-                                  : 'border-gray-300 bg-white'
-                              }`}>
-                                {isSelected && <Check size={16} className="text-white" />}
-                              </div>
-                            </div>
-                            
-                            {/* Job Details */}
-                            <div className="flex-1">
-                              <div className="flex justify-between items-start mb-2">
-                                <div>
-                                  <p className="font-semibold text-lg">{job.pickup} → {job.delivery}</p>
-                                  <p className="text-sm text-gray-600">{job.timeframe}</p>
-                                  {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
-                                  {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-sm text-gray-500">Earn:</p>
-                                  <p className="text-2xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
-                                </div>
-                              </div>
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <p className="font-semibold text-lg">{job.pickup} → {job.delivery}</p>
+                              <p className="text-sm text-gray-600">{job.timeframe}</p>
+                              {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
+                              {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
                             </div>
                           </div>
+                          <div className="bg-green-50 p-4 rounded-lg mb-3">
+                            <p className="text-sm text-gray-600 mb-1">You will earn:</p>
+                            <p className="text-3xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                          </div>
+                          <button 
+                            onClick={() => acceptJob(job.id)} 
+                            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                            disabled={gpsPermissionGranted === false}
+                          >
+                            {gpsPermissionGranted === false ? '⚠️ Enable GPS to Accept' : 'Accept Job'}
+                          </button>
                         </div>
                       );
                     })}
-                    
-                    {/* Accept Selected Jobs Button */}
-                    {selectedJobsForAccept.length > 0 && (
-                      <div className="sticky bottom-0 bg-white pt-4 pb-2 border-t">
-                        <button 
-                          onClick={async () => {
-                            if (gpsPermissionGranted === false) {
-                              alert('Please enable GPS to accept jobs');
-                              return;
-                            }
-                            // Accept all selected jobs
-                            for (const jobId of selectedJobsForAccept) {
-                              await acceptJob(jobId);
-                            }
-                            setSelectedJobsForAccept([]);
-                          }} 
-                          className="w-full bg-green-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors"
-                          disabled={gpsPermissionGranted === false}
-                        >
-                          {gpsPermissionGranted === false 
-                            ? '⚠️ Enable GPS to Accept' 
-                            : `Accept ${selectedJobsForAccept.length} Job${selectedJobsForAccept.length > 1 ? 's' : ''}`}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -4843,6 +4980,52 @@ Thank you for your order! 🙏` },
 
         {auth.type === 'admin' && (
           <div className="space-y-6">
+            {/* Admin Notifications Alert */}
+            {(() => {
+              const pendingWithdrawals = withdrawalRequests.filter((r: any) => !r.details?.status || r.details?.status === 'pending').length;
+              const pendingJobs = jobs.filter((j: any) => j.status === 'posted').length;
+              const newRiders = riders.filter((r: any) => {
+                const createdAt = new Date(r.created_at);
+                const today = new Date();
+                return createdAt.toDateString() === today.toDateString();
+              }).length;
+              
+              if (pendingWithdrawals > 0 || pendingJobs > 0 || newRiders > 0) {
+                return (
+                  <div className="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4">
+                    <h3 className="font-bold text-orange-800 mb-2">🔔 Pending Actions</h3>
+                    <div className="flex flex-wrap gap-3">
+                      {pendingWithdrawals > 0 && (
+                        <button 
+                          onClick={() => { setAdminView('withdrawals'); loadWithdrawalRequests(); }}
+                          className="bg-orange-100 hover:bg-orange-200 text-orange-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
+                        >
+                          💰 <strong>{pendingWithdrawals}</strong> pending withdrawal{pendingWithdrawals > 1 ? 's' : ''}
+                        </button>
+                      )}
+                      {pendingJobs > 0 && (
+                        <button 
+                          onClick={() => setAdminView('jobs')}
+                          className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
+                        >
+                          📦 <strong>{pendingJobs}</strong> unassigned job{pendingJobs > 1 ? 's' : ''}
+                        </button>
+                      )}
+                      {newRiders > 0 && (
+                        <button 
+                          onClick={() => setAdminView('riders')}
+                          className="bg-green-100 hover:bg-green-200 text-green-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
+                        >
+                          🏍️ <strong>{newRiders}</strong> new rider{newRiders > 1 ? 's' : ''} today
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            
             {/* Enhanced Admin Dashboard - Feature 4 */}
             <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg p-6 text-white">
               <h2 className="text-2xl font-bold mb-4">📊 Today's Dashboard</h2>
@@ -5475,16 +5658,18 @@ Thank you for your order! 🙏` },
 
                 {/* Withdrawal Requests Table */}
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+                  <table className="w-full border-collapse text-sm">
                     <thead>
                       <tr className="bg-gray-100">
-                        <th className="text-left p-3 font-medium">Date</th>
-                        <th className="text-left p-3 font-medium">Rider</th>
-                        <th className="text-left p-3 font-medium">Phone</th>
-                        <th className="text-right p-3 font-medium">Amount</th>
-                        <th className="text-left p-3 font-medium">Account</th>
-                        <th className="text-center p-3 font-medium">Status</th>
-                        <th className="text-center p-3 font-medium">Actions</th>
+                        <th className="text-left p-2 font-medium">Date</th>
+                        <th className="text-left p-2 font-medium">Full Name</th>
+                        <th className="text-left p-2 font-medium">Mobile</th>
+                        <th className="text-right p-2 font-medium">Amount</th>
+                        <th className="text-left p-2 font-medium">Method</th>
+                        <th className="text-left p-2 font-medium">Bank</th>
+                        <th className="text-left p-2 font-medium">PayNow/Account No</th>
+                        <th className="text-center p-2 font-medium">Status</th>
+                        <th className="text-center p-2 font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -5501,15 +5686,27 @@ Thank you for your order! 🙏` },
                         })
                         .map((req: any) => (
                           <tr key={req.id} className="border-t hover:bg-gray-50">
-                            <td className="p-3 text-sm">
+                            <td className="p-2 text-xs">
                               {new Date(req.timestamp).toLocaleDateString()}<br/>
-                              <span className="text-gray-500 text-xs">{new Date(req.timestamp).toLocaleTimeString()}</span>
+                              <span className="text-gray-400">{new Date(req.timestamp).toLocaleTimeString()}</span>
                             </td>
-                            <td className="p-3 font-medium">{req.details?.riderName || 'N/A'}</td>
-                            <td className="p-3 text-sm">{req.details?.riderPhone || 'N/A'}</td>
-                            <td className="p-3 text-right font-bold text-green-600">${req.details?.amount?.toFixed(2) || '0.00'}</td>
-                            <td className="p-3 text-sm font-mono">{req.details?.account || 'N/A'}</td>
-                            <td className="p-3 text-center">
+                            <td className="p-2 font-medium">{req.details?.fullName || req.details?.riderName || 'N/A'}</td>
+                            <td className="p-2">{req.details?.mobileNumber || req.details?.riderPhone || 'N/A'}</td>
+                            <td className="p-2 text-right font-bold text-green-600">${req.details?.amount?.toFixed(2) || '0.00'}</td>
+                            <td className="p-2">
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                req.details?.withdrawMethod === 'paynow' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                {req.details?.withdrawMethod === 'paynow' ? '📱 PayNow' : '🏦 Bank'}
+                              </span>
+                            </td>
+                            <td className="p-2">{req.details?.bankName || 'N/A'}</td>
+                            <td className="p-2 font-mono text-xs">
+                              {req.details?.withdrawMethod === 'paynow' 
+                                ? req.details?.paynowNo || 'N/A'
+                                : req.details?.bankAccountNo || 'N/A'}
+                            </td>
+                            <td className="p-2 text-center">
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                 req.details?.status === 'approved' ? 'bg-green-100 text-green-700' :
                                 req.details?.status === 'completed' ? 'bg-blue-100 text-blue-700' :
@@ -5519,18 +5716,18 @@ Thank you for your order! 🙏` },
                                 {(req.details?.status || 'pending').toUpperCase()}
                               </span>
                             </td>
-                            <td className="p-3 text-center">
+                            <td className="p-2 text-center">
                               {(!req.details?.status || req.details?.status === 'pending') && (
-                                <div className="flex justify-center gap-2">
+                                <div className="flex justify-center gap-1">
                                   <button
                                     onClick={() => processWithdrawalRequest(req.id, 'approved', req)}
-                                    className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                    className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
                                   >
                                     ✓ Approve
                                   </button>
                                   <button
                                     onClick={() => processWithdrawalRequest(req.id, 'rejected', req)}
-                                    className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                                    className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
                                   >
                                     ✕ Reject
                                   </button>
@@ -5540,7 +5737,7 @@ Thank you for your order! 🙏` },
                                 <div className="flex flex-col items-center gap-1">
                                   <button
                                     onClick={() => processWithdrawalRequest(req.id, 'completed', req)}
-                                    className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
                                   >
                                     💰 Mark Completed
                                   </button>
