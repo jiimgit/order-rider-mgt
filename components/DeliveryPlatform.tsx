@@ -1024,13 +1024,15 @@ const DeliveryPlatform = () => {
     });
 
     if (format === 'csv') {
-      const headers = ['Date', 'Rider Name', 'Phone', 'Amount', 'Account', 'Status'];
+      const headers = ['Date', 'Full Name', 'Mobile', 'Amount', 'Method', 'Bank', 'PayNow/Account No', 'Status'];
       const rows = filteredRequests.map((req: any) => [
         new Date(req.timestamp).toLocaleDateString(),
-        req.details?.riderName || 'N/A',
-        req.details?.riderPhone || 'N/A',
+        req.details?.fullName || req.details?.riderName || 'N/A',
+        req.details?.mobileNumber || req.details?.riderPhone || 'N/A',
         `$${req.details?.amount?.toFixed(2) || '0.00'}`,
-        req.details?.account || 'N/A',
+        req.details?.withdrawMethod || 'N/A',
+        req.details?.bankName || 'N/A',
+        req.details?.withdrawMethod === 'paynow' ? (req.details?.paynowNo || 'N/A') : (req.details?.bankAccountNo || 'N/A'),
         req.details?.status || 'pending'
       ]);
       
@@ -4983,13 +4985,8 @@ Thank you for your order! 🙏` },
             {(() => {
               const pendingWithdrawals = withdrawalRequests.filter((r: any) => !r.details?.status || r.details?.status === 'pending').length;
               const pendingJobs = jobs.filter((j: any) => j.status === 'posted').length;
-              const newRiders = riders.filter((r: any) => {
-                const createdAt = new Date(r.created_at);
-                const today = new Date();
-                return createdAt.toDateString() === today.toDateString();
-              }).length;
               
-              if (pendingWithdrawals > 0 || pendingJobs > 0 || newRiders > 0) {
+              if (pendingWithdrawals > 0 || pendingJobs > 0) {
                 return (
                   <div className="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4">
                     <h3 className="font-bold text-orange-800 mb-2">🔔 Pending Actions</h3>
@@ -5008,14 +5005,6 @@ Thank you for your order! 🙏` },
                           className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
                         >
                           📦 <strong>{pendingJobs}</strong> unassigned job{pendingJobs > 1 ? 's' : ''}
-                        </button>
-                      )}
-                      {newRiders > 0 && (
-                        <button 
-                          onClick={() => setAdminView('riders')}
-                          className="bg-green-100 hover:bg-green-200 text-green-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
-                        >
-                          🏍️ <strong>{newRiders}</strong> new rider{newRiders > 1 ? 's' : ''} today
                         </button>
                       )}
                     </div>
