@@ -9,7 +9,7 @@ const MERCHANT_NAME = "The Food Thinker Pte Ltd";
 const ITEMS_PER_PAGE = 10;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const api = async (endpoint: string, method = 'GET', body: any = null): Promise<any> => {
+const api = async (endpoint: string, method = 'GET', body: any = null, retries = 2): Promise<any> => {
   const options: any = {
     method,
     headers: {
@@ -23,27 +23,50 @@ const api = async (endpoint: string, method = 'GET', body: any = null): Promise<
   
   console.log(`[API] ${method} ${endpoint}`, body ? JSON.stringify(body) : '');
   
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, options);
-    const text = await res.text();
-    console.log(`[API Response] Status: ${res.status}`, text);
-    
-    let data;
+  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      data = JSON.parse(text);
-    } catch (e: any) {
-      throw new Error(`Invalid JSON response: ${text}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      const text = await res.text();
+      console.log(`[API Response] Status: ${res.status}`, text.substring(0, 200));
+      
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e: any) {
+        throw new Error(`Invalid JSON response: ${text}`);
+      }
+      
+      if (!res.ok) {
+        const errorMsg = data.message || data.error || data.hint || JSON.stringify(data);
+        // If timeout error, retry
+        if (errorMsg.includes('timeout') && attempt < retries) {
+          console.log(`[API] Timeout, retrying... (attempt ${attempt + 1}/${retries})`);
+          await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retry
+          continue;
+        }
+        throw new Error(`${res.status}: ${errorMsg}`);
+      }
+      return data;
+    } catch (err: any) {
+      // If aborted (timeout) or network error, retry
+      if ((err.name === 'AbortError' || err.message?.includes('timeout')) && attempt < retries) {
+        console.log(`[API] Request timeout, retrying... (attempt ${attempt + 1}/${retries})`);
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      console.error(`[API Error] ${method} ${endpoint}:`, err);
+      throw err;
     }
-    
-    if (!res.ok) {
-      const errorMsg = data.message || data.error || data.hint || JSON.stringify(data);
-      throw new Error(`${res.status}: ${errorMsg}`);
-    }
-    return data;
-  } catch (err) {
-    console.error(`[API Error] ${method} ${endpoint}:`, err);
-    throw err;
   }
+  throw new Error('Max retries reached');
 };
 
 const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChain: any[]): any => {
@@ -2179,7 +2202,9 @@ Thank you for your order! 🙏` },
       const errorMessage = e.message || 'Unknown error';
       console.error('[LoadData] Error:', e);
       
-      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+      if (errorMessage.includes('timeout') || errorMessage.includes('AbortError') || errorMessage.includes('Max retries')) {
+        setError('Database is slow to respond. This can happen with free tier Supabase. Please click Retry.');
+      } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
         setError('Network error: Cannot reach Supabase. Check your internet connection and Supabase project status.');
       } else if (errorMessage.includes('401') || errorMessage.includes('Invalid API key')) {
         setError('Authentication error: The anon key appears to be invalid. Please verify your Supabase anon key.');
@@ -3068,10 +3093,26 @@ Thank you for your order! 🙏` },
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Loading state for customer/rider when data not yet loaded */}
-        {(auth.type === 'customer' || auth.type === 'rider') && !curr && (
+        {(auth.type === 'customer' || auth.type === 'rider') && !curr && !error && (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading your data...</p>
+            <p className="text-sm text-gray-400 mt-2">This may take a few seconds on first load</p>
+          </div>
+        )}
+        
+        {/* Error state with retry button */}
+        {error && (
+          <div className="text-center py-12">
+            <div className="text-red-500 text-5xl mb-4">⚠️</div>
+            <p className="text-red-600 font-semibold mb-2">Failed to load data</p>
+            <p className="text-gray-500 text-sm mb-4">{error}</p>
+            <button 
+              onClick={() => { setError(''); loadData(); }}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            >
+              🔄 Retry
+            </button>
           </div>
         )}
         
