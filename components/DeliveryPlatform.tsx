@@ -3061,7 +3061,15 @@ Thank you for your order! 🙏` },
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {auth.type === 'customer' && (
+        {/* Loading state for customer/rider when data not yet loaded */}
+        {(auth.type === 'customer' || auth.type === 'rider') && !curr && (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading your data...</p>
+          </div>
+        )}
+        
+        {auth.type === 'customer' && curr && (
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-6 text-white">
               <div className="flex justify-between items-center">
@@ -3894,7 +3902,7 @@ Thank you for your order! 🙏` },
           </div>
         )}
 
-        {auth.type === 'rider' && (
+        {auth.type === 'rider' && curr && (
           <div className="space-y-6">
             {/* GPS Warning Modal - Feature 11 */}
             {showGpsWarning && (
@@ -4357,8 +4365,8 @@ Thank you for your order! 🙏` },
                       >
                         <div className="flex justify-between items-center">
                           <div>
-                            <p className="font-semibold">${req.details?.amount?.toFixed(2)}</p>
-                            <p className="text-xs text-gray-500">{new Date(req.timestamp).toLocaleDateString()}</p>
+                            <p className="font-semibold">${(req.details?.amount || 0).toFixed(2)}</p>
+                            <p className="text-xs text-gray-500">{req.timestamp ? new Date(req.timestamp).toLocaleDateString() : 'N/A'}</p>
                           </div>
                           <div className="text-right">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
