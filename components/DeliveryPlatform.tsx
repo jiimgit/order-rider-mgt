@@ -3401,7 +3401,7 @@ Thank you for your order! 🙏` },
                   onClick={() => {
                     setJobForm({
                       ...jobForm, 
-                      stops: [...jobForm.stops, { address: '', recipientName: '', recipientPhone: '' }]
+                      stops: [...jobForm.stops, { address: '', unitNo: '', recipientName: '', recipientPhone: '' }]
                     });
                   }}
                   className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
