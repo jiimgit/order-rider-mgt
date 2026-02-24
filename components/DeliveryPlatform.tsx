@@ -2158,7 +2158,7 @@ Thank you for your order! 🙏` },
       const c = await api('customers?select=*');
       console.log('[LoadData] Customers loaded:', c?.length || 0);
       
-      const j = await api('jobs?select=*&order=created_at.desc');
+      const j = await api('jobs?select=*&order=created_at.desc&limit=500');
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
       // Also load audit logs for withdrawal notifications
