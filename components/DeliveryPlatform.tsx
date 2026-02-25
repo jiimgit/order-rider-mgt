@@ -3185,19 +3185,6 @@ Thank you for your order! 🙏` },
                     </div>
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Or Enter Custom Amount (minimum $5)</label>
-                    <input 
-                      type="number" 
-                      value={topUpAmt} 
-                      onChange={(e) => setTopUpAmt(e.target.value)} 
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500" 
-                      placeholder="Enter amount" 
-                      min="5" 
-                      step="1"
-                    />
-                  </div>
-                  
                   {topUpAmt && parseFloat(topUpAmt) >= 5 && (
                     <div className="bg-green-50 p-4 rounded-lg">
                       <div className="flex justify-between items-center">
