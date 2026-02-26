@@ -4934,9 +4934,9 @@ Thank you for your order! 🙏` },
               </div>
             )}
 
-            {!activeJob && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
+            {/* Available Jobs - Always show so riders can accept more jobs */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
                 
                 {/* Job Filter - Feature 10 */}
                 <div className="bg-gray-50 p-4 rounded-lg mb-4">
@@ -5088,7 +5088,6 @@ Thank you for your order! 🙏` },
                   </div>
                 )}
               </div>
-            )}
           </div>
         )}
 
