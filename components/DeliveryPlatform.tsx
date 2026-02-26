@@ -4755,111 +4755,102 @@ Thank you for your order! 🙏` },
             )}
 
             {activeJob && (
-              <div className="bg-white rounded-lg shadow-xl p-6 border-2 border-blue-500">
-                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+              <div className="bg-white rounded-lg shadow-xl p-4 border-2 border-blue-500">
+                <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                   <Package className="text-blue-600" />
                   Active Delivery {activeJobsList.length > 1 && `(${activeJobsList.indexOf(activeJob) + 1}/${activeJobsList.length})`}
                 </h3>
-                <div className="bg-blue-50 p-6 rounded-lg mb-6">
-                  <p className="font-semibold text-xl text-gray-900 mb-2">{activeJob.pickup} → {activeJob.delivery}</p>
-                  <p className="text-gray-700">Customer: {activeJob.customer_name}</p>
-                  <p className="text-gray-700">Phone: {activeJob.customer_phone}</p>
-                  {/* Show new fields if available */}
-                  {activeJob.recipient_name && (
-                    <p className="text-gray-700">Recipient: {activeJob.recipient_name} {activeJob.recipient_phone && `(${activeJob.recipient_phone})`}</p>
-                  )}
-                  {activeJob.parcel_size && (
-                    <p className="text-gray-700">Parcel Size: {activeJob.parcel_size}</p>
-                  )}
-                  {activeJob.remarks && (
-                    <p className="text-gray-600 text-sm mt-2 italic">📝 {activeJob.remarks}</p>
-                  )}
-                  {(() => {
-                    const earnings = calculateCommissions(activeJob.price, curr.tier, curr.upline_chain || []);
-                    return (
-                      <div className="mt-4">
-                        <p className="text-sm text-gray-600">Your earnings:</p>
-                        <p className="text-4xl font-bold text-green-600">${earnings.activeRider.toFixed(2)}</p>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* GPS Live Tracking Button */}
-                <div className="mb-4">
-                  {!isTrackingGPS ? (
-                    <button 
-                      onClick={() => startGPSTracking(activeJob.id, auth.id as string)} 
-                      className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <MapPin size={20} />
-                      📍 Start Live GPS Tracking
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="bg-green-100 border-2 border-green-500 rounded-lg p-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="relative flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                          </span>
-                          <span className="text-green-800 font-semibold">GPS Tracking Active</span>
-                        </div>
-                        {currentLocation && (
-                          <span className="text-xs text-green-600">
-                            {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
-                          </span>
-                        )}
-                      </div>
-                      <button 
-                        onClick={stopGPSTracking} 
-                        className="w-full bg-red-500 text-white py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <XCircle size={18} />
-                        Stop GPS Tracking
-                      </button>
-                    </div>
-                  )}
-                </div>
                 
-                {/* WhatsApp Notify Customer Button */}
-                <button 
-                  onClick={() => setShowWhatsAppModal(true)} 
-                  className="w-full bg-green-500 text-white py-3 rounded-lg font-semibold text-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-2 mb-4"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                  </svg>
-                  Notify Customer via WhatsApp
-                </button>
+                {/* Two Column Layout */}
+                <div className="flex gap-4">
+                  {/* Left Column - Delivery Details */}
+                  <div className="flex-1 bg-blue-50 p-4 rounded-lg">
+                    <p className="font-semibold text-sm text-gray-900 mb-2">{activeJob.pickup} → {activeJob.delivery}</p>
+                    <div className="text-sm text-gray-700 space-y-1">
+                      <p>👤 {activeJob.customer_name}</p>
+                      <p>📞 {activeJob.customer_phone}</p>
+                      {activeJob.recipient_name && (
+                        <p>🎯 {activeJob.recipient_name} {activeJob.recipient_phone && `(${activeJob.recipient_phone})`}</p>
+                      )}
+                      {activeJob.parcel_size && <p>📦 {activeJob.parcel_size}</p>}
+                      {activeJob.remarks && <p className="text-gray-500 italic text-xs">📝 {activeJob.remarks}</p>}
+                    </div>
+                    {(() => {
+                      const earnings = calculateCommissions(activeJob.price, curr.tier, curr.upline_chain || []);
+                      return (
+                        <div className="mt-3 pt-3 border-t border-blue-200">
+                          <p className="text-xs text-gray-600">Your earnings:</p>
+                          <p className="text-2xl font-bold text-green-600">${earnings.activeRider.toFixed(2)}</p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  
+                  {/* Right Column - Action Buttons */}
+                  <div className="w-48 flex flex-col gap-2">
+                    {/* GPS Tracking Button */}
+                    {!isTrackingGPS ? (
+                      <button 
+                        onClick={() => startGPSTracking(activeJob.id, auth.id as string)} 
+                        className="w-full bg-purple-600 text-white py-2 px-3 rounded-lg font-medium text-sm hover:bg-purple-700 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <MapPin size={16} />
+                        📍 Start GPS
+                      </button>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="bg-green-100 border border-green-500 rounded-lg p-2 flex items-center gap-1">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                          </span>
+                          <span className="text-green-800 font-medium text-xs">GPS Active</span>
+                        </div>
+                        <button 
+                          onClick={stopGPSTracking} 
+                          className="w-full bg-red-500 text-white py-1 px-2 rounded-lg font-medium text-xs hover:bg-red-600 transition-colors"
+                        >
+                          Stop GPS
+                        </button>
+                      </div>
+                    )}
+                    
+                    {/* WhatsApp Button */}
+                    <button 
+                      onClick={() => setShowWhatsAppModal(true)} 
+                      className="w-full bg-green-500 text-white py-2 px-3 rounded-lg font-medium text-sm hover:bg-green-600 transition-colors flex items-center justify-center gap-1"
+                    >
+                      💬 WhatsApp
+                    </button>
 
-                <div className="space-y-3">
-                  {activeJob.status === 'accepted' && (
-                    <button 
-                      onClick={() => updateStatus('picked-up')} 
-                      className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Package size={20} />
-                      Pick Up Package
-                    </button>
-                  )}
-                  {activeJob.status === 'picked-up' && (
-                    <button 
-                      onClick={() => updateStatus('on-the-way')} 
-                      className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Navigation size={20} />
-                      On My Way
-                    </button>
-                  )}
-                  {activeJob.status === 'on-the-way' && (
-                    <button 
-                      onClick={() => setShowPodModal(true)} 
-                      className="w-full bg-green-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      📸 Complete with Photo Proof
-                    </button>
-                  )}
+                    {/* Status Update Buttons */}
+                    {activeJob.status === 'accepted' && (
+                      <button 
+                        onClick={() => updateStatus('picked-up')} 
+                        className="w-full bg-blue-600 text-white py-2 px-3 rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Package size={16} />
+                        Pick Up
+                      </button>
+                    )}
+                    {activeJob.status === 'picked-up' && (
+                      <button 
+                        onClick={() => updateStatus('on-the-way')} 
+                        className="w-full bg-blue-600 text-white py-2 px-3 rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Navigation size={16} />
+                        On My Way
+                      </button>
+                    )}
+                    {activeJob.status === 'on-the-way' && (
+                      <button 
+                        onClick={() => setShowPodModal(true)} 
+                        className="w-full bg-green-600 text-white py-2 px-3 rounded-lg font-medium text-sm hover:bg-green-700 transition-colors"
+                      >
+                        📸 Complete
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
