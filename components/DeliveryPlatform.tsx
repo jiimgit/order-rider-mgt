@@ -4982,7 +4982,7 @@ Thank you for your order! 🙏` },
                     <p className="text-sm">Check back soon!</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
                     
                     {filteredAvailableJobs.map((job: any) => {
@@ -4990,27 +4990,32 @@ Thank you for your order! 🙏` },
                       return (
                         <div 
                           key={job.id} 
-                          className="border border-gray-200 rounded-lg p-4 hover:border-green-400 hover:shadow-lg transition-all"
+                          className="border border-gray-200 rounded-lg p-3 hover:border-green-400 hover:shadow-md transition-all"
                         >
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <p className="font-semibold text-lg">{job.pickup} → {job.delivery}</p>
-                              <p className="text-sm text-gray-600">{job.timeframe}</p>
-                              {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
-                              {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
+                          {/* Job details */}
+                          <div className="mb-2">
+                            <p className="font-semibold text-sm">{job.pickup} → {job.delivery}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                              {job.timeframe && <span>🕐 {job.timeframe}</span>}
+                              {job.parcel_size && <span>📦 {job.parcel_size}</span>}
                             </div>
+                            {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
                           </div>
-                          <div className="bg-green-50 p-4 rounded-lg mb-3">
-                            <p className="text-sm text-gray-600 mb-1">You will earn:</p>
-                            <p className="text-3xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                          
+                          {/* Earnings + Accept Button in one row */}
+                          <div className="flex items-center justify-between bg-green-50 rounded-lg p-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-600">Earn:</span>
+                              <span className="text-xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</span>
+                            </div>
+                            <button 
+                              onClick={() => acceptJob(job.id)} 
+                              className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors text-sm"
+                              disabled={gpsPermissionGranted === false}
+                            >
+                              {gpsPermissionGranted === false ? '⚠️ Enable GPS' : 'Accept Job'}
+                            </button>
                           </div>
-                          <button 
-                            onClick={() => acceptJob(job.id)} 
-                            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-                            disabled={gpsPermissionGranted === false}
-                          >
-                            {gpsPermissionGranted === false ? '⚠️ Enable GPS to Accept' : 'Accept Job'}
-                          </button>
                         </div>
                       );
                     })}
