@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle, Search, Download, ChevronLeft, ChevronRight, FileText, Calendar, Upload, MapPin, Eye, UserCheck, BarChart3, Clock, CheckCircle, XCircle, Send, Link } from 'lucide-react';
+import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle, Search, Download, ChevronLeft, ChevronRight, FileText, Calendar, Upload, MapPin, Eye, UserCheck, BarChart3, Clock, CheckCircle, XCircle, Send, Link, Check } from 'lucide-react';
 
 const SUPABASE_URL = 'https://esylsugzysfjntukmxks.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeWxzdWd6eXNmam50dWtteGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDgyODEsImV4cCI6MjA4NDYyNDI4MX0.Ldbk29uDGte1ue7LSAzEoHjAJNjYToAA2zyHWloS2fI';
@@ -180,6 +180,7 @@ const DeliveryPlatform = () => {
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [showLiveMap, setShowLiveMap] = useState<any>(null);
   const [riderLocation, setRiderLocation] = useState<any>(null);
+  const [selectedJobsForAccept, setSelectedJobsForAccept] = useState<string[]>([]); // Multi-job selection
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
@@ -4974,42 +4975,106 @@ Thank you for your order! 🙏` },
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
+                      {selectedJobsForAccept.length > 0 && (
+                        <span className="text-sm font-medium text-green-600">
+                          {selectedJobsForAccept.length} selected
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Select All / Clear All */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedJobsForAccept(filteredAvailableJobs.map((j: any) => j.id))}
+                        className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => setSelectedJobsForAccept([])}
+                        className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      >
+                        Clear All
+                      </button>
+                    </div>
                     
                     {filteredAvailableJobs.map((job: any) => {
                       const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || []);
+                      const isSelected = selectedJobsForAccept.includes(job.id);
                       return (
                         <div 
                           key={job.id} 
-                          className="border border-gray-200 rounded-lg p-3 hover:border-green-400 hover:shadow-md transition-all"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedJobsForAccept(selectedJobsForAccept.filter(id => id !== job.id));
+                            } else {
+                              setSelectedJobsForAccept([...selectedJobsForAccept, job.id]);
+                            }
+                          }}
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-green-500 bg-green-50 shadow-md' 
+                              : 'border-gray-200 hover:border-green-400 hover:shadow-md'
+                          }`}
                         >
-                          {/* Job details */}
-                          <div className="mb-2">
-                            <p className="font-semibold text-sm">{job.pickup} → {job.delivery}</p>
-                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                              {job.timeframe && <span>🕐 {job.timeframe}</span>}
-                              {job.parcel_size && <span>📦 {job.parcel_size}</span>}
+                          <div className="flex items-start gap-3">
+                            {/* Checkbox */}
+                            <div className="pt-1">
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                isSelected 
+                                  ? 'bg-green-500 border-green-500' 
+                                  : 'border-gray-300 bg-white'
+                              }`}>
+                                {isSelected && <Check size={14} className="text-white" />}
+                              </div>
                             </div>
-                            {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
-                          </div>
-                          
-                          {/* Earnings + Accept Button in one row */}
-                          <div className="flex items-center justify-between bg-green-50 rounded-lg p-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-600">Earn:</span>
-                              <span className="text-xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</span>
+                            
+                            {/* Job Details */}
+                            <div className="flex-1">
+                              <p className="font-semibold text-sm">{job.pickup} → {job.delivery}</p>
+                              <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                {job.timeframe && <span>🕐 {job.timeframe}</span>}
+                                {job.parcel_size && <span>📦 {job.parcel_size}</span>}
+                              </div>
+                              {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
                             </div>
-                            <button 
-                              onClick={() => acceptJob(job.id)} 
-                              className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors text-sm"
-                              disabled={gpsPermissionGranted === false}
-                            >
-                              {gpsPermissionGranted === false ? '⚠️ Enable GPS' : 'Accept Job'}
-                            </button>
+                            
+                            {/* Earnings */}
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Earn:</p>
+                              <p className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
+                    
+                    {/* Accept Selected Jobs Button */}
+                    {selectedJobsForAccept.length > 0 && (
+                      <div className="sticky bottom-0 bg-white pt-3 pb-2 border-t">
+                        <button 
+                          onClick={async () => {
+                            if (gpsPermissionGranted === false) {
+                              alert('Please enable GPS to accept jobs');
+                              return;
+                            }
+                            // Accept all selected jobs
+                            for (const jobId of selectedJobsForAccept) {
+                              await acceptJob(jobId);
+                            }
+                            setSelectedJobsForAccept([]);
+                          }} 
+                          className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors"
+                          disabled={gpsPermissionGranted === false}
+                        >
+                          {gpsPermissionGranted === false 
+                            ? '⚠️ Enable GPS to Accept' 
+                            : `Accept ${selectedJobsForAccept.length} Job${selectedJobsForAccept.length > 1 ? 's' : ''}`}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
