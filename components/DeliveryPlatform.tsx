@@ -2169,6 +2169,16 @@ Thank you for your order! 🙏` },
   const activeJob = selectedJobId ? activeJobsList.find(j => j.id === selectedJobId) : activeJobsList[0];
 
   useEffect(() => { loadData(); }, []);
+  
+  // Auto-refresh data every 30 seconds for riders to see new jobs
+  useEffect(() => {
+    if (auth.isAuth) {
+      const interval = setInterval(() => {
+        loadData();
+      }, 30000); // 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, [auth.isAuth]);
 
   const loadData = async () => {
     try {
