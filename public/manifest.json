@@ -1,17 +1,15 @@
 {
-  "id": "/",
-  "dir": "ltr",
-  "lang": "en",
-  "name": "MoveIt Delivery",
-  "scope": "/",
-  "display": "standalone",
-  "start_url": "/",
+  "name": "MoveIt - Delivery Platform",
   "short_name": "MoveIt",
-  "theme_color": "#7C3AED",
-  "description": "MLM Delivery Platform - Customer Portal, Rider Portal & Admin Dashboard with GPS tracking, POD, and referral system.",
-  "orientation": "portrait",
-  "background_color": "#FFFFFF",
-  "prefer_related_applications": false,
+  "description": "Fast and reliable delivery service. Book deliveries, track in real-time, and manage your shipments with ease.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3B82F6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["business", "logistics", "delivery"],
   "icons": [
     {
       "src": "/icons/manifest-icon-192.maskable.png",
@@ -36,39 +34,13 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    }
-  ],
-  "categories": [
-    "business",
-    "logistics",
-    "productivity"
-  ],
-  "shortcuts": [
-    {
-      "name": "Customer Portal",
-      "short_name": "Customer",
-      "description": "Access customer portal",
-      "url": "/?view=customer",
-      "icons": [
-        {
-          "src": "/icons/manifest-icon-192.maskable.png",
-          "sizes": "192x192"
-        }
-      ]
     },
     {
-      "name": "Rider Portal",
-      "short_name": "Rider",
-      "description": "Access rider portal",
-      "url": "/?view=rider",
-      "icons": [
-        {
-          "src": "/icons/manifest-icon-192.maskable.png",
-          "sizes": "192x192"
-        }
-      ]
+      "src": "/icons/app-icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
-  "version": "2.1.0",
-  "version_name": "February 2026 Update"
+  "prefer_related_applications": false
 }
