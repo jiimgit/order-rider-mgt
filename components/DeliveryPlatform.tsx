@@ -979,7 +979,12 @@ const DeliveryPlatform = () => {
   const loadWithdrawalRequests = async () => {
     try {
       const logs = await api('audit_logs?action=eq.withdrawal_request&order=timestamp.desc');
-      setWithdrawalRequests(Array.isArray(logs) ? logs : []);
+      // Parse details if it's a string
+      const parsed = (Array.isArray(logs) ? logs : []).map((log: any) => ({
+        ...log,
+        details: typeof log.details === 'string' ? JSON.parse(log.details) : log.details
+      }));
+      setWithdrawalRequests(parsed);
     } catch (e) {
       console.error('Failed to load withdrawal requests:', e);
       setWithdrawalRequests([]);
@@ -991,13 +996,13 @@ const DeliveryPlatform = () => {
     try {
       // Update the withdrawal request status
       await api(`audit_logs?id=eq.${requestId}`, 'PATCH', {
-        details: {
+        details: JSON.stringify({
           ...request.details,
           status: action,
           processedAt: action === 'completed' ? request.details.processedAt : new Date().toISOString(),
           completedAt: action === 'completed' ? new Date().toISOString() : request.details.completedAt,
           processedBy: 'admin'
-        }
+        })
       });
 
       // If rejected, return the balance to rider (since it was deducted on submission)
@@ -2199,10 +2204,16 @@ Thank you for your order! 🙏` },
       const logs = await api('audit_logs?order=timestamp.desc&limit=100');
       console.log('[LoadData] Audit logs loaded:', logs?.length || 0);
       
+      // Parse details if it's a string
+      const parsedLogs = (Array.isArray(logs) ? logs : []).map((log: any) => ({
+        ...log,
+        details: typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return log.details; } })() : log.details
+      }));
+      
       setRiders(Array.isArray(r) ? r : []);
       setCustomers(Array.isArray(c) ? c : []);
       setJobs(Array.isArray(j) ? j : []);
-      setAuditLogs(Array.isArray(logs) ? logs : []);
+      setAuditLogs(parsedLogs);
       
       // Also set withdrawal requests from audit logs
       const withdrawals = (Array.isArray(logs) ? logs : []).filter((log: any) => log.action === 'withdrawal_request');
@@ -4615,7 +4626,7 @@ Thank you for your order! 🙏` },
                         await api('audit_logs', 'POST', {
                           action: 'withdrawal_request',
                           user_id: auth.id,
-                          details: {
+                          details: JSON.stringify({
                             riderId: auth.id,
                             riderName: curr.name,
                             riderPhone: curr.phone,
@@ -4628,7 +4639,7 @@ Thank you for your order! 🙏` },
                             bankAccountNo: withdrawMethod === 'bank' ? withdrawForm.bankAccountNo : null,
                             status: 'pending',
                             requestedAt: new Date().toISOString()
-                          }
+                          })
                         });
                         
                         alert(`Withdrawal request submitted!\n\nAmount: $${amount.toFixed(2)}\nMethod: ${withdrawMethod === 'paynow' ? 'PayNow' : 'Bank Transfer'}\n\nYour request has been submitted to the administrator for review and approval.`);
