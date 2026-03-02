@@ -172,6 +172,20 @@ const DeliveryPlatform = () => {
   const [importedJobs, setImportedJobs] = useState<any[]>([]);
   const [summaryDateFrom, setSummaryDateFrom] = useState('');
   const [summaryDateTo, setSummaryDateTo] = useState('');
+  const [showManualJobForm, setShowManualJobForm] = useState(false);
+  const [adminJobForm, setAdminJobForm] = useState({
+    customerName: '',
+    customerPhone: '',
+    pickup: '',
+    pickupUnitNo: '',
+    pickupContact: '',
+    pickupPhone: '',
+    stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
+    timeframe: '',
+    price: '10',
+    parcelSize: 'small',
+    remarks: ''
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Live GPS Tracking states
@@ -5381,6 +5395,12 @@ Thank you for your order! 🙏` },
                   <h3 className="text-2xl font-bold">All Jobs ({filteredJobs.length})</h3>
                   <div className="flex flex-wrap gap-2">
                     <button 
+                      onClick={() => setShowManualJobForm(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                    >
+                      <UserPlus size={16} /> Manual Key In Job
+                    </button>
+                    <button 
                       onClick={() => setShowJobSummary(true)}
                       className="flex items-center gap-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm font-medium"
                     >
@@ -6858,6 +6878,315 @@ Thank you for your order! 🙏` },
         )}
 
         {/* Job Import Modal */}
+        {/* Manual Key In Job Modal */}
+        {showManualJobForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Manual Key In Job</h3>
+                <button onClick={() => setShowManualJobForm(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Customer Information */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 mb-3">👤 Customer Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        value={adminJobForm.customerName}
+                        onChange={(e) => setAdminJobForm({...adminJobForm, customerName: e.target.value})}
+                        placeholder="Enter customer name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Customer Phone <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        value={adminJobForm.customerPhone}
+                        onChange={(e) => setAdminJobForm({...adminJobForm, customerPhone: e.target.value})}
+                        placeholder="Enter customer phone"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pickup Information */}
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-green-900 mb-3">📍 Pickup Location</h4>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Address <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={adminJobForm.pickup}
+                          onChange={(e) => setAdminJobForm({...adminJobForm, pickup: e.target.value})}
+                          placeholder="Enter pickup address"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Unit No <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={adminJobForm.pickupUnitNo}
+                          onChange={(e) => setAdminJobForm({...adminJobForm, pickupUnitNo: e.target.value})}
+                          placeholder="e.g. #01-23 or N/A"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Name</label>
+                        <input
+                          type="text"
+                          value={adminJobForm.pickupContact}
+                          onChange={(e) => setAdminJobForm({...adminJobForm, pickupContact: e.target.value})}
+                          placeholder="Contact person at pickup"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Phone</label>
+                        <input
+                          type="text"
+                          value={adminJobForm.pickupPhone}
+                          onChange={(e) => setAdminJobForm({...adminJobForm, pickupPhone: e.target.value})}
+                          placeholder="Contact phone at pickup"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Drop-off Locations (Multi-stop) */}
+                <div className="bg-orange-50 p-4 rounded-lg">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-semibold text-orange-900">🏠 Drop-off Location(s)</h4>
+                    {adminJobForm.stops.length < 5 && (
+                      <button
+                        onClick={() => setAdminJobForm({
+                          ...adminJobForm,
+                          stops: [...adminJobForm.stops, { address: '', unitNo: '', recipientName: '', recipientPhone: '' }]
+                        })}
+                        className="text-sm px-3 py-1 bg-orange-200 text-orange-800 rounded-lg hover:bg-orange-300"
+                      >
+                        + Add Stop
+                      </button>
+                    )}
+                  </div>
+                  
+                  {adminJobForm.stops.map((stop, idx) => (
+                    <div key={idx} className="bg-white p-3 rounded-lg mb-3 border border-orange-200">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-orange-800">Stop {idx + 1}</span>
+                        {adminJobForm.stops.length > 1 && (
+                          <button
+                            onClick={() => {
+                              const newStops = adminJobForm.stops.filter((_, i) => i !== idx);
+                              setAdminJobForm({...adminJobForm, stops: newStops});
+                            }}
+                            className="text-red-500 hover:text-red-700 text-sm"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                        <div className="md:col-span-2">
+                          <input
+                            type="text"
+                            value={stop.address}
+                            onChange={(e) => {
+                              const newStops = [...adminJobForm.stops];
+                              newStops[idx].address = e.target.value;
+                              setAdminJobForm({...adminJobForm, stops: newStops});
+                            }}
+                            placeholder="Drop-off address"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            type="text"
+                            value={stop.unitNo}
+                            onChange={(e) => {
+                              const newStops = [...adminJobForm.stops];
+                              newStops[idx].unitNo = e.target.value;
+                              setAdminJobForm({...adminJobForm, stops: newStops});
+                            }}
+                            placeholder="Unit No"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={stop.recipientName}
+                          onChange={(e) => {
+                            const newStops = [...adminJobForm.stops];
+                            newStops[idx].recipientName = e.target.value;
+                            setAdminJobForm({...adminJobForm, stops: newStops});
+                          }}
+                          placeholder="Recipient name"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                        <input
+                          type="text"
+                          value={stop.recipientPhone}
+                          onChange={(e) => {
+                            const newStops = [...adminJobForm.stops];
+                            newStops[idx].recipientPhone = e.target.value;
+                            setAdminJobForm({...adminJobForm, stops: newStops});
+                          }}
+                          placeholder="Recipient phone"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Job Details */}
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-purple-900 mb-3">📦 Job Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+                      <select
+                        value={adminJobForm.timeframe}
+                        onChange={(e) => setAdminJobForm({...adminJobForm, timeframe: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="">Select timeframe</option>
+                        <option value="ASAP">ASAP</option>
+                        <option value="Within 2 hours">Within 2 hours</option>
+                        <option value="Same day">Same day</option>
+                        <option value="Next day">Next day</option>
+                        <option value="Scheduled">Scheduled</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Parcel Size <span className="text-red-500">*</span></label>
+                      <select
+                        value={adminJobForm.parcelSize}
+                        onChange={(e) => setAdminJobForm({...adminJobForm, parcelSize: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="small">Small (Documents/Small items)</option>
+                        <option value="medium">Medium (Shoebox size)</option>
+                        <option value="large">Large (Large box)</option>
+                        <option value="extra-large">Extra Large (Furniture/Bulky)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Price ($) <span className="text-red-500">*</span></label>
+                      <input
+                        type="number"
+                        value={adminJobForm.price}
+                        onChange={(e) => setAdminJobForm({...adminJobForm, price: e.target.value})}
+                        placeholder="Enter price"
+                        min="3"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Min: ${3 + (adminJobForm.stops.length - 1) * 2} for {adminJobForm.stops.length} stop(s)</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                      <input
+                        type="text"
+                        value={adminJobForm.remarks}
+                        onChange={(e) => setAdminJobForm({...adminJobForm, remarks: e.target.value})}
+                        placeholder="Special instructions"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  onClick={async () => {
+                    // Validation
+                    if (!adminJobForm.customerName) return alert('Please enter customer name');
+                    if (!adminJobForm.customerPhone) return alert('Please enter customer phone');
+                    if (!adminJobForm.pickup) return alert('Please enter pickup address');
+                    if (!adminJobForm.pickupUnitNo) return alert('Please enter pickup Unit No (enter "N/A" if not applicable)');
+                    if (!adminJobForm.stops[0]?.address) return alert('Please enter at least one drop-off address');
+                    
+                    const emptyStops = adminJobForm.stops.filter(s => !s.address);
+                    if (emptyStops.length > 0) return alert('Please fill in all drop-off addresses or remove empty stops');
+                    
+                    const missingUnitNo = adminJobForm.stops.filter(s => !s.unitNo);
+                    if (missingUnitNo.length > 0) return alert('Please fill in Unit No for all drop-off locations (enter "N/A" if not applicable)');
+                    
+                    const price = parseFloat(adminJobForm.price);
+                    const minPrice = 3 + (adminJobForm.stops.length - 1) * 2;
+                    if (!price || price < minPrice) return alert(`Minimum price is $${minPrice} for ${adminJobForm.stops.length} stop(s)`);
+
+                    try {
+                      const deliveryAddresses = adminJobForm.stops.map(s => `${s.address} ${s.unitNo}`).join(' → ');
+                      
+                      await api('jobs', 'POST', {
+                        customer_id: null, // Manual job - no customer account
+                        customer_name: adminJobForm.customerName,
+                        customer_phone: adminJobForm.customerPhone,
+                        pickup: `${adminJobForm.pickup} ${adminJobForm.pickupUnitNo}`,
+                        pickup_contact: adminJobForm.pickupContact || null,
+                        pickup_phone: adminJobForm.pickupPhone || null,
+                        delivery: deliveryAddresses,
+                        stops: adminJobForm.stops,
+                        total_stops: adminJobForm.stops.length,
+                        timeframe: adminJobForm.timeframe,
+                        price,
+                        status: 'posted',
+                        recipient_name: adminJobForm.stops[0]?.recipientName || null,
+                        recipient_phone: adminJobForm.stops[0]?.recipientPhone || null,
+                        parcel_size: adminJobForm.parcelSize,
+                        remarks: adminJobForm.remarks || null
+                      });
+
+                      alert('Job created successfully!');
+                      
+                      // Reset form
+                      setAdminJobForm({
+                        customerName: '',
+                        customerPhone: '',
+                        pickup: '',
+                        pickupUnitNo: '',
+                        pickupContact: '',
+                        pickupPhone: '',
+                        stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
+                        timeframe: '',
+                        price: '10',
+                        parcelSize: 'small',
+                        remarks: ''
+                      });
+                      setShowManualJobForm(false);
+                      loadData();
+                    } catch (e: any) {
+                      alert('Error creating job: ' + e.message);
+                    }
+                  }}
+                  className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors text-lg"
+                >
+                  ✅ Create Job
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showJobImport && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
