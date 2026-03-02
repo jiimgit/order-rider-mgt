@@ -1260,9 +1260,19 @@ const DeliveryPlatform = () => {
     const fileName = file.name.toLowerCase();
     
     if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-      // Handle Excel files using SheetJS
+      // Handle Excel files using SheetJS loaded via script
       try {
-        const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs');
+        // Load SheetJS if not already loaded
+        if (!(window as any).XLSX) {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Failed to load XLSX library'));
+            document.head.appendChild(script);
+          });
+        }
+        const XLSX = (window as any).XLSX;
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data);
         const sheetName = workbook.SheetNames[0];
@@ -1763,9 +1773,19 @@ Thank you for your order! 🙏`;
     const fileName = file.name.toLowerCase();
     
     if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-      // Handle Excel files using SheetJS
+      // Handle Excel files using SheetJS loaded via script
       try {
-        const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs');
+        // Load SheetJS if not already loaded
+        if (!(window as any).XLSX) {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Failed to load XLSX library'));
+            document.head.appendChild(script);
+          });
+        }
+        const XLSX = (window as any).XLSX;
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data);
         const sheetName = workbook.SheetNames[0];
