@@ -26,7 +26,7 @@ const api = async (endpoint: string, method = 'GET', body: any = null, retries =
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
       const res = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
         ...options,
@@ -2239,15 +2239,15 @@ Thank you for your order! 🙏` },
       console.error('[LoadData] Error:', e);
       
       if (errorMessage.includes('timeout') || errorMessage.includes('AbortError') || errorMessage.includes('Max retries')) {
-        setError('Database is slow to respond. This can happen with free tier Supabase. Please click Retry.');
+        setError('Database is slow to respond. Please click Retry.');
       } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
-        setError('Network error: Cannot reach Supabase. Check your internet connection and Supabase project status.');
+        setError('Network error: Cannot reach database. Check your internet connection.');
       } else if (errorMessage.includes('401') || errorMessage.includes('Invalid API key')) {
-        setError('Authentication error: The anon key appears to be invalid. Please verify your Supabase anon key.');
+        setError('Authentication error: The API key appears to be invalid.');
       } else if (errorMessage.includes('404') || errorMessage.includes('relation') || errorMessage.includes('does not exist')) {
-        setError('Database error: Required tables may not exist. Please create: customers, riders, jobs tables.');
+        setError('Database error: Required tables may not exist.');
       } else if (errorMessage.includes('permission denied') || errorMessage.includes('RLS')) {
-        setError('Permission error: Row Level Security (RLS) policies may be blocking access. Check your Supabase RLS settings.');
+        setError('Permission error: Row Level Security may be blocking access.');
       } else {
         setError(`Database error: ${errorMessage}`);
       }
