@@ -150,6 +150,7 @@ const DeliveryPlatform = () => {
     parcelSize: 'small',
     remarks: ''
   });
+  const [useMyProfile, setUseMyProfile] = useState(true); // Auto-fill pickup contact with customer profile
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
@@ -1252,17 +1253,36 @@ const DeliveryPlatform = () => {
   };
 
   // Customer bulk import CSV parser
-  const handleCustomerBulkImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCustomerBulkImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const parsed = parseCSV(text);
-      setCustomerImportedJobs(parsed);
-    };
-    reader.readAsText(file);
+    const fileName = file.name.toLowerCase();
+    
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      // Handle Excel files using SheetJS
+      try {
+        const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs');
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        setCustomerImportedJobs(jsonData);
+      } catch (err) {
+        console.error('Error parsing Excel file:', err);
+        alert('Error reading Excel file. Please try CSV format or check file contents.');
+      }
+    } else {
+      // Handle CSV files
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        const parsed = parseCSV(text);
+        setCustomerImportedJobs(parsed);
+      };
+      reader.readAsText(file);
+    }
   };
 
   // Customer import jobs to database
@@ -1736,17 +1756,36 @@ Thank you for your order! 🙏`;
   };
 
   // Handle file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const parsed = parseCSV(text);
-      setImportedJobs(parsed);
-    };
-    reader.readAsText(file);
+    const fileName = file.name.toLowerCase();
+    
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      // Handle Excel files using SheetJS
+      try {
+        const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs');
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        setImportedJobs(jsonData);
+      } catch (err) {
+        console.error('Error parsing Excel file:', err);
+        alert('Error reading Excel file. Please try CSV format or check file contents.');
+      }
+    } else {
+      // Handle CSV files
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        const parsed = parseCSV(text);
+        setImportedJobs(parsed);
+      };
+      reader.readAsText(file);
+    }
   };
 
   // Import jobs to database
@@ -2358,6 +2397,10 @@ Thank you for your order! 🙏` },
     const missingUnitNo = jobForm.stops.filter(s => !s.unitNo);
     if (missingUnitNo.length > 0) return alert('Please fill in Unit No for all drop-off locations (enter "N/A" if not applicable)');
     
+    // Determine pickup contact info based on useMyProfile checkbox
+    const pickupContactName = useMyProfile ? curr.name : (jobForm.pickupContact || null);
+    const pickupContactPhone = useMyProfile ? curr.phone : (jobForm.pickupPhone || null);
+    
     try {
       // For multi-stop, create the job with all stops stored as JSON
       const deliveryAddresses = jobForm.stops.map(s => `${s.address} ${s.unitNo}`).join(' → ');
@@ -2367,8 +2410,8 @@ Thank you for your order! 🙏` },
         customer_name: curr.name, 
         customer_phone: curr.phone, 
         pickup: `${jobForm.pickup} ${jobForm.pickupUnitNo}`, // Include unit no in pickup
-        pickup_contact: jobForm.pickupContact || null,
-        pickup_phone: jobForm.pickupPhone || null,
+        pickup_contact: pickupContactName,
+        pickup_phone: pickupContactPhone,
         delivery: deliveryAddresses, // Combined for display
         stops: jobForm.stops, // Full stops array as JSON (includes unit numbers)
         total_stops: jobForm.stops.length,
@@ -3350,22 +3393,85 @@ Thank you for your order! 🙏` },
                           required
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <input 
-                          type="text" 
-                          value={jobForm.pickupContact} 
-                          onChange={(e) => setJobForm({...jobForm, pickupContact: e.target.value})} 
-                          className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
-                          placeholder="Contact name" 
-                        />
-                        <input 
-                          type="tel" 
-                          value={jobForm.pickupPhone} 
-                          onChange={(e) => setJobForm({...jobForm, pickupPhone: e.target.value})} 
-                          className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
-                          placeholder="Phone number" 
-                        />
+                      
+                      {/* Use My Profile Checkbox - Auto-fill pickup contact */}
+                      <div className="mt-3 p-4 bg-green-100 rounded-lg border-2 border-green-400">
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={useMyProfile}
+                            onChange={(e) => {
+                              setUseMyProfile(e.target.checked);
+                              if (e.target.checked) {
+                                setJobForm(prev => ({
+                                  ...prev,
+                                  pickupContact: curr?.name || '',
+                                  pickupPhone: curr?.phone || ''
+                                }));
+                              } else {
+                                setJobForm(prev => ({
+                                  ...prev,
+                                  pickupContact: '',
+                                  pickupPhone: ''
+                                }));
+                              }
+                            }}
+                            className="w-6 h-6 mt-0.5 text-green-600 rounded focus:ring-green-500 border-2 border-green-500"
+                          />
+                          <div className="flex-1">
+                            <span className="font-semibold text-green-800 text-base">✅ Use my profile as pickup contact</span>
+                            <div className="mt-2 p-2 bg-white rounded border border-green-300">
+                              <p className="text-sm text-green-700"><strong>Name:</strong> {curr?.name || 'Not set'}</p>
+                              <p className="text-sm text-green-700"><strong>Phone:</strong> {curr?.phone || 'Not set'}</p>
+                            </div>
+                            <p className="text-xs text-green-600 mt-1">Check this to auto-fill contact details below</p>
+                          </div>
+                        </label>
                       </div>
+
+                      {/* Contact fields - show when not using profile */}
+                      {!useMyProfile && (
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Details</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input 
+                              type="text" 
+                              value={jobForm.pickupContact} 
+                              onChange={(e) => setJobForm({...jobForm, pickupContact: e.target.value})} 
+                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                              placeholder="Contact name" 
+                            />
+                            <input 
+                              type="tel" 
+                              value={jobForm.pickupPhone} 
+                              onChange={(e) => setJobForm({...jobForm, pickupPhone: e.target.value})} 
+                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                              placeholder="Phone number" 
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Show filled values when using profile */}
+                      {useMyProfile && (
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Details (Auto-filled)</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input 
+                              type="text" 
+                              value={curr?.name || ''} 
+                              disabled
+                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
+                            />
+                            <input 
+                              type="tel" 
+                              value={curr?.phone || ''} 
+                              disabled
+                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3559,7 +3665,7 @@ Thank you for your order! 🙏` },
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                   >
                     <Upload size={18} />
-                    {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV)'}
+                    {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV/Excel)'}
                   </button>
                 </div>
               </div>
@@ -3572,31 +3678,59 @@ Thank you for your order! 🙏` },
                   
                   {/* CSV Template */}
                   <div className="mb-4 p-3 bg-white rounded-lg border">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Required CSV Columns:</p>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Required Columns:</p>
                     <code className="text-xs text-gray-600">pickup, delivery, price, recipient_name, recipient_phone, parcel_size, notes</code>
-                    <button
-                      onClick={() => {
-                        const template = 'pickup,delivery,price,recipient_name,recipient_phone,parcel_size,notes\n"123 Orchard Rd","456 Marina Bay",12,"John Doe","91234567","small","Handle with care"\n"789 Bugis St","321 Tampines Ave",10,"Jane Smith","98765432","medium",""';
-                        const blob = new Blob([template], { type: 'text/csv' });
-                        const link = document.createElement('a');
-                        link.href = URL.createObjectURL(blob);
-                        link.download = 'bulk_order_template.csv';
-                        link.click();
-                      }}
-                      className="mt-2 text-sm text-blue-600 hover:underline"
-                    >
-                      Download Template
-                    </button>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => {
+                          const template = 'pickup,delivery,price,recipient_name,recipient_phone,parcel_size,notes\n"123 Orchard Rd","456 Marina Bay",12,"John Doe","91234567","small","Handle with care"\n"789 Bugis St","321 Tampines Ave",10,"Jane Smith","98765432","medium",""';
+                          const blob = new Blob([template], { type: 'text/csv' });
+                          const link = document.createElement('a');
+                          link.href = URL.createObjectURL(blob);
+                          link.download = 'bulk_order_template.csv';
+                          link.click();
+                        }}
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        Download CSV Template
+                      </button>
+                      <span className="text-gray-400">|</span>
+                      <button
+                        onClick={() => {
+                          // Create Excel file using SheetJS format (simple XML)
+                          const headers = ['pickup', 'delivery', 'price', 'recipient_name', 'recipient_phone', 'parcel_size', 'notes'];
+                          const sampleData = [
+                            ['123 Orchard Rd', '456 Marina Bay', '12', 'John Doe', '91234567', 'small', 'Handle with care'],
+                            ['789 Bugis St', '321 Tampines Ave', '10', 'Jane Smith', '98765432', 'medium', '']
+                          ];
+                          
+                          let csvContent = headers.join(',') + '\n';
+                          sampleData.forEach(row => {
+                            csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+                          });
+                          
+                          const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel' });
+                          const link = document.createElement('a');
+                          link.href = URL.createObjectURL(blob);
+                          link.download = 'bulk_order_template.xlsx';
+                          link.click();
+                        }}
+                        className="text-sm text-green-600 hover:underline"
+                      >
+                        Download Excel Template
+                      </button>
+                    </div>
                   </div>
                   
                   {/* File Upload */}
                   <input
                     ref={customerFileInputRef}
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.xlsx,.xls"
                     onChange={handleCustomerBulkImport}
                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-yellow-500 file:text-white hover:file:bg-yellow-600 file:cursor-pointer"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Accepts CSV and Excel (.xlsx) files</p>
                   
                   {/* Preview */}
                   {customerImportedJobs.length > 0 && (
@@ -7242,12 +7376,37 @@ Thank you for your order! 🙏` },
                   </table>
                 </div>
 
-                <button 
-                  onClick={downloadJobTemplate}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                >
-                  <Download size={18} /> Download Template (CSV)
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={downloadJobTemplate}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    <Download size={18} /> Download CSV Template
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const headers = ['customer_name', 'customer_phone', 'pickup', 'delivery', 'timeframe', 'price', 'notes'];
+                      const sampleData = [
+                        ['John Doe', '91234567', '123 Orchard Rd', '456 Marina Bay', 'same-day', '15', 'Handle with care'],
+                        ['Jane Smith', '98765432', '789 Bugis St', '321 Tampines Ave', 'next-day', '12', '']
+                      ];
+                      
+                      let csvContent = headers.join(',') + '\n';
+                      sampleData.forEach(row => {
+                        csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+                      });
+                      
+                      const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel' });
+                      const link = document.createElement('a');
+                      link.href = URL.createObjectURL(blob);
+                      link.download = 'job_import_template.xlsx';
+                      link.click();
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                  >
+                    <Download size={18} /> Download Excel Template
+                  </button>
+                </div>
               </div>
 
               {/* Column Descriptions */}
@@ -7312,14 +7471,15 @@ Thank you for your order! 🙏` },
                   <span className="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
                   Upload Your File
                 </h4>
-                <p className="text-sm text-green-700 mb-3">After filling in the template, upload your CSV file here.</p>
+                <p className="text-sm text-green-700 mb-3">After filling in the template, upload your CSV or Excel file here.</p>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv,.txt"
+                  accept=".csv,.txt,.xlsx,.xls"
                   onChange={handleFileUpload}
                   className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 file:cursor-pointer"
                 />
+                <p className="text-xs text-gray-500 mt-1">Accepts CSV and Excel (.xlsx) files</p>
               </div>
 
               {/* Preview Imported Jobs */}
