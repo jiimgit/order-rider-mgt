@@ -966,7 +966,7 @@ const DeliveryPlatform = () => {
   // Load audit logs
   const loadAuditLogs = async () => {
     try {
-      const logs = await api('audit_logs?order=timestamp.desc&limit=100');
+      const logs = await api('audit_logs?order=timestamp.desc&limit=50');
       setAuditLogs(Array.isArray(logs) ? logs : []);
     } catch (e) {
       console.error('Failed to load audit logs:', e);
@@ -2175,12 +2175,12 @@ Thank you for your order! 🙏` },
 
   useEffect(() => { loadData(); }, []);
   
-  // Auto-refresh data every 30 seconds for riders to see new jobs
+  // Auto-refresh data every 120 seconds (2 minutes) to reduce bandwidth usage
   useEffect(() => {
     if (auth.isAuth) {
       const interval = setInterval(() => {
         loadData();
-      }, 30000); // 30 seconds
+      }, 120000); // 120 seconds (2 minutes)
       return () => clearInterval(interval);
     }
   }, [auth.isAuth]);
@@ -2197,11 +2197,11 @@ Thank you for your order! 🙏` },
       const c = await api('customers?select=*');
       console.log('[LoadData] Customers loaded:', c?.length || 0);
       
-      const j = await api('jobs?select=*&order=created_at.desc&limit=500');
+      const j = await api('jobs?select=*&order=created_at.desc&limit=100');
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
       // Also load audit logs for withdrawal notifications
-      const logs = await api('audit_logs?order=timestamp.desc&limit=100');
+      const logs = await api('audit_logs?order=timestamp.desc&limit=50');
       console.log('[LoadData] Audit logs loaded:', logs?.length || 0);
       
       // Parse details if it's a string
