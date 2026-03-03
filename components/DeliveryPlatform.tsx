@@ -2248,6 +2248,17 @@ Thank you for your order! 🙏` },
 
   useEffect(() => { loadData(); }, []);
   
+  // Timeout to prevent indefinite loading - show login page after 8 seconds even if loading fails
+  useEffect(() => {
+    const loadingTimeout = setTimeout(() => {
+      if (loading && !auth.isAuth) {
+        console.log('[Timeout] Loading took too long, showing login page');
+        setLoading(false);
+      }
+    }, 8000); // 8 seconds timeout for faster UX
+    return () => clearTimeout(loadingTimeout);
+  }, [loading, auth.isAuth]);
+  
   // Auto-refresh data every 120 seconds (2 minutes) to reduce bandwidth usage
   useEffect(() => {
     if (auth.isAuth) {
@@ -2601,6 +2612,16 @@ Thank you for your order! 🙏` },
       <div className="text-center max-w-md p-6">
         <Package className="animate-pulse text-blue-600 mx-auto mb-4" size={64} />
         <p className="text-xl font-semibold">{publicTrackingMode ? 'Loading tracking...' : 'Loading platform...'}</p>
+        <p className="text-sm text-gray-500 mt-2">Connecting to server...</p>
+        
+        {/* Skip to Login button - always visible */}
+        <button 
+          onClick={() => { setLoading(false); setError(''); }}
+          className="mt-6 px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+        >
+          Skip to Login →
+        </button>
+        
         {error && (
           <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
             <p className="text-red-600 font-semibold flex items-center gap-2">
@@ -2611,10 +2632,8 @@ Thank you for your order! 🙏` },
             <div className="mt-4 text-xs text-gray-600">
               <p className="font-semibold mb-1">Troubleshooting:</p>
               <ol className="list-decimal list-inside space-y-1">
-                <li>Check if Supabase project is active</li>
-                <li>Verify the anon key is correct</li>
-                <li>Ensure tables exist: customers, riders, jobs</li>
-                <li>Check RLS policies allow public access</li>
+                <li>Check your internet connection</li>
+                <li>Try again in a few moments</li>
               </ol>
             </div>
             <button 
@@ -2622,6 +2641,12 @@ Thank you for your order! 🙏` },
               className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
             >
               Retry Connection
+            </button>
+            <button 
+              onClick={() => { setLoading(false); setError(''); }}
+              className="mt-2 w-full bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300"
+            >
+              Continue to Login
             </button>
           </div>
         )}
