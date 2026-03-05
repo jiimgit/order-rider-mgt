@@ -2566,7 +2566,7 @@ Thank you for your order! 🙏` },
 
   const handleTopUp = () => {
     const amt = parseFloat(topUpAmt);
-    if (!amt || amt < 5) return alert('Minimum top-up amount is $5');
+    if (!amt || amt < 10) return alert('Minimum top-up amount is $10');
     const refNumber = generateTopUpReference(); // e.g., TOPUP-A7X3K9
     
     // Generate proper PayNow QR string
@@ -3309,7 +3309,24 @@ Thank you for your order! 🙏` },
                     </div>
                   </div>
                   
-                  {topUpAmt && parseFloat(topUpAmt) >= 5 && (
+                  {/* Custom Amount Input */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Or Enter Custom Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                      <input
+                        type="number"
+                        value={topUpAmt}
+                        onChange={(e) => setTopUpAmt(e.target.value)}
+                        placeholder="Enter amount (min $10)"
+                        min="10"
+                        className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Minimum top-up amount: $10</p>
+                  </div>
+                  
+                  {topUpAmt && parseFloat(topUpAmt) >= 10 && (
                     <div className="bg-green-50 p-4 rounded-lg">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-700">Amount to pay:</span>
@@ -3325,8 +3342,8 @@ Thank you for your order! 🙏` },
                   <button 
                     onClick={async () => {
                       const amt = parseFloat(topUpAmt);
-                      if (!amt || amt < 5) {
-                        alert('Minimum top-up amount is $5');
+                      if (!amt || amt < 10) {
+                        alert('Minimum top-up amount is $10');
                         return;
                       }
                       
@@ -3375,7 +3392,7 @@ Thank you for your order! 🙏` },
                       }
                     }}
                     id="stripe-checkout-btn"
-                    disabled={!topUpAmt || parseFloat(topUpAmt) < 5}
+                    disabled={!topUpAmt || parseFloat(topUpAmt) < 10}
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:from-purple-700 hover:to-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     <CreditCard size={20} />
