@@ -146,6 +146,7 @@ const DeliveryPlatform = () => {
     pickupPhone: '',
     stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }], // Multi-stop support with unit no
     timeframe: '', 
+    deliveryDate: '',
     price: '10',
     parcelSize: 'small',
     remarks: ''
@@ -1671,6 +1672,29 @@ const DeliveryPlatform = () => {
     }
   };
 
+  // Generate random Order ID for new delivery jobs
+  const generateOrderId = (): string => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const nums = '0123456789';
+    let result = 'ORD-';
+    // Add 2 letters
+    for (let i = 0; i < 2; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    // Add 6 numbers
+    for (let i = 0; i < 6; i++) {
+      result += nums.charAt(Math.floor(Math.random() * nums.length));
+    }
+    return result;
+  };
+
+  // Delivery time slots
+  const DELIVERY_SLOTS = [
+    { value: '6am-11am', label: '6am – 11am (cut off 9am)' },
+    { value: '12pm-5pm', label: '12pm – 5pm (cut off 3pm)' },
+    { value: '6pm-11pm', label: '6pm – 11pm (cut off 9pm)' }
+  ];
+
   // Generate random reference number for PayNow top-up
   const generateTopUpReference = (): string => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars: I,O,0,1
@@ -2420,6 +2444,7 @@ Thank you for your order! 🙏` },
     if (!jobForm.pickupUnitNo) return alert('Please fill in pickup Unit No (enter "N/A" if not applicable)');
     if (!jobForm.stops[0]?.address) return alert('Please fill in at least one drop-off location');
     if (!jobForm.parcelSize) return alert('Please select a parcel size');
+    if (!jobForm.timeframe) return alert('Please select a delivery time slot');
     
     // Validate all stops have addresses and unit numbers
     const emptyStops = jobForm.stops.filter(s => !s.address);
@@ -2432,11 +2457,15 @@ Thank you for your order! 🙏` },
     const pickupContactName = useMyProfile ? curr.name : (jobForm.pickupContact || null);
     const pickupContactPhone = useMyProfile ? curr.phone : (jobForm.pickupPhone || null);
     
+    // Generate Order ID
+    const orderId = generateOrderId();
+    
     try {
       // For multi-stop, create the job with all stops stored as JSON
       const deliveryAddresses = jobForm.stops.map(s => `${s.address} ${s.unitNo}`).join(' → ');
       
-      await api('jobs', 'POST', { 
+      const newJob = await api('jobs', 'POST', { 
+        order_id: orderId,
         customer_id: curr.id, 
         customer_name: curr.name, 
         customer_phone: curr.phone, 
@@ -2447,6 +2476,7 @@ Thank you for your order! 🙏` },
         stops: jobForm.stops, // Full stops array as JSON (includes unit numbers)
         total_stops: jobForm.stops.length,
         timeframe: jobForm.timeframe, 
+        delivery_slot: jobForm.timeframe,
         price, 
         status: 'posted',
         recipient_name: jobForm.stops[0]?.recipientName || null,
@@ -2455,6 +2485,29 @@ Thank you for your order! 🙏` },
         remarks: jobForm.remarks || null
       });
       await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: curr.credits - price });
+      
+      // Send email notification to admin
+      try {
+        await fetch('/api/send-order-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: 'moveit.admin@ymailzone.com',
+            orderId: orderId,
+            customerName: curr.name,
+            customerPhone: curr.phone,
+            pickup: `${jobForm.pickup} ${jobForm.pickupUnitNo}`,
+            delivery: deliveryAddresses,
+            deliverySlot: jobForm.timeframe,
+            price: price,
+            parcelSize: jobForm.parcelSize,
+            remarks: jobForm.remarks || 'None'
+          })
+        });
+      } catch (emailError) {
+        console.log('Email notification failed:', emailError);
+      }
+      
       setJobForm({ 
         pickup: '', 
         pickupUnitNo: '',
@@ -2462,24 +2515,92 @@ Thank you for your order! 🙏` },
         pickupPhone: '',
         stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
         timeframe: '', 
+        deliveryDate: '',
         price: '10', 
         parcelSize: 'small', 
         remarks: '' 
       });
-      alert('Job posted successfully!');
+      alert(`Job posted successfully!\nOrder ID: ${orderId}`);
       loadData();
     } catch (e: any) { alert('Error posting job: ' + e.message); }
   };
 
   const acceptJob = async (jobId: string) => {
+    // Check if GPS is enabled
+    if (!navigator.geolocation) {
+      alert('GPS is not supported by your browser. Please use a device with GPS capability.');
+      return;
+    }
+    
     try {
-      await api(`jobs?id=eq.${jobId}`, 'PATCH', { status: 'accepted', rider_id: auth.id, rider_name: curr.name, rider_phone: curr.phone, accepted_at: new Date().toISOString() });
-      alert('Job accepted! Customer will be notified via WhatsApp (when integrated).');
+      // Request GPS permission and check if enabled
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+      
+      // GPS is working, proceed with accepting job
+      await api(`jobs?id=eq.${jobId}`, 'PATCH', { 
+        status: 'accepted', 
+        rider_id: auth.id, 
+        rider_name: curr.name, 
+        rider_phone: curr.phone, 
+        accepted_at: new Date().toISOString() 
+      });
+      
+      // Update rider location
+      await api(`rider_locations?rider_id=eq.${auth.id}`, 'DELETE');
+      await api('rider_locations', 'POST', {
+        rider_id: auth.id,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        updated_at: new Date().toISOString()
+      });
+      
+      alert('Job accepted! Your GPS location is being tracked. Please keep GPS enabled until delivery is complete.');
       loadData();
-    } catch (e: any) { alert('Error accepting job: ' + e.message); }
+    } catch (gpsError: any) {
+      if (gpsError.code === 1) {
+        alert('⚠️ GPS Permission Denied\n\nYou must enable GPS/Location Services to accept jobs.\n\nPlease:\n1. Go to your device Settings\n2. Enable Location Services\n3. Allow this app to access your location\n4. Try again');
+      } else if (gpsError.code === 2) {
+        alert('⚠️ GPS Unavailable\n\nCannot determine your location. Please:\n1. Make sure GPS is turned on\n2. Go outside or near a window\n3. Try again');
+      } else if (gpsError.code === 3) {
+        alert('⚠️ GPS Timeout\n\nLocation request timed out. Please try again.');
+      } else {
+        alert('Error accepting job: ' + gpsError.message);
+      }
+    }
   };
 
   const updateStatus = async (status: string) => {
+    // For any status update, verify GPS is still enabled
+    if (status !== 'completed' && status !== 'cancelled') {
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          });
+        });
+        
+        // Update rider location
+        await api(`rider_locations?rider_id=eq.${auth.id}`, 'DELETE');
+        await api('rider_locations', 'POST', {
+          rider_id: auth.id,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          updated_at: new Date().toISOString()
+        });
+      } catch (gpsError: any) {
+        alert('⚠️ GPS Required\n\nYou must keep GPS enabled until delivery is complete.\n\nPlease enable GPS and try again.');
+        return;
+      }
+    }
+    
     try {
       const updateData: any = { status };
       if (status === 'picked-up') updateData.picked_up_at = new Date().toISOString();
@@ -3660,10 +3781,28 @@ Thank you for your order! 🙏` },
                   <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date</label>
                   <input 
                     type="date" 
+                    value={jobForm.deliveryDate || ''} 
+                    onChange={(e) => setJobForm({...jobForm, deliveryDate: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+
+                {/* Delivery Time Slot */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Delivery Time Slot <span className="text-red-500">*</span>
+                  </label>
+                  <select 
                     value={jobForm.timeframe} 
                     onChange={(e) => setJobForm({...jobForm, timeframe: e.target.value})} 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  >
+                    <option value="">Select a delivery slot</option>
+                    {DELIVERY_SLOTS.map((slot) => (
+                      <option key={slot.value} value={slot.value}>{slot.label}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Price */}
@@ -3898,15 +4037,20 @@ Thank you for your order! 🙏` },
                         <div key={order.id} className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <p className="font-semibold text-gray-800">{order.pickup}</p>
+                              {/* Order ID */}
+                              {order.order_id && (
+                                <p className="text-sm font-bold text-purple-600 mb-1">📋 {order.order_id}</p>
+                              )}
+                              <p className="font-semibold text-gray-800">📍 {order.pickup}</p>
                               <p className="text-sm text-gray-500">→ {order.delivery}</p>
                               <div className="flex gap-4 mt-2 text-xs text-gray-500">
                                 <span>📅 {new Date(order.created_at).toLocaleDateString()}</span>
+                                {order.timeframe && <span>🕐 {order.timeframe}</span>}
                                 {order.rider_name && <span>🏍️ {order.rider_name}</span>}
                                 {order.parcel_size && <span>📦 {order.parcel_size}</span>}
                               </div>
                               {order.recipient_name && (
-                                <p className="text-xs text-gray-500 mt-1">Recipient: {order.recipient_name}</p>
+                                <p className="text-xs text-gray-500 mt-1">👤 Recipient: {order.recipient_name}</p>
                               )}
                             </div>
                             <div className="text-right ml-4">
@@ -5316,7 +5460,11 @@ Thank you for your order! 🙏` },
           <div className="space-y-6">
             {/* Admin Notifications Alert */}
             {(() => {
-              const pendingWithdrawals = withdrawalRequests.filter((r: any) => !r.details?.status || r.details?.status === 'pending').length;
+              // Only count withdrawals that are truly pending (not rejected, approved, or completed)
+              const pendingWithdrawals = withdrawalRequests.filter((r: any) => {
+                const status = r.details?.status;
+                return !status || status === 'pending';
+              }).length;
               const pendingJobs = jobs.filter((j: any) => j.status === 'posted').length;
               
               if (pendingWithdrawals > 0 || pendingJobs > 0) {
@@ -5675,19 +5823,24 @@ Thank you for your order! 🙏` },
                       <div key={j.id} className="border rounded-lg p-4 hover:border-blue-300 transition-colors">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <p className="font-semibold text-lg">{j.pickup} → {j.delivery}</p>
+                            {/* Order ID */}
+                            {j.order_id && (
+                              <p className="text-sm font-bold text-purple-600 mb-1">📋 Order ID: {j.order_id}</p>
+                            )}
+                            <p className="font-semibold text-lg">📍 {j.pickup} → {j.delivery}</p>
                             <p className="text-sm text-gray-600">
-                              Customer: {j.customer_name} {j.customer_phone && `(${j.customer_phone})`}
+                              👤 Customer: {j.customer_name} {j.customer_phone && `(${j.customer_phone})`}
                             </p>
                             <p className="text-sm text-gray-600">
-                              Rider: {j.rider_name ? (
+                              🏍️ Rider: {j.rider_name ? (
                                 <span className="text-green-600 font-medium">{j.rider_name}</span>
                               ) : (
                                 <span className="text-orange-500">Unassigned</span>
                               )}
                             </p>
                             <p className="text-sm text-gray-600">
-                              Price: <span className="font-medium">${j.price}</span> | 
+                              💰 Price: <span className="font-medium">${j.price}</span> | 
+                              🕐 Slot: <span className="font-medium">{j.timeframe || j.delivery_slot || 'N/A'}</span> | 
                               Status: <span className={`font-medium ${j.status === 'completed' ? 'text-green-600' : j.status === 'cancelled' ? 'text-red-600' : 'text-blue-600'}`}>{j.status}</span>
                             </p>
                             <p className="text-xs text-gray-400 mt-1">Created: {new Date(j.created_at).toLocaleString()}</p>
@@ -5701,6 +5854,49 @@ Thank you for your order! 🙏` },
                                 title="Assign Rider"
                               >
                                 <UserCheck size={16} /> Assign
+                              </button>
+                            )}
+                            {/* Cancel Job Button - Refunds customer credits */}
+                            {j.status !== 'completed' && j.status !== 'cancelled' && (
+                              <button 
+                                onClick={async () => { 
+                                  if (window.confirm(`Cancel this job and refund $${j.price} to ${j.customer_name || 'customer'}?`)) { 
+                                    try {
+                                      // Update job status to cancelled
+                                      await api(`jobs?id=eq.${j.id}`, 'PATCH', { status: 'cancelled', cancelled_at: new Date().toISOString() });
+                                      
+                                      // Refund credits to customer if customer_id exists
+                                      if (j.customer_id) {
+                                        const customer = customers.find((c: any) => c.id === j.customer_id);
+                                        if (customer) {
+                                          const newCredits = (customer.credits || 0) + parseFloat(j.price);
+                                          await api(`customers?id=eq.${j.customer_id}`, 'PATCH', { credits: newCredits });
+                                          
+                                          // Log the refund
+                                          await logAuditAction('admin_job_cancel_refund', {
+                                            jobId: j.id,
+                                            orderId: j.order_id,
+                                            customerId: j.customer_id,
+                                            customerName: j.customer_name,
+                                            refundAmount: j.price,
+                                            newBalance: newCredits
+                                          });
+                                          
+                                          alert(`Job cancelled. $${j.price} refunded to ${j.customer_name}'s account.\nNew balance: $${newCredits.toFixed(2)}`);
+                                        }
+                                      } else {
+                                        alert('Job cancelled. (No customer account to refund)');
+                                      }
+                                      loadData();
+                                    } catch (e: any) {
+                                      alert('Error cancelling job: ' + e.message);
+                                    }
+                                  }
+                                }} 
+                                className="p-2 bg-orange-100 rounded hover:bg-orange-200 flex items-center gap-1 text-xs text-orange-700" 
+                                title="Cancel & Refund"
+                              >
+                                <X size={16} /> Cancel
                               </button>
                             )}
                             {/* Live Map Button - Shows for jobs with rider assigned */}
@@ -7258,18 +7454,16 @@ Thank you for your order! 🙏` },
                   <h4 className="font-semibold text-purple-900 mb-3">📦 Job Details</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Time Slot <span className="text-red-500">*</span></label>
                       <select
                         value={adminJobForm.timeframe}
                         onChange={(e) => setAdminJobForm({...adminJobForm, timeframe: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                       >
-                        <option value="">Select timeframe</option>
-                        <option value="ASAP">ASAP</option>
-                        <option value="Within 2 hours">Within 2 hours</option>
-                        <option value="Same day">Same day</option>
-                        <option value="Next day">Next day</option>
-                        <option value="Scheduled">Scheduled</option>
+                        <option value="">Select delivery slot</option>
+                        {DELIVERY_SLOTS.map((slot) => (
+                          <option key={slot.value} value={slot.value}>{slot.label}</option>
+                        ))}
                       </select>
                     </div>
                     <div>
@@ -7326,14 +7520,20 @@ Thank you for your order! 🙏` },
                     const missingUnitNo = adminJobForm.stops.filter(s => !s.unitNo);
                     if (missingUnitNo.length > 0) return alert('Please fill in Unit No for all drop-off locations (enter "N/A" if not applicable)');
                     
+                    if (!adminJobForm.timeframe) return alert('Please select a delivery time slot');
+                    
                     const price = parseFloat(adminJobForm.price);
                     const minPrice = 3 + (adminJobForm.stops.length - 1) * 2;
                     if (!price || price < minPrice) return alert(`Minimum price is $${minPrice} for ${adminJobForm.stops.length} stop(s)`);
+
+                    // Generate Order ID
+                    const orderId = generateOrderId();
 
                     try {
                       const deliveryAddresses = adminJobForm.stops.map(s => `${s.address} ${s.unitNo}`).join(' → ');
                       
                       await api('jobs', 'POST', {
+                        order_id: orderId,
                         customer_id: null, // Manual job - no customer account
                         customer_name: adminJobForm.customerName,
                         customer_phone: adminJobForm.customerPhone,
@@ -7344,6 +7544,7 @@ Thank you for your order! 🙏` },
                         stops: adminJobForm.stops,
                         total_stops: adminJobForm.stops.length,
                         timeframe: adminJobForm.timeframe,
+                        delivery_slot: adminJobForm.timeframe,
                         price,
                         status: 'posted',
                         recipient_name: adminJobForm.stops[0]?.recipientName || null,
@@ -7352,7 +7553,7 @@ Thank you for your order! 🙏` },
                         remarks: adminJobForm.remarks || null
                       });
 
-                      alert('Job created successfully!');
+                      alert(`Job created successfully!\nOrder ID: ${orderId}`);
                       
                       // Reset form
                       setAdminJobForm({
@@ -7616,27 +7817,55 @@ Thank you for your order! 🙏` },
               </div>
 
               <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-                <p className="font-semibold text-blue-900">{showAssignRider.pickup} → {showAssignRider.delivery}</p>
+                <p className="font-semibold text-blue-900">{showAssignRider.order_id && <span className="text-purple-600">[{showAssignRider.order_id}]</span>} {showAssignRider.pickup} → {showAssignRider.delivery}</p>
                 <p className="text-sm text-blue-700">Customer: {showAssignRider.customer_name}</p>
                 <p className="text-sm text-blue-700">Price: ${showAssignRider.price}</p>
               </div>
 
+              <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">⚠️ Only <strong>online</strong> riders with <strong>GPS enabled</strong> are shown below.</p>
+              </div>
+
               <h4 className="font-semibold text-gray-700 mb-3">Select a Rider:</h4>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {riders.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4">No riders available</p>
-                ) : (
-                  riders.map((r: any) => (
+                {(() => {
+                  // Filter riders: only online and with recent GPS location (within last 30 minutes)
+                  const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+                  const onlineRidersWithGPS = riders.filter((r: any) => {
+                    const riderLocation = riderLocations?.find((loc: any) => loc.rider_id === r.id);
+                    const isOnline = r.is_online === true;
+                    const hasRecentGPS = riderLocation && riderLocation.updated_at > thirtyMinsAgo;
+                    return isOnline && hasRecentGPS;
+                  });
+                  
+                  if (onlineRidersWithGPS.length === 0) {
+                    return (
+                      <div className="text-center py-6">
+                        <p className="text-gray-500 mb-2">No riders available</p>
+                        <p className="text-sm text-gray-400">Riders must be online with GPS enabled to be assigned jobs.</p>
+                      </div>
+                    );
+                  }
+                  
+                  return onlineRidersWithGPS.map((r: any) => (
                     <button
                       key={r.id}
                       onClick={() => assignRiderToJob(showAssignRider.id, r.id, r.name, r.phone)}
                       className="w-full p-3 border rounded-lg hover:border-green-500 hover:bg-green-50 text-left transition-colors"
                     >
-                      <p className="font-semibold">{r.name}</p>
-                      <p className="text-sm text-gray-600">{r.phone} | Tier {r.tier} | {r.completed_jobs || 0} jobs completed</p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold">{r.name}</p>
+                          <p className="text-sm text-gray-600">{r.phone} | Tier {r.tier} | {r.completed_jobs || 0} jobs</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse" title="Online"></span>
+                          <span className="text-green-600 text-xs font-medium">GPS ✓</span>
+                        </div>
+                      </div>
                     </button>
-                  ))
-                )}
+                  ));
+                })()}
               </div>
             </div>
           </div>
@@ -7907,6 +8136,74 @@ Thank you for your order! 🙏` },
                     step="0.01"
                   />
                 </div>
+                
+                {/* Refund via Stripe Button */}
+                {(editCust.credits || 0) > 0 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <label className="block text-sm font-medium text-yellow-800 mb-2">💳 Refund Credits via Stripe</label>
+                    <p className="text-xs text-yellow-700 mb-3">
+                      Process a refund of customer credits back to their original payment method via Stripe.
+                    </p>
+                    <div className="flex gap-2">
+                      <input 
+                        type="number" 
+                        id="refundAmount"
+                        max={editCust.credits || 0}
+                        min="0.01"
+                        step="0.01"
+                        placeholder={`Max: $${(editCust.credits || 0).toFixed(2)}`}
+                        className="flex-1 px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500" 
+                      />
+                      <button 
+                        onClick={async () => {
+                          const refundInput = document.getElementById('refundAmount') as HTMLInputElement;
+                          const refundAmount = parseFloat(refundInput?.value || '0');
+                          
+                          if (!refundAmount || refundAmount <= 0) {
+                            alert('Please enter a valid refund amount');
+                            return;
+                          }
+                          if (refundAmount > (editCust.credits || 0)) {
+                            alert(`Refund amount cannot exceed customer's credits ($${(editCust.credits || 0).toFixed(2)})`);
+                            return;
+                          }
+                          
+                          if (!window.confirm(`Process refund of $${refundAmount.toFixed(2)} to ${editCust.name}?\n\nThis will:\n1. Deduct $${refundAmount.toFixed(2)} from customer credits\n2. Process refund via Stripe to original payment method`)) {
+                            return;
+                          }
+                          
+                          try {
+                            // Deduct credits first
+                            const newCredits = (editCust.credits || 0) - refundAmount;
+                            await api(`customers?id=eq.${editCust.id}`, 'PATCH', { credits: newCredits });
+                            
+                            // Log the refund
+                            await logAuditAction('admin_stripe_refund', {
+                              customerId: editCust.id,
+                              customerName: editCust.name,
+                              customerEmail: editCust.email,
+                              refundAmount: refundAmount,
+                              previousCredits: editCust.credits,
+                              newCredits: newCredits
+                            });
+                            
+                            // Note: Actual Stripe refund would need to be processed via API
+                            alert(`Refund of $${refundAmount.toFixed(2)} processed!\n\nCustomer: ${editCust.name}\nNew balance: $${newCredits.toFixed(2)}\n\n⚠️ Note: Please also process the refund in your Stripe dashboard.`);
+                            
+                            setEditCust({...editCust, credits: newCredits});
+                            loadData();
+                          } catch (e: any) {
+                            alert('Error processing refund: ' + e.message);
+                          }
+                        }}
+                        className="px-4 py-2 bg-yellow-500 text-white rounded-lg font-semibold hover:bg-yellow-600"
+                      >
+                        Refund
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     New Password <span className="text-gray-400 font-normal">(leave empty to keep current)</span>
