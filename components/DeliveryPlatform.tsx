@@ -196,6 +196,7 @@ const DeliveryPlatform = () => {
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [showLiveMap, setShowLiveMap] = useState<any>(null);
   const [riderLocation, setRiderLocation] = useState<any>(null);
+  const [allRiderLocations, setAllRiderLocations] = useState<any[]>([]); // All rider GPS locations for admin
   const [selectedJobsForAccept, setSelectedJobsForAccept] = useState<string[]>([]); // Multi-job selection
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
@@ -2312,6 +2313,10 @@ Thank you for your order! 🙏` },
       const logs = await api('audit_logs?order=timestamp.desc&limit=50');
       console.log('[LoadData] Audit logs loaded:', logs?.length || 0);
       
+      // Load all rider locations for admin (to check GPS status)
+      const riderLocs = await api('rider_locations?order=updated_at.desc');
+      console.log('[LoadData] Rider locations loaded:', riderLocs?.length || 0);
+      
       // Parse details if it's a string
       const parsedLogs = (Array.isArray(logs) ? logs : []).map((log: any) => ({
         ...log,
@@ -2322,6 +2327,7 @@ Thank you for your order! 🙏` },
       setCustomers(Array.isArray(c) ? c : []);
       setJobs(Array.isArray(j) ? j : []);
       setAuditLogs(parsedLogs);
+      setAllRiderLocations(Array.isArray(riderLocs) ? riderLocs : []);
       
       // Also set withdrawal requests from audit logs
       const withdrawals = (Array.isArray(logs) ? logs : []).filter((log: any) => log.action === 'withdrawal_request');
@@ -7832,9 +7838,9 @@ Thank you for your order! 🙏` },
                   // Filter riders: only online and with recent GPS location (within last 30 minutes)
                   const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
                   const onlineRidersWithGPS = riders.filter((r: any) => {
-                    const riderLocation = riderLocations?.find((loc: any) => loc.rider_id === r.id);
+                    const riderLoc = allRiderLocations?.find((loc: any) => loc.rider_id === r.id);
                     const isOnline = r.is_online === true;
-                    const hasRecentGPS = riderLocation && riderLocation.updated_at > thirtyMinsAgo;
+                    const hasRecentGPS = riderLoc && riderLoc.updated_at > thirtyMinsAgo;
                     return isOnline && hasRecentGPS;
                   });
                   
