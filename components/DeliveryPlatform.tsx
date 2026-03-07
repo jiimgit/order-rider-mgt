@@ -325,7 +325,6 @@ const DeliveryPlatform = () => {
 
   // Admin - Live Map View state
   const [showLiveMapView, setShowLiveMapView] = useState(false);
-  const [allRiderLocations, setAllRiderLocations] = useState<any[]>([]);
 
   // Admin - Promotions state
   const [showPromotions, setShowPromotions] = useState(false);
