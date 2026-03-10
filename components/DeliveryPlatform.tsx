@@ -2621,10 +2621,13 @@ Thank you for your order! 🙏` },
       setRiderHasGPS(true);
       setLastJobCheck(new Date().toISOString());
       
+      // Request notification permission
+      requestNotificationPermission();
+      
       // Start watching for new jobs
       checkForNewJobs();
       
-      alert('🟢 You are now ONLINE!\n\nYou will receive notifications for new delivery jobs.');
+      alert('🟢 You are now ONLINE!\n\nYou will receive notifications for new delivery jobs.\n\n🔔 Make sure to allow notifications when prompted!');
       loadData();
     } catch (gpsError: any) {
       setRiderHasGPS(false);
@@ -2667,6 +2670,19 @@ Thank you for your order! 🙏` },
         setNewJobNotifications(prev => {
           const existingIds = prev.map(n => n.id);
           const uniqueNewJobs = newJobs.filter((j: any) => !existingIds.includes(j.id));
+          
+          // If there are truly new jobs, play sound and show notification
+          if (uniqueNewJobs.length > 0) {
+            // Play notification sound
+            playNotificationSound();
+            
+            // Show browser notification
+            showBrowserNotification(
+              '🚚 New Delivery Job!',
+              `${uniqueNewJobs.length} new job${uniqueNewJobs.length > 1 ? 's' : ''} available. Tap to view.`
+            );
+          }
+          
           return [...uniqueNewJobs, ...prev];
         });
       }
@@ -2674,6 +2690,91 @@ Thank you for your order! 🙏` },
       setLastJobCheck(new Date().toISOString());
     } catch (e) {
       console.error('Error checking for new jobs:', e);
+    }
+  };
+
+  // Play notification sound
+  const playNotificationSound = () => {
+    try {
+      // Create audio context for notification sound
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Create a simple beep sound
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800; // Hz
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+      
+      // Play a second beep
+      setTimeout(() => {
+        const osc2 = audioContext.createOscillator();
+        const gain2 = audioContext.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioContext.destination);
+        osc2.frequency.value = 1000;
+        osc2.type = 'sine';
+        gain2.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        osc2.start(audioContext.currentTime);
+        osc2.stop(audioContext.currentTime + 0.5);
+      }, 200);
+    } catch (e) {
+      console.log('Could not play notification sound:', e);
+    }
+  };
+
+  // Show browser notification
+  const showBrowserNotification = (title: string, body: string) => {
+    // Check if browser supports notifications
+    if (!('Notification' in window)) {
+      console.log('Browser does not support notifications');
+      return;
+    }
+    
+    // Check permission
+    if (Notification.permission === 'granted') {
+      // Show notification
+      const notification = new Notification(title, {
+        body: body,
+        icon: '/icon-192.png', // MoveIt app icon
+        badge: '/icon-192.png',
+        vibrate: [200, 100, 200],
+        tag: 'new-job', // Prevents duplicate notifications
+        renotify: true
+      });
+      
+      // Close after 10 seconds
+      setTimeout(() => notification.close(), 10000);
+      
+      // Focus app when notification clicked
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    } else if (Notification.permission !== 'denied') {
+      // Request permission
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          showBrowserNotification(title, body);
+        }
+      });
+    }
+  };
+
+  // Request notification permission when rider goes online
+  const requestNotificationPermission = () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
     }
   };
 
@@ -2687,6 +2788,13 @@ Thank you for your order! 🙏` },
       return () => clearInterval(interval);
     }
   }, [auth.type, riderIsOnline, riderHasGPS, jobs]);
+
+  // Request notification permission when rider logs in
+  useEffect(() => {
+    if (auth.type === 'rider') {
+      requestNotificationPermission();
+    }
+  }, [auth.type]);
 
   // Check rider online status on login
   useEffect(() => {
