@@ -240,6 +240,7 @@ const DeliveryPlatform = () => {
   const [showCustomerProfile, setShowCustomerProfile] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '' });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
 
   // GPS Enforcement state (Feature 11)
@@ -4369,6 +4370,12 @@ Thank you for your order! 🙏` },
                         className="mt-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
                       >
                         <Edit2 size={16} className="inline mr-1" /> Edit Profile
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="mt-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                      >
+                        <Trash2 size={16} className="inline mr-1" /> Request for Termination of Account
                       </button>
                     </div>
                   )}
@@ -8957,6 +8964,42 @@ Thank you for your order! 🙏` },
               <p className="text-center text-white mt-4 text-sm opacity-75">
                 Click anywhere outside the image to close
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Account Termination Request Modal */}
+        {showDeleteConfirm && curr && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <h3 className="text-xl font-bold text-red-600 mb-4">⚠️ Request Account Termination</h3>
+              <p className="text-gray-700 mb-2">
+                Are you sure you want to request the termination of your account? This action will:
+              </p>
+              <ul className="text-sm text-gray-600 mb-4 list-disc list-inside space-y-1">
+                <li>Send a request to our admin team</li>
+                <li>Your account and all associated data will be permanently deleted within 30 days</li>
+                <li>Any remaining credits will be forfeited</li>
+                <li>This action cannot be undone</li>
+              </ul>
+              <div className="flex gap-2">
+                <a
+                  href={`mailto:moveit.admin@ymailzone.com?subject=${encodeURIComponent('Request for the termination of Customer Account')}&body=${encodeURIComponent(`Dear MoveIt Admin,\n\nI would like to request the termination of my customer account.\n\nCustomer Details:\nName: ${curr.name}\nEmail: ${curr.email}\nPhone: ${curr.phone}\nCustomer ID: ${curr.id}\n\nPlease delete my account and all associated data within 30 days.\n\nThank you.`)}`}
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    alert('Your account termination request email has been prepared. Please send it to complete the request. Your account will be deleted within 30 days.');
+                  }}
+                  className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-center font-medium"
+                >
+                  Confirm & Send Email
+                </a>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
