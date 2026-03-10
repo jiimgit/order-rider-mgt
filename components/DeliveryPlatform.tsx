@@ -2747,11 +2747,9 @@ Thank you for your order! 🙏` },
       const notification = new Notification(title, {
         body: body,
         icon: '/icon-192.png', // MoveIt app icon
-        badge: '/icon-192.png',
-        vibrate: [200, 100, 200],
         tag: 'new-job', // Prevents duplicate notifications
         renotify: true
-      });
+      } as NotificationOptions);
       
       // Close after 10 seconds
       setTimeout(() => notification.close(), 10000);
