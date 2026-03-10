@@ -206,6 +206,12 @@ const DeliveryPlatform = () => {
   const [showPodModal, setShowPodModal] = useState(false);
   const podInputRef = useRef<HTMLInputElement>(null);
 
+  // Rider online status and notifications
+  const [riderIsOnline, setRiderIsOnline] = useState(false);
+  const [riderHasGPS, setRiderHasGPS] = useState(false);
+  const [newJobNotifications, setNewJobNotifications] = useState<any[]>([]);
+  const [lastJobCheck, setLastJobCheck] = useState<string | null>(null);
+
   // Multi-job support states
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -2565,6 +2571,9 @@ Thank you for your order! 🙏` },
         updated_at: new Date().toISOString()
       });
       
+      // Clear this job from notifications
+      setNewJobNotifications(prev => prev.filter(n => n.id !== jobId));
+      
       alert('Job accepted! Your GPS location is being tracked. Please keep GPS enabled until delivery is complete.');
       loadData();
     } catch (gpsError: any) {
@@ -2579,6 +2588,115 @@ Thank you for your order! 🙏` },
       }
     }
   };
+
+  // Rider Go Online - requires GPS
+  const riderGoOnline = async () => {
+    if (!navigator.geolocation) {
+      alert('GPS is not supported by your browser.');
+      return;
+    }
+    
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+      
+      // Update rider online status in database
+      await api(`riders?id=eq.${auth.id}`, 'PATCH', { is_online: true });
+      
+      // Save rider location
+      await api(`rider_locations?rider_id=eq.${auth.id}`, 'DELETE');
+      await api('rider_locations', 'POST', {
+        rider_id: auth.id,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        updated_at: new Date().toISOString()
+      });
+      
+      setRiderIsOnline(true);
+      setRiderHasGPS(true);
+      setLastJobCheck(new Date().toISOString());
+      
+      // Start watching for new jobs
+      checkForNewJobs();
+      
+      alert('🟢 You are now ONLINE!\n\nYou will receive notifications for new delivery jobs.');
+      loadData();
+    } catch (gpsError: any) {
+      setRiderHasGPS(false);
+      if (gpsError.code === 1) {
+        alert('⚠️ GPS Permission Denied\n\nYou must enable GPS to go online.\n\nPlease:\n1. Go to your device Settings\n2. Enable Location Services\n3. Allow this app to access your location\n4. Try again');
+      } else {
+        alert('⚠️ Cannot go online without GPS.\n\nPlease enable GPS and try again.');
+      }
+    }
+  };
+
+  // Rider Go Offline
+  const riderGoOffline = async () => {
+    try {
+      await api(`riders?id=eq.${auth.id}`, 'PATCH', { is_online: false });
+      setRiderIsOnline(false);
+      setNewJobNotifications([]);
+      alert('🔴 You are now OFFLINE.\n\nYou will not receive new job notifications.');
+      loadData();
+    } catch (e: any) {
+      alert('Error going offline: ' + e.message);
+    }
+  };
+
+  // Check for new jobs (called periodically when rider is online)
+  const checkForNewJobs = async () => {
+    if (!riderIsOnline || !riderHasGPS) return;
+    
+    try {
+      // Get all posted jobs (not assigned to any rider)
+      const postedJobs = jobs.filter((j: any) => j.status === 'posted' && !j.rider_id);
+      
+      // Find jobs that are new since last check
+      const newJobs = lastJobCheck 
+        ? postedJobs.filter((j: any) => new Date(j.created_at) > new Date(lastJobCheck))
+        : postedJobs;
+      
+      if (newJobs.length > 0) {
+        // Add to notifications (avoid duplicates)
+        setNewJobNotifications(prev => {
+          const existingIds = prev.map(n => n.id);
+          const uniqueNewJobs = newJobs.filter((j: any) => !existingIds.includes(j.id));
+          return [...uniqueNewJobs, ...prev];
+        });
+      }
+      
+      setLastJobCheck(new Date().toISOString());
+    } catch (e) {
+      console.error('Error checking for new jobs:', e);
+    }
+  };
+
+  // Auto-check for new jobs every 30 seconds when rider is online
+  useEffect(() => {
+    if (auth.type === 'rider' && riderIsOnline && riderHasGPS) {
+      const interval = setInterval(() => {
+        checkForNewJobs();
+      }, 30000); // Check every 30 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [auth.type, riderIsOnline, riderHasGPS, jobs]);
+
+  // Check rider online status on login
+  useEffect(() => {
+    if (auth.type === 'rider' && auth.id && riders.length > 0) {
+      const currentRider = riders.find((r: any) => r.id === auth.id);
+      if (currentRider) {
+        setRiderIsOnline(currentRider.is_online === true);
+      }
+    }
+  }, [auth.type, auth.id, riders]);
 
   const updateStatus = async (status: string) => {
     // For any status update, verify GPS is still enabled
@@ -4319,6 +4437,71 @@ Thank you for your order! 🙏` },
 
         {auth.type === 'rider' && curr && (
           <div className="space-y-6">
+            {/* Online/Offline Status Bar */}
+            <div className={`p-4 rounded-lg ${riderIsOnline ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-4 h-4 rounded-full ${riderIsOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                  <div>
+                    <p className={`font-bold text-lg ${riderIsOnline ? 'text-green-700' : 'text-gray-600'}`}>
+                      {riderIsOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {riderIsOnline 
+                        ? 'You are receiving new job notifications' 
+                        : 'Go online to receive job notifications'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={riderIsOnline ? riderGoOffline : riderGoOnline}
+                  className={`px-6 py-3 rounded-lg font-bold text-white transition-colors ${
+                    riderIsOnline 
+                      ? 'bg-red-500 hover:bg-red-600' 
+                      : 'bg-green-500 hover:bg-green-600'
+                  }`}
+                >
+                  {riderIsOnline ? 'Go Offline' : 'Go Online'}
+                </button>
+              </div>
+              {!riderIsOnline && (
+                <p className="text-xs text-orange-600 mt-2">
+                  ⚠️ GPS must be enabled to go online and accept jobs
+                </p>
+              )}
+            </div>
+
+            {/* New Job Notifications */}
+            {riderIsOnline && newJobNotifications.length > 0 && (
+              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">🔔</span>
+                  <h3 className="font-bold text-yellow-800">
+                    New Jobs Available! ({newJobNotifications.length})
+                  </h3>
+                </div>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {newJobNotifications.map((job: any) => (
+                    <div key={job.id} className="bg-white p-3 rounded-lg border border-yellow-300 flex justify-between items-center">
+                      <div>
+                        {job.order_id && <p className="text-xs font-bold text-purple-600">{job.order_id}</p>}
+                        <p className="font-semibold text-sm">{job.pickup} → {job.delivery}</p>
+                        <p className="text-xs text-gray-500">
+                          💰 ${job.price} | 📦 {job.parcel_size || 'N/A'} | 🕐 {job.timeframe || 'ASAP'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => acceptJob(job.id)}
+                        className="bg-green-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-600 text-sm"
+                      >
+                        Accept
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* GPS Warning Modal - Feature 11 */}
             {showGpsWarning && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -5304,10 +5487,24 @@ Thank you for your order! 🙏` },
               </div>
             )}
 
-            {/* Available Jobs - Always show so riders can accept more jobs */}
+            {/* Available Jobs - Only show when rider is online */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
-                
+              
+              {!riderIsOnline ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">🔴</div>
+                  <p className="text-xl font-semibold text-gray-700 mb-2">You are currently offline</p>
+                  <p className="text-gray-500 mb-4">Go online to see available jobs and receive notifications</p>
+                  <button
+                    onClick={riderGoOnline}
+                    className="bg-green-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-600"
+                  >
+                    🟢 Go Online Now
+                  </button>
+                </div>
+              ) : (
+                <>
                 {/* Job Filter - Feature 10 */}
                 <div className="bg-gray-50 p-4 rounded-lg mb-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -5457,7 +5654,9 @@ Thank you for your order! 🙏` },
                     )}
                   </div>
                 )}
-              </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 
