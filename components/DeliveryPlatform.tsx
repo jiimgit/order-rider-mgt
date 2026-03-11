@@ -69,8 +69,26 @@ const api = async (endpoint: string, method = 'GET', body: any = null, retries =
   throw new Error('Max retries reached');
 };
 
-const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChain: any[]): any => {
-  const platformFee = 1;
+// Haversine formula to calculate distance between two lat/lng points in km
+const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Extract 6-digit Singapore postal code from an address string
+const extractPostalCode = (address: string): string | null => {
+  const match = address.match(/\b(\d{6})\b/);
+  return match ? match[1] : null;
+};
+
+const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChain: any[], totalStops: number = 1): any => {
+  const platformFee = 1 * totalStops; // $1 per drop-off
   const remaining = deliveryFee - platformFee;
   
   // New formula: 50% to rider, 50% split among uplines (max $2 each)
@@ -240,9 +258,8 @@ const DeliveryPlatform = () => {
   const [showCustomerProfile, setShowCustomerProfile] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '' });
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
+  const [jobDistanceCache, setJobDistanceCache] = useState<Record<string, {distances: number[], totalDistance: number}>>({});
 
   // GPS Enforcement state (Feature 11)
   const [gpsPermissionGranted, setGpsPermissionGranted] = useState<boolean | null>(null);
@@ -594,7 +611,7 @@ const DeliveryPlatform = () => {
       if (job && auth.id) {
         const riderData = riders.find((r: any) => r.id === auth.id);
         if (riderData) {
-          const comm = calculateCommissions(job.price, riderData.tier, riderData.upline_chain || []);
+          const comm = calculateCommissions(job.price, riderData.tier, riderData.upline_chain || [], job.total_stops || 1);
           await api(`riders?id=eq.${auth.id}`, 'PATCH', {
             earnings: (riderData.earnings || 0) + comm.activeRider,
             completed_jobs: (riderData.completed_jobs || 0) + 1
@@ -694,7 +711,7 @@ const DeliveryPlatform = () => {
     const todayEarnings = todayJobs.reduce((sum: number, j: any) => {
       const rider = riders.find((r: any) => r.id === auth.id);
       if (rider) {
-        const comm = calculateCommissions(j.price, rider.tier, rider.upline_chain || []);
+        const comm = calculateCommissions(j.price, rider.tier, rider.upline_chain || [], j.total_stops || 1);
         return sum + comm.activeRider;
       }
       return sum;
@@ -709,7 +726,7 @@ const DeliveryPlatform = () => {
     const weekEarnings = weekJobs.reduce((sum: number, j: any) => {
       const rider = riders.find((r: any) => r.id === auth.id);
       if (rider) {
-        const comm = calculateCommissions(j.price, rider.tier, rider.upline_chain || []);
+        const comm = calculateCommissions(j.price, rider.tier, rider.upline_chain || [], j.total_stops || 1);
         return sum + comm.activeRider;
       }
       return sum;
@@ -782,7 +799,7 @@ const DeliveryPlatform = () => {
     let totalEarnings = 0;
     if (rider) {
       completed.forEach((job: any) => {
-        const comm = calculateCommissions(job.price, rider.tier, rider.upline_chain || []);
+        const comm = calculateCommissions(job.price, rider.tier, rider.upline_chain || [], job.total_stops || 1);
         totalEarnings += comm.activeRider;
       });
     }
@@ -1106,7 +1123,7 @@ const DeliveryPlatform = () => {
     if (format === 'pdf') {
       // Calculate totals
       const totalAmount = filteredRequests.reduce((sum: number, req: any) => sum + (req.details?.amount || 0), 0);
-      const pendingCount = filteredRequests.filter((r: any) => !r.details?.status || r.details?.status === 'pending').length;
+      const pendingCount = filteredRequests.filter((r: any) => r.details?.status === 'pending').length;
       const approvedCount = filteredRequests.filter((r: any) => r.details?.status === 'approved').length;
       const rejectedCount = filteredRequests.filter((r: any) => r.details?.status === 'rejected').length;
 
@@ -1247,11 +1264,11 @@ const DeliveryPlatform = () => {
   };
 
   // Calculate projected earnings for a job (Rider Preview)
-  const calculateProjectedEarnings = (jobPrice: number) => {
+  const calculateProjectedEarnings = (jobPrice: number, totalStops: number = 1) => {
     const rider = riders.find((r: any) => r.id === auth.id);
     if (!rider) return { riderEarns: 0, platformFee: 1, uplineShare: 0 };
     
-    const comm = calculateCommissions(jobPrice, rider.tier, rider.upline_chain || []);
+    const comm = calculateCommissions(jobPrice, rider.tier, rider.upline_chain || [], totalStops);
     const uplineTotal = comm.uplines.reduce((sum: number, u: any) => sum + u.amount, 0);
     
     return {
@@ -1565,26 +1582,6 @@ const DeliveryPlatform = () => {
     }
   };
 
-  // Delete customer account
-  const deleteCustomerAccount = async () => {
-    if (!auth.id) return;
-    setDeleteLoading(true);
-    try {
-      // Delete the customer record from the database
-      await api(`customers?id=eq.${auth.id}`, 'DELETE');
-      
-      // Clear auth and local storage
-      setAuth({ isAuth: false, type: null, id: null });
-      localStorage.removeItem('moveit_auth');
-      setShowDeleteConfirm(false);
-      alert('Your account has been successfully deleted. All your personal data has been removed.');
-    } catch (e: any) {
-      alert('Error deleting account: ' + e.message);
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
   // Add saved address
   const addSavedAddress = async (address: string) => {
     if (!auth.id || !address) return;
@@ -1669,6 +1666,61 @@ const DeliveryPlatform = () => {
     }
   };
 
+  // Lookup coordinates for a postal code using OneMap API
+  const lookupCoordinates = async (postalCode: string): Promise<{lat: number, lng: number} | null> => {
+    if (!/^\d{6}$/.test(postalCode)) return null;
+    try {
+      const response = await fetch(
+        `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postalCode}&returnGeom=Y&getAddrDetails=Y&pageNum=1`
+      );
+      const data = await response.json();
+      if (data.results && data.results.length > 0) {
+        return {
+          lat: parseFloat(data.results[0].LATITUDE),
+          lng: parseFloat(data.results[0].LONGITUDE)
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Coordinate lookup failed:', error);
+      return null;
+    }
+  };
+
+  // Calculate distances between pickup and all stops for a job
+  const calculateJobDistances = async (pickupAddress: string, stops: any[]): Promise<{distances: number[], totalDistance: number} | null> => {
+    try {
+      const pickupPostal = extractPostalCode(pickupAddress);
+      if (!pickupPostal) return null;
+
+      const pickupCoords = await lookupCoordinates(pickupPostal);
+      if (!pickupCoords) return null;
+
+      const distances: number[] = [];
+      let prevCoords = pickupCoords;
+      let totalDistance = 0;
+
+      for (const stop of stops) {
+        const stopPostal = extractPostalCode(stop.address || '');
+        if (!stopPostal) { distances.push(0); continue; }
+        
+        const stopCoords = await lookupCoordinates(stopPostal);
+        if (!stopCoords) { distances.push(0); continue; }
+
+        const dist = haversineDistance(prevCoords.lat, prevCoords.lng, stopCoords.lat, stopCoords.lng);
+        const rounded = parseFloat(dist.toFixed(1));
+        distances.push(rounded);
+        totalDistance += rounded;
+        prevCoords = stopCoords;
+      }
+
+      return { distances, totalDistance: parseFloat(totalDistance.toFixed(1)) };
+    } catch (error) {
+      console.error('Distance calculation failed:', error);
+      return null;
+    }
+  };
+
   // Handle postal code input for pickup
   const handlePickupPostalCode = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 6);
@@ -1714,6 +1766,126 @@ const DeliveryPlatform = () => {
       result += nums.charAt(Math.floor(Math.random() * nums.length));
     }
     return result;
+  };
+
+  // Fetch and cache distances for a job
+  const fetchJobDistances = async (jobId: string, pickup: string, stops: any[]) => {
+    if (jobDistanceCache[jobId]) return;
+    const result = await calculateJobDistances(pickup, stops);
+    if (result) {
+      setJobDistanceCache(prev => ({ ...prev, [jobId]: result }));
+    }
+  };
+
+  // Reusable improved job detail card
+  const renderJobDetailCard = (job: any, showDeliveryFee: boolean = true) => {
+    const stops = job.stops || [];
+    const cachedDist = jobDistanceCache[job.id];
+    
+    // Trigger distance calculation if not cached and has stops
+    if (!cachedDist && stops.length > 0 && job.pickup) {
+      fetchJobDistances(job.id, job.pickup, stops);
+    }
+
+    return (
+      <div className="space-y-3">
+        {/* Order ID & Delivery Slot */}
+        <div className="flex justify-between items-start">
+          <div>
+            {job.order_id && (
+              <p className="text-sm font-bold text-purple-600">Order ID: #{job.order_id}</p>
+            )}
+            {(job.timeframe || job.delivery_slot) && (
+              <p className="text-sm text-gray-600">🕐 Delivery Slot: {job.timeframe || job.delivery_slot}</p>
+            )}
+          </div>
+          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+            job.status === 'completed' ? 'bg-green-100 text-green-700' :
+            job.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+            job.status === 'posted' ? 'bg-yellow-100 text-yellow-700' :
+            'bg-blue-100 text-blue-700'
+          }`}>
+            {job.status.toUpperCase()}
+          </span>
+        </div>
+
+        {/* Parcel Information */}
+        {job.parcel_size && (
+          <div className="bg-gray-50 p-2 rounded">
+            <p className="text-xs font-medium text-gray-500 uppercase">Parcel Information</p>
+            <p className="text-sm">📦 Parcel Size: <span className="font-medium capitalize">{job.parcel_size}</span></p>
+          </div>
+        )}
+
+        {/* Pickup Location */}
+        <div className="bg-orange-50 p-3 rounded-lg border-l-4 border-orange-400">
+          <p className="text-xs font-medium text-orange-600 uppercase mb-1">Pickup Location</p>
+          <p className="text-sm font-medium text-gray-800">🟠 {job.pickup}</p>
+          {job.pickup_contact && (
+            <p className="text-xs text-gray-500 mt-1">Contact: {job.pickup_contact} {job.pickup_phone && `(${job.pickup_phone})`}</p>
+          )}
+        </div>
+
+        {/* Route Overview */}
+        {stops.length > 0 && (
+          <div className="bg-blue-50 p-2 rounded text-center">
+            <p className="text-xs font-medium text-blue-600 uppercase mb-1">Route Overview</p>
+            <p className="text-sm font-medium text-blue-800">
+              Pickup{stops.map((_: any, i: number) => ` → Drop-off ${i + 1}`).join('')}
+            </p>
+          </div>
+        )}
+
+        {/* Drop-off Locations */}
+        {stops.length > 0 ? (
+          <div className="space-y-2">
+            {stops.map((stop: any, index: number) => (
+              <div key={index} className="bg-green-50 p-3 rounded-lg border-l-4 border-green-400">
+                <p className="text-xs font-medium text-green-600 uppercase mb-1">
+                  Drop-off {index + 1}
+                </p>
+                <p className="text-sm font-medium text-gray-800">📍 {stop.address} {stop.unitNo || ''}</p>
+                {stop.recipientName && (
+                  <p className="text-xs text-gray-500 mt-1">Recipient: {stop.recipientName} {stop.recipientPhone && `(${stop.recipientPhone})`}</p>
+                )}
+                {cachedDist && cachedDist.distances[index] > 0 && (
+                  <p className="text-xs text-blue-600 mt-1 font-medium">
+                    📏 Distance from {index === 0 ? 'pickup' : `drop-off ${index}`}: {cachedDist.distances[index]} km
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          // Fallback for jobs without stops array
+          <div className="bg-green-50 p-3 rounded-lg border-l-4 border-green-400">
+            <p className="text-xs font-medium text-green-600 uppercase mb-1">Drop-off</p>
+            <p className="text-sm font-medium text-gray-800">📍 {job.delivery}</p>
+          </div>
+        )}
+
+        {/* Total Distance */}
+        {cachedDist && cachedDist.totalDistance > 0 && (
+          <div className="bg-purple-50 p-2 rounded text-center">
+            <p className="text-xs font-medium text-purple-600 uppercase">Total Distance</p>
+            <p className="text-lg font-bold text-purple-700">{cachedDist.totalDistance} km</p>
+          </div>
+        )}
+
+        {/* Delivery Fee */}
+        {showDeliveryFee && (
+          <div className="bg-blue-50 p-2 rounded">
+            <p className="text-xs font-medium text-blue-600 uppercase">Delivery Fee</p>
+            <p className="text-lg font-bold text-blue-700">${parseFloat(job.price).toFixed(2)}</p>
+          </div>
+        )}
+
+        {/* Remarks */}
+        {job.remarks && (
+          <p className="text-xs text-gray-500 italic">📝 Remarks: {job.remarks}</p>
+        )}
+      </div>
+    );
   };
 
   // Delivery time slots
@@ -2863,7 +3035,7 @@ Thank you for your order! 🙏` },
   };
 
   const completeJob = async () => {
-    const comm = calculateCommissions(activeJob.price, curr.tier, curr.upline_chain || []);
+    const comm = calculateCommissions(activeJob.price, curr.tier, curr.upline_chain || [], activeJob.total_stops || 1);
     try {
       await api(`jobs?id=eq.${activeJob.id}`, 'PATCH', { status: 'completed', commissions: comm, completed_at: new Date().toISOString() });
       await api(`riders?id=eq.${auth.id}`, 'PATCH', { earnings: curr.earnings + comm.activeRider, completed_jobs: curr.completed_jobs + 1 });
@@ -3539,9 +3711,9 @@ Thank you for your order! 🙏` },
                 >
                   💰 Withdrawals
                   {/* Pending withdrawals badge */}
-                  {withdrawalRequests.filter((r: any) => !r.details?.status || r.details?.status === 'pending').length > 0 && (
+                  {withdrawalRequests.filter((r: any) => r.details?.status === 'pending').length > 0 && (
                     <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {withdrawalRequests.filter((r: any) => !r.details?.status || r.details?.status === 'pending').length}
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'pending').length}
                     </span>
                   )}
                 </button>
@@ -4392,12 +4564,6 @@ Thank you for your order! 🙏` },
                       >
                         <Edit2 size={16} className="inline mr-1" /> Edit Profile
                       </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="mt-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                      >
-                        <Trash2 size={16} className="inline mr-1" /> Delete Account
-                      </button>
                     </div>
                   )}
                   
@@ -4443,24 +4609,7 @@ Thank you for your order! 🙏` },
                 <div className="space-y-3">
                   {jobs.filter(j => j.customer_id === auth.id).map(job => (
                     <div key={job.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                          <p className="font-semibold text-lg text-gray-900">{job.pickup} → {job.delivery}</p>
-                          <p className="text-sm text-gray-600">{job.timeframe}</p>
-                          {job.parcel_size && <p className="text-xs text-gray-500">📦 {job.parcel_size}</p>}
-                        </div>
-                        <div className="text-right ml-4">
-                          <p className="text-2xl font-bold text-blue-600">${job.price}</p>
-                          <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-medium ${
-                            job.status === 'completed' ? 'bg-green-100 text-green-700' :
-                            job.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                            job.status === 'posted' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-blue-100 text-blue-700'
-                          }`}>
-                            {job.status.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
+                      {renderJobDetailCard(job)}
                       
                       {/* Rider Info - when assigned */}
                       {job.rider_name && job.status !== 'posted' && (
@@ -4888,7 +5037,7 @@ Thank you for your order! 🙏` },
                               <p className="text-xl font-bold text-green-600">${delivery.commissions.activeRider?.toFixed(2) || '0.00'}</p>
                             ) : (
                               (() => {
-                                const comm = calculateCommissions(delivery.price, curr?.tier || 1, curr?.upline_chain || []);
+                                const comm = calculateCommissions(delivery.price, curr?.tier || 1, curr?.upline_chain || [], delivery.total_stops || 1);
                                 return <p className="text-xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>;
                               })()
                             )}
@@ -5420,7 +5569,7 @@ Thank you for your order! 🙏` },
                           <p className="text-xs text-gray-500">{job.status?.toUpperCase() || 'UNKNOWN'}</p>
                         </div>
                         {(() => {
-                          const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || []);
+                          const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
                           return <span className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</span>;
                         })()}
                       </div>
@@ -5474,7 +5623,7 @@ Thank you for your order! 🙏` },
                       {activeJob.remarks && <p className="text-gray-500 italic text-xs">📝 {activeJob.remarks}</p>}
                     </div>
                     {(() => {
-                      const earnings = calculateCommissions(activeJob.price, curr.tier, curr.upline_chain || []);
+                      const earnings = calculateCommissions(activeJob.price, curr.tier, curr.upline_chain || [], activeJob.total_stops || 1);
                       return (
                         <div className="mt-3 pt-3 border-t border-blue-200">
                           <p className="text-xs text-gray-600">Your earnings:</p>
@@ -5712,7 +5861,7 @@ Thank you for your order! 🙏` },
                     </div>
                     
                     {filteredAvailableJobs.map((job: any) => {
-                      const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || []);
+                      const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
                       const isSelected = selectedJobsForAccept.includes(job.id);
                       return (
                         <div 
@@ -5742,14 +5891,9 @@ Thank you for your order! 🙏` },
                               </div>
                             </div>
                             
-                            {/* Job Details */}
+                            {/* Job Details - Improved */}
                             <div className="flex-1">
-                              <p className="font-semibold text-sm">{job.pickup} → {job.delivery}</p>
-                              <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                                {job.timeframe && <span>🕐 {job.timeframe}</span>}
-                                {job.parcel_size && <span>📦 {job.parcel_size}</span>}
-                              </div>
-                              {job.remarks && <p className="text-xs text-gray-400 italic mt-1">📝 {job.remarks}</p>}
+                              {renderJobDetailCard(job, false)}
                             </div>
                             
                             {/* Earnings */}
@@ -5801,7 +5945,7 @@ Thank you for your order! 🙏` },
               // Only count withdrawals that are truly pending (not rejected, approved, or completed)
               const pendingWithdrawals = withdrawalRequests.filter((r: any) => {
                 const status = r.details?.status;
-                return !status || status === 'pending';
+                return status === 'pending';
               }).length;
               const pendingJobs = jobs.filter((j: any) => j.status === 'posted').length;
               
@@ -6161,12 +6305,8 @@ Thank you for your order! 🙏` },
                       <div key={j.id} className="border rounded-lg p-4 hover:border-blue-300 transition-colors">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            {/* Order ID */}
-                            {j.order_id && (
-                              <p className="text-sm font-bold text-purple-600 mb-1">📋 Order ID: {j.order_id}</p>
-                            )}
-                            <p className="font-semibold text-lg">📍 {j.pickup} → {j.delivery}</p>
-                            <p className="text-sm text-gray-600">
+                            {renderJobDetailCard(j)}
+                            <p className="text-sm text-gray-600 mt-2">
                               👤 Customer: {j.customer_name} {j.customer_phone && `(${j.customer_phone})`}
                             </p>
                             <p className="text-sm text-gray-600">
@@ -6175,11 +6315,6 @@ Thank you for your order! 🙏` },
                               ) : (
                                 <span className="text-orange-500">Unassigned</span>
                               )}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              💰 Price: <span className="font-medium">${j.price}</span> | 
-                              🕐 Slot: <span className="font-medium">{j.timeframe || j.delivery_slot || 'N/A'}</span> | 
-                              Status: <span className={`font-medium ${j.status === 'completed' ? 'text-green-600' : j.status === 'cancelled' ? 'text-red-600' : 'text-blue-600'}`}>{j.status}</span>
                             </p>
                             <p className="text-xs text-gray-400 mt-1">Created: {new Date(j.created_at).toLocaleString()}</p>
                           </div>
@@ -8985,47 +9120,6 @@ Thank you for your order! 🙏` },
               <p className="text-center text-white mt-4 text-sm opacity-75">
                 Click anywhere outside the image to close
               </p>
-            </div>
-          </div>
-        )}
-
-        {/* Account Deletion Confirmation Modal */}
-        {showDeleteConfirm && curr && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle size={24} className="text-red-600" />
-                </div>
-                <h3 className="text-xl font-bold text-red-600">Delete Account</h3>
-              </div>
-              <p className="text-gray-700 mb-3">
-                Are you sure you want to permanently delete your account? This will:
-              </p>
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                <ul className="text-sm text-red-800 space-y-1">
-                  <li>• Permanently remove your account and personal data</li>
-                  <li>• Delete your order history and saved addresses</li>
-                  <li>• Forfeit any remaining credits (${(curr.credits || 0).toFixed(2)})</li>
-                  <li>• This action cannot be undone</li>
-                </ul>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={deleteCustomerAccount}
-                  disabled={deleteLoading}
-                  className="flex-1 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50"
-                >
-                  {deleteLoading ? 'Deleting...' : 'Yes, Delete My Account'}
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  disabled={deleteLoading}
-                  className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
           </div>
         )}
