@@ -87,6 +87,23 @@ const extractPostalCode = (address: string): string | null => {
   return match ? match[1] : null;
 };
 
+// Format date/time in Singapore timezone (SGT, UTC+8)
+const formatSGT = (dateStr: string | Date): string => {
+  try {
+    return new Date(dateStr).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' });
+  } catch {
+    return new Date(dateStr).toLocaleString();
+  }
+};
+
+const formatSGTDate = (dateStr: string | Date): string => {
+  try {
+    return new Date(dateStr).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' });
+  } catch {
+    return new Date(dateStr).toLocaleDateString();
+  }
+};
+
 const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChain: any[], totalStops: number = 1): any => {
   const platformFee = 1 * totalStops; // $1 per drop-off
   const remaining = deliveryFee - platformFee;
@@ -928,7 +945,7 @@ const DeliveryPlatform = () => {
     // Daily breakdown
     const dailyData: any = {};
     filteredJobs.forEach((job: any) => {
-      const date = new Date(job.created_at).toLocaleDateString();
+      const date = formatSGTDate(job.created_at);
       if (!dailyData[date]) {
         dailyData[date] = { date, orders: 0, completed: 0, revenue: 0 };
       }
@@ -1079,7 +1096,7 @@ const DeliveryPlatform = () => {
     if (format === 'csv') {
       const headers = ['Date', 'Full Name', 'Mobile', 'Amount', 'Method', 'Bank', 'PayNow/Account No', 'Status'];
       const rows = filteredRequests.map((req: any) => [
-        new Date(req.timestamp).toLocaleDateString(),
+        formatSGTDate(req.timestamp),
         req.details?.fullName || req.details?.riderName || 'N/A',
         req.details?.mobileNumber || req.details?.riderPhone || 'N/A',
         `$${req.details?.amount?.toFixed(2) || '0.00'}`,
@@ -1138,7 +1155,7 @@ const DeliveryPlatform = () => {
         <body>
           <div class="header">
             <h1>💰 Withdrawal Report</h1>
-            <p>Generated: ${new Date().toLocaleString()}</p>
+            <p>Generated: ${formatSGT(new Date())}</p>
             ${withdrawalFilter.dateFrom || withdrawalFilter.dateTo ? 
               `<p>Period: ${withdrawalFilter.dateFrom || 'Start'} to ${withdrawalFilter.dateTo || 'Present'}</p>` : ''}
           </div>
@@ -1176,7 +1193,7 @@ const DeliveryPlatform = () => {
             <tbody>
               ${filteredRequests.map((req: any) => `
                 <tr>
-                  <td>${new Date(req.timestamp).toLocaleDateString()}</td>
+                  <td>${formatSGTDate(req.timestamp)}</td>
                   <td>${req.details?.riderName || 'N/A'}</td>
                   <td>${req.details?.riderPhone || 'N/A'}</td>
                   <td class="amount">$${req.details?.amount?.toFixed(2) || '0.00'}</td>
@@ -2179,7 +2196,7 @@ Thank you for your order! 🙏`;
     // Group by date
     const dailyStats: any = {};
     filtered.forEach((j: any) => {
-      const date = new Date(j.created_at).toLocaleDateString();
+      const date = formatSGTDate(j.created_at);
       if (!dailyStats[date]) {
         dailyStats[date] = { date, jobs: 0, revenue: 0 };
       }
@@ -2209,7 +2226,7 @@ Thank you for your order! 🙏`;
         let value = row[key] ?? '';
         // Handle special cases
         if (key === 'credits' || key === 'earnings' || key === 'price') value = parseFloat(value || 0).toFixed(2);
-        if (key === 'created_at') value = new Date(value).toLocaleString();
+        if (key === 'created_at') value = formatSGT(value);
         // Escape commas and quotes
         if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
           value = `"${value.replace(/"/g, '""')}"`;
@@ -2232,7 +2249,7 @@ Thank you for your order! 🙏`;
         const key = h.toLowerCase().replace(/ /g, '_');
         let value = row[key] ?? '';
         if (key === 'credits' || key === 'earnings' || key === 'price') value = '$' + parseFloat(value || 0).toFixed(2);
-        if (key === 'created_at') value = new Date(value).toLocaleDateString();
+        if (key === 'created_at') value = formatSGTDate(value);
         if (key === 'password') value = '••••••••';
         return `<td style="border:1px solid #ddd;padding:8px;">${value}</td>`;
       }).join('')}</tr>`
@@ -2257,7 +2274,7 @@ Thank you for your order! 🙏`;
       <body>
         <div class="header">
           <h1>${title}</h1>
-          <p class="date">Generated: ${new Date().toLocaleString()}</p>
+          <p class="date">Generated: ${formatSGT(new Date())}</p>
         </div>
         <p>Total Records: ${data.length}</p>
         <table>
@@ -3378,7 +3395,7 @@ Thank you for your order! 🙏` },
                       />
                       {publicTrackingJob.pod_timestamp && (
                         <p className="text-center text-sm text-gray-500 mt-3">
-                          📸 Photo taken: {new Date(publicTrackingJob.pod_timestamp).toLocaleString()}
+                          📸 Photo taken: {formatSGT(publicTrackingJob.pod_timestamp)}
                         </p>
                       )}
                     </div>
@@ -3391,7 +3408,7 @@ Thank you for your order! 🙏` },
                   {publicTrackingJob.completed_at && (
                     <div className="mt-4 p-3 bg-green-50 rounded-lg text-center">
                       <p className="text-green-700">
-                        ✅ Delivered on {new Date(publicTrackingJob.completed_at).toLocaleString()}
+                        ✅ Delivered on {formatSGT(publicTrackingJob.completed_at)}
                       </p>
                     </div>
                   )}
@@ -4511,7 +4528,7 @@ Thank you for your order! 🙏` },
                               <p className="font-semibold text-gray-800">📍 {order.pickup}</p>
                               <p className="text-sm text-gray-500">→ {order.delivery}</p>
                               <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                                <span>📅 {new Date(order.created_at).toLocaleDateString()}</span>
+                                <span>📅 {formatSGTDate(order.created_at)}</span>
                                 {order.timeframe && <span>🕐 {order.timeframe}</span>}
                                 {order.rider_name && <span>🏍️ {order.rider_name}</span>}
                                 {order.parcel_size && <span>📦 {order.parcel_size}</span>}
@@ -4532,7 +4549,7 @@ Thank you for your order! 🙏` },
                               </span>
                               {order.completed_at && (
                                 <p className="text-xs text-gray-400 mt-1">
-                                  ✓ {new Date(order.completed_at).toLocaleString()}
+                                  ✓ {formatSGT(order.completed_at)}
                                 </p>
                               )}
                             </div>
@@ -4727,7 +4744,7 @@ Thank you for your order! 🙏` },
                               />
                               {job.pod_timestamp && (
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Delivered: {new Date(job.pod_timestamp).toLocaleString()}
+                                  Delivered: {formatSGT(job.pod_timestamp)}
                                 </p>
                               )}
                             </div>
@@ -4957,7 +4974,7 @@ Thank you for your order! 🙏` },
                       <p><span className="text-gray-500">Name:</span> <strong>{curr.name}</strong></p>
                       <p><span className="text-gray-500">Email:</span> {curr.email}</p>
                       <p><span className="text-gray-500">Phone:</span> {curr.phone}</p>
-                      <p><span className="text-gray-500">Member Since:</span> {curr.created_at ? new Date(curr.created_at).toLocaleDateString() : 'N/A'}</p>
+                      <p><span className="text-gray-500">Member Since:</span> {curr.created_at ? formatSGTDate(curr.created_at) : 'N/A'}</p>
                     </div>
                   </div>
                   
@@ -5084,7 +5101,7 @@ Thank you for your order! 🙏` },
                             <p className="font-semibold text-gray-800">{delivery.pickup}</p>
                             <p className="text-sm text-gray-500">→ {delivery.delivery}</p>
                             <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                              <span>📅 {new Date(delivery.created_at).toLocaleDateString()}</span>
+                              <span>📅 {formatSGTDate(delivery.created_at)}</span>
                               <span>👤 {delivery.customer_name}</span>
                               {delivery.parcel_size && <span>📦 {delivery.parcel_size}</span>}
                             </div>
@@ -5108,7 +5125,7 @@ Thank you for your order! 🙏` },
                             </span>
                             {delivery.completed_at && (
                               <p className="text-xs text-gray-400 mt-1">
-                                ✓ {new Date(delivery.completed_at).toLocaleString()}
+                                ✓ {formatSGT(delivery.completed_at)}
                               </p>
                             )}
                             {delivery.pod_image && (
@@ -5304,7 +5321,7 @@ Thank you for your order! 🙏` },
                         <div className="flex justify-between items-center">
                           <div>
                             <p className="font-semibold">${(req.details?.amount || 0).toFixed(2)}</p>
-                            <p className="text-xs text-gray-500">{req.timestamp ? new Date(req.timestamp).toLocaleDateString() : 'N/A'}</p>
+                            <p className="text-xs text-gray-500">{req.timestamp ? formatSGTDate(req.timestamp) : 'N/A'}</p>
                           </div>
                           <div className="text-right">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -5820,7 +5837,7 @@ Thank you for your order! 🙏` },
                     </button>
                     
                     <p className="text-xs text-gray-400 text-center">
-                      Photo will be timestamped: {new Date().toLocaleString()}
+                      Photo will be timestamped: {formatSGT(new Date())}
                     </p>
                   </div>
                 </div>
@@ -6366,7 +6383,7 @@ Thank you for your order! 🙏` },
                                 <span className="text-orange-500">Unassigned</span>
                               )}
                             </p>
-                            <p className="text-xs text-gray-400 mt-1">Created: {new Date(j.created_at).toLocaleString()}</p>
+                            <p className="text-xs text-gray-400 mt-1">Created: {formatSGT(j.created_at)}</p>
                           </div>
                           <div className="flex flex-col gap-2">
                             {/* Assign Rider Button */}
@@ -6558,7 +6575,7 @@ Thank you for your order! 🙏` },
                             <p className="text-sm text-gray-600">Customer: {job.customer_name}</p>
                             {job.pod_timestamp && (
                               <p className="text-xs text-gray-400 mt-1">
-                                📅 POD taken: {new Date(job.pod_timestamp).toLocaleString()}
+                                📅 POD taken: {formatSGT(job.pod_timestamp)}
                               </p>
                             )}
                           </div>
@@ -6733,7 +6750,7 @@ Thank you for your order! 🙏` },
                         .map((req: any) => (
                           <tr key={req.id} className="border-t hover:bg-gray-50">
                             <td className="p-2 text-xs">
-                              {new Date(req.timestamp).toLocaleDateString()}<br/>
+                              {formatSGTDate(req.timestamp)}<br/>
                               <span className="text-gray-400">{new Date(req.timestamp).toLocaleTimeString()}</span>
                             </td>
                             <td className="p-2 font-medium">{req.details?.fullName || req.details?.riderName || 'N/A'}</td>
@@ -6788,7 +6805,7 @@ Thank you for your order! 🙏` },
                                     💰 Mark Completed
                                   </button>
                                   <span className="text-xs text-gray-500">
-                                    Approved {req.details?.processedAt ? new Date(req.details.processedAt).toLocaleDateString() : ''}
+                                    Approved {req.details?.processedAt ? formatSGTDate(req.details.processedAt) : ''}
                                   </span>
                                 </div>
                               )}
@@ -6797,7 +6814,7 @@ Thank you for your order! 🙏` },
                                   <span className="text-xs text-green-600 font-medium">✓ Payment Sent</span>
                                   <br/>
                                   <span className="text-xs text-gray-500">
-                                    {req.details?.completedAt ? new Date(req.details.completedAt).toLocaleDateString() : ''}
+                                    {req.details?.completedAt ? formatSGTDate(req.details.completedAt) : ''}
                                   </span>
                                 </div>
                               )}
@@ -7256,7 +7273,7 @@ Thank you for your order! 🙏` },
                           .map((log: any, idx: number) => (
                             <tr key={idx} className="border-t hover:bg-gray-50">
                               <td className="p-3 text-xs text-gray-500">
-                                {new Date(log.timestamp).toLocaleString()}
+                                {formatSGT(log.timestamp)}
                               </td>
                               <td className="p-3">
                                 <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -9030,7 +9047,7 @@ Thank you for your order! 🙏` },
                   />
                   {selectedPodJob.pod_timestamp && (
                     <p className="text-sm text-gray-500 mt-2">
-                      Captured: {new Date(selectedPodJob.pod_timestamp).toLocaleString()}
+                      Captured: {formatSGT(selectedPodJob.pod_timestamp)}
                     </p>
                   )}
                 </div>
