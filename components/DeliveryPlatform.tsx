@@ -426,49 +426,26 @@ const DeliveryPlatform = () => {
     }
   }, []);
 
-  // GPS Permission Check for Riders (Feature 11)
+  // GPS Permission Check for Riders (Feature 11) - Non-blocking, lenient check
   useEffect(() => {
     if (auth.type === 'rider' && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-      navigator.permissions?.query({ name: 'geolocation' }).then((result) => {
-        if (result.state === 'granted') {
+      // Try to get position with lenient settings - don't block the rider
+      navigator.geolocation.getCurrentPosition(
+        () => {
           setGpsPermissionGranted(true);
-        } else if (result.state === 'denied') {
-          setGpsPermissionGranted(false);
-          setShowGpsWarning(true);
-        } else {
-          // Prompt for permission
-          navigator.geolocation.getCurrentPosition(
-            () => {
-              setGpsPermissionGranted(true);
-              setShowGpsWarning(false);
-            },
-            () => {
-              setGpsPermissionGranted(false);
-              setShowGpsWarning(true);
-            }
-          );
+          setShowGpsWarning(false);
+        },
+        () => {
+          // Don't block - just set to null (unknown) instead of false
+          // GPS will be checked again when rider tries to go online or accept a job
+          setGpsPermissionGranted(null);
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 15000,
+          maximumAge: 60000 // Accept cached position up to 1 minute old
         }
-        
-        // Listen for permission changes
-        result.onchange = () => {
-          if (result.state === 'granted') {
-            setGpsPermissionGranted(true);
-            setShowGpsWarning(false);
-          } else {
-            setGpsPermissionGranted(false);
-            setShowGpsWarning(true);
-          }
-        };
-      }).catch(() => {
-        // Fallback for browsers that don't support permissions API
-        navigator.geolocation.getCurrentPosition(
-          () => setGpsPermissionGranted(true),
-          () => {
-            setGpsPermissionGranted(false);
-            setShowGpsWarning(true);
-          }
-        );
-      });
+      );
     }
   }, [auth.type]);
 
@@ -2731,21 +2708,33 @@ Thank you for your order! 🙏` },
   };
 
   const acceptJob = async (jobId: string) => {
-    // Check if GPS is enabled
+    // Check if GPS is available
     if (!navigator.geolocation) {
       alert('GPS is not supported by your browser. Please use a device with GPS capability.');
       return;
     }
     
     try {
-      // Request GPS permission and check if enabled
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+      // Try high accuracy first, then fall back to low accuracy
+      let position: GeolocationPosition;
+      try {
+        position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 30000
+          });
         });
-      });
+      } catch {
+        // Fallback: try without high accuracy
+        position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            timeout: 20000,
+            maximumAge: 60000
+          });
+        });
+      }
       
       // GPS is working, proceed with accepting job
       await api(`jobs?id=eq.${jobId}`, 'PATCH', { 
@@ -2757,33 +2746,52 @@ Thank you for your order! 🙏` },
       });
       
       // Update rider location
-      await api(`rider_locations?rider_id=eq.${auth.id}`, 'DELETE');
-      await api('rider_locations', 'POST', {
-        rider_id: auth.id,
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        updated_at: new Date().toISOString()
-      });
+      try {
+        await api(`rider_locations?rider_id=eq.${auth.id}`, 'DELETE');
+        await api('rider_locations', 'POST', {
+          rider_id: auth.id,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          updated_at: new Date().toISOString()
+        });
+      } catch (locErr) {
+        console.log('Location update failed, but job accepted:', locErr);
+      }
+      
+      setGpsPermissionGranted(true);
       
       // Clear this job from notifications
       setNewJobNotifications(prev => prev.filter(n => n.id !== jobId));
       
-      alert('Job accepted! Your GPS location is being tracked. Please keep GPS enabled until delivery is complete.');
+      alert('Job accepted! Please keep GPS enabled until delivery is complete.');
       loadData();
     } catch (gpsError: any) {
       if (gpsError.code === 1) {
-        alert('⚠️ GPS Permission Denied\n\nYou must enable GPS/Location Services to accept jobs.\n\nPlease:\n1. Go to your device Settings\n2. Enable Location Services\n3. Allow this app to access your location\n4. Try again');
-      } else if (gpsError.code === 2) {
-        alert('⚠️ GPS Unavailable\n\nCannot determine your location. Please:\n1. Make sure GPS is turned on\n2. Go outside or near a window\n3. Try again');
-      } else if (gpsError.code === 3) {
-        alert('⚠️ GPS Timeout\n\nLocation request timed out. Please try again.');
+        alert('⚠️ GPS Permission Required\n\nPlease allow location access when prompted by your browser.\n\nIf you accidentally blocked it:\n• iPhone: Settings → Safari → Location → Allow\n• Android: Settings → Site Settings → Location → Allow');
       } else {
-        alert('Error accepting job: ' + gpsError.message);
+        // For timeout or unavailable errors, still allow accepting the job
+        const proceed = window.confirm('⚠️ Could not get your GPS location right now.\n\nThis may be due to poor signal. Do you want to accept the job anyway?\n\nYour location will be updated when GPS becomes available.');
+        if (proceed) {
+          try {
+            await api(`jobs?id=eq.${jobId}`, 'PATCH', { 
+              status: 'accepted', 
+              rider_id: auth.id, 
+              rider_name: curr.name, 
+              rider_phone: curr.phone, 
+              accepted_at: new Date().toISOString() 
+            });
+            setNewJobNotifications(prev => prev.filter(n => n.id !== jobId));
+            alert('Job accepted! Please enable GPS as soon as possible for tracking.');
+            loadData();
+          } catch (e: any) {
+            alert('Error accepting job: ' + e.message);
+          }
+        }
       }
     }
   };
 
-  // Rider Go Online - requires GPS
+  // Rider Go Online - GPS with fallback
   const riderGoOnline = async () => {
     if (!navigator.geolocation) {
       alert('GPS is not supported by your browser.');
@@ -2791,28 +2799,46 @@ Thank you for your order! 🙏` },
     }
     
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+      // Try high accuracy first, then fall back
+      let position: GeolocationPosition;
+      try {
+        position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 30000
+          });
         });
-      });
+      } catch {
+        // Fallback: try without high accuracy
+        position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            timeout: 20000,
+            maximumAge: 60000
+          });
+        });
+      }
       
       // Update rider online status in database
       await api(`riders?id=eq.${auth.id}`, 'PATCH', { is_online: true });
       
       // Save rider location
-      await api(`rider_locations?rider_id=eq.${auth.id}`, 'DELETE');
-      await api('rider_locations', 'POST', {
-        rider_id: auth.id,
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        updated_at: new Date().toISOString()
-      });
+      try {
+        await api(`rider_locations?rider_id=eq.${auth.id}`, 'DELETE');
+        await api('rider_locations', 'POST', {
+          rider_id: auth.id,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          updated_at: new Date().toISOString()
+        });
+      } catch (locErr) {
+        console.log('Location save failed, but going online:', locErr);
+      }
       
       setRiderIsOnline(true);
       setRiderHasGPS(true);
+      setGpsPermissionGranted(true);
       setLastJobCheck(new Date().toISOString());
       
       // Request notification permission
@@ -2824,11 +2850,25 @@ Thank you for your order! 🙏` },
       alert('🟢 You are now ONLINE!\n\nYou will receive notifications for new delivery jobs.\n\n🔔 Make sure to allow notifications when prompted!');
       loadData();
     } catch (gpsError: any) {
-      setRiderHasGPS(false);
       if (gpsError.code === 1) {
-        alert('⚠️ GPS Permission Denied\n\nYou must enable GPS to go online.\n\nPlease:\n1. Go to your device Settings\n2. Enable Location Services\n3. Allow this app to access your location\n4. Try again');
+        alert('⚠️ GPS Permission Required\n\nPlease allow location access when prompted by your browser.\n\nIf you accidentally blocked it:\n• iPhone: Settings → Safari → Location → Allow\n• Android: Settings → Site Settings → Location → Allow');
       } else {
-        alert('⚠️ Cannot go online without GPS.\n\nPlease enable GPS and try again.');
+        // For timeout/unavailable, allow going online anyway
+        const proceed = window.confirm('⚠️ Could not get your GPS location right now.\n\nThis may be due to poor signal indoors. Do you want to go online anyway?\n\nYour location will be updated when GPS becomes available.');
+        if (proceed) {
+          try {
+            await api(`riders?id=eq.${auth.id}`, 'PATCH', { is_online: true });
+            setRiderIsOnline(true);
+            setRiderHasGPS(true);
+            setLastJobCheck(new Date().toISOString());
+            requestNotificationPermission();
+            checkForNewJobs();
+            alert('🟢 You are now ONLINE!\n\nGPS location will update when available.');
+            loadData();
+          } catch (e: any) {
+            alert('Error going online: ' + e.message);
+          }
+        }
       }
     }
   };
@@ -2999,28 +3039,32 @@ Thank you for your order! 🙏` },
   }, [auth.type, auth.id, riders]);
 
   const updateStatus = async (status: string) => {
-    // For any status update, verify GPS is still enabled
+    // Try to update GPS location in background, but don't block the status update
     if (status !== 'completed' && status !== 'cancelled') {
       try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
+            enableHighAccuracy: false,
             timeout: 10000,
-            maximumAge: 0
+            maximumAge: 60000
           });
         });
         
-        // Update rider location
-        await api(`rider_locations?rider_id=eq.${auth.id}`, 'DELETE');
-        await api('rider_locations', 'POST', {
-          rider_id: auth.id,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          updated_at: new Date().toISOString()
-        });
+        // Update rider location (best effort)
+        try {
+          await api(`rider_locations?rider_id=eq.${auth.id}`, 'DELETE');
+          await api('rider_locations', 'POST', {
+            rider_id: auth.id,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            updated_at: new Date().toISOString()
+          });
+        } catch (locErr) {
+          console.log('Location update failed:', locErr);
+        }
       } catch (gpsError: any) {
-        alert('⚠️ GPS Required\n\nYou must keep GPS enabled until delivery is complete.\n\nPlease enable GPS and try again.');
-        return;
+        // Don't block - just log and continue with status update
+        console.log('GPS not available for location update, proceeding with status change');
       }
     }
     
@@ -3029,7 +3073,7 @@ Thank you for your order! 🙏` },
       if (status === 'picked-up') updateData.picked_up_at = new Date().toISOString();
       if (status === 'on-the-way') updateData.on_the_way_at = new Date().toISOString();
       await api(`jobs?id=eq.${activeJob.id}`, 'PATCH', updateData);
-      alert(`Status updated: ${status}. Customer will receive WhatsApp notification (when integrated).`);
+      alert(`Status updated: ${status}`);
       loadData();
     } catch (e: any) { alert('Error updating status: ' + e.message); }
   };
@@ -4790,34 +4834,41 @@ Thank you for your order! 🙏` },
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center">
                   <div className="text-6xl mb-4">📍</div>
-                  <h3 className="text-2xl font-bold text-red-600 mb-2">GPS Required</h3>
+                  <h3 className="text-2xl font-bold text-orange-600 mb-2">GPS Recommended</h3>
                   <p className="text-gray-600 mb-4">
-                    To use the MoveIt Rider app, you must enable GPS location services. 
-                    This is required to track deliveries and update customers in real-time.
+                    For the best experience, please enable GPS location services. 
+                    This helps track deliveries and update customers in real-time.
                   </p>
                   <div className="bg-yellow-50 p-4 rounded-lg mb-4">
                     <p className="text-sm text-yellow-800">
                       <strong>How to enable:</strong><br/>
-                      1. Go to your device Settings<br/>
-                      2. Find Location / GPS settings<br/>
-                      3. Enable location for this browser/app<br/>
-                      4. Return here and refresh
+                      • iPhone: Settings → Privacy → Location Services → Safari → Allow<br/>
+                      • Android: Settings → Location → Turn on, then allow in browser
                     </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      navigator.geolocation.getCurrentPosition(
-                        () => {
-                          setGpsPermissionGranted(true);
-                          setShowGpsWarning(false);
-                        },
-                        () => alert('GPS still not enabled. Please enable it in your device settings.')
-                      );
-                    }}
-                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
-                  >
-                    I've Enabled GPS - Check Again
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.geolocation.getCurrentPosition(
+                          () => {
+                            setGpsPermissionGranted(true);
+                            setShowGpsWarning(false);
+                          },
+                          () => alert('GPS not detected yet. You can continue and try again later.'),
+                          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+                        );
+                      }}
+                      className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
+                    >
+                      Check GPS
+                    </button>
+                    <button
+                      onClick={() => setShowGpsWarning(false)}
+                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300"
+                    >
+                      Continue Anyway
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -4873,13 +4924,19 @@ Thank you for your order! 🙏` },
                   Optimize Route
                 </button>
               )}
-              {gpsPermissionGranted === false && (
+              {gpsPermissionGranted !== true && (
                 <button
-                  onClick={() => setShowGpsWarning(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium"
+                  onClick={() => {
+                    navigator.geolocation.getCurrentPosition(
+                      () => { setGpsPermissionGranted(true); alert('GPS is working!'); },
+                      () => setShowGpsWarning(true),
+                      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+                    );
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg font-medium"
                 >
                   <AlertCircle size={18} />
-                  GPS Disabled
+                  Enable GPS
                 </button>
               )}
             </div>
@@ -5911,22 +5968,15 @@ Thank you for your order! 🙏` },
                       <div className="sticky bottom-0 bg-white pt-3 pb-2 border-t">
                         <button 
                           onClick={async () => {
-                            if (gpsPermissionGranted === false) {
-                              alert('Please enable GPS to accept jobs');
-                              return;
-                            }
-                            // Accept all selected jobs
+                            // Accept all selected jobs - GPS check happens inside acceptJob
                             for (const jobId of selectedJobsForAccept) {
                               await acceptJob(jobId);
                             }
                             setSelectedJobsForAccept([]);
                           }} 
                           className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors"
-                          disabled={gpsPermissionGranted === false}
                         >
-                          {gpsPermissionGranted === false 
-                            ? '⚠️ Enable GPS to Accept' 
-                            : `Accept ${selectedJobsForAccept.length} Job${selectedJobsForAccept.length > 1 ? 's' : ''}`}
+                          {`Accept ${selectedJobsForAccept.length} Job${selectedJobsForAccept.length > 1 ? 's' : ''}`}
                         </button>
                       </div>
                     )}
