@@ -241,6 +241,7 @@ const DeliveryPlatform = () => {
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
 
   // GPS Enforcement state (Feature 11)
@@ -1561,6 +1562,26 @@ const DeliveryPlatform = () => {
       loadData();
     } catch (e: any) {
       alert('Error saving profile: ' + e.message);
+    }
+  };
+
+  // Delete customer account
+  const deleteCustomerAccount = async () => {
+    if (!auth.id) return;
+    setDeleteLoading(true);
+    try {
+      // Delete the customer record from the database
+      await api(`customers?id=eq.${auth.id}`, 'DELETE');
+      
+      // Clear auth and local storage
+      setAuth({ isAuth: false, type: null, id: null });
+      localStorage.removeItem('moveit_auth');
+      setShowDeleteConfirm(false);
+      alert('Your account has been successfully deleted. All your personal data has been removed.');
+    } catch (e: any) {
+      alert('Error deleting account: ' + e.message);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -4375,7 +4396,7 @@ Thank you for your order! 🙏` },
                         onClick={() => setShowDeleteConfirm(true)}
                         className="mt-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
                       >
-                        <Trash2 size={16} className="inline mr-1" /> Request for Termination of Account
+                        <Trash2 size={16} className="inline mr-1" /> Delete Account
                       </button>
                     </div>
                   )}
@@ -8968,34 +8989,39 @@ Thank you for your order! 🙏` },
           </div>
         )}
 
-        {/* Account Termination Request Modal */}
+        {/* Account Deletion Confirmation Modal */}
         {showDeleteConfirm && curr && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-              <h3 className="text-xl font-bold text-red-600 mb-4">⚠️ Request Account Termination</h3>
-              <p className="text-gray-700 mb-2">
-                Are you sure you want to request the termination of your account? This action will:
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertCircle size={24} className="text-red-600" />
+                </div>
+                <h3 className="text-xl font-bold text-red-600">Delete Account</h3>
+              </div>
+              <p className="text-gray-700 mb-3">
+                Are you sure you want to permanently delete your account? This will:
               </p>
-              <ul className="text-sm text-gray-600 mb-4 list-disc list-inside space-y-1">
-                <li>Send a request to our admin team</li>
-                <li>Your account and all associated data will be permanently deleted within 30 days</li>
-                <li>Any remaining credits will be forfeited</li>
-                <li>This action cannot be undone</li>
-              </ul>
-              <div className="flex gap-2">
-                <a
-                  href={`mailto:moveit.admin@ymailzone.com?subject=${encodeURIComponent('Request for the termination of Customer Account')}&body=${encodeURIComponent(`Dear MoveIt Admin,\n\nI would like to request the termination of my customer account.\n\nCustomer Details:\nName: ${curr.name}\nEmail: ${curr.email}\nPhone: ${curr.phone}\nCustomer ID: ${curr.id}\n\nPlease delete my account and all associated data within 30 days.\n\nThank you.`)}`}
-                  onClick={() => {
-                    setShowDeleteConfirm(false);
-                    alert('Your account termination request email has been prepared. Please send it to complete the request. Your account will be deleted within 30 days.');
-                  }}
-                  className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-center font-medium"
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                <ul className="text-sm text-red-800 space-y-1">
+                  <li>• Permanently remove your account and personal data</li>
+                  <li>• Delete your order history and saved addresses</li>
+                  <li>• Forfeit any remaining credits (${(curr.credits || 0).toFixed(2)})</li>
+                  <li>• This action cannot be undone</li>
+                </ul>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={deleteCustomerAccount}
+                  disabled={deleteLoading}
+                  className="flex-1 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50"
                 >
-                  Confirm & Send Email
-                </a>
+                  {deleteLoading ? 'Deleting...' : 'Yes, Delete My Account'}
+                </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
+                  disabled={deleteLoading}
+                  className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium disabled:opacity-50"
                 >
                   Cancel
                 </button>
