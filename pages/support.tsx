@@ -67,7 +67,7 @@ export default function Support() {
               📧 Email Support
             </h2>
             <a 
-              href="mailto:moveitdelivery@ymailzone.com"
+              href="mailto:moveit.admin@ymailzone.com"
               style={{
                 display: 'inline-block',
                 background: 'linear-gradient(135deg, #4A90D9, #3B7DD8)',
