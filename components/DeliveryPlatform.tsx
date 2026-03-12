@@ -3896,9 +3896,9 @@ Thank you for your order! 🙏` },
                   
                   {/* Quick Amount Buttons */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Quick Select</label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[10, 20, 50, 100].map((amt) => (
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Amount</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[10, 20, 50, 100, 500, 1000].map((amt) => (
                         <button
                           key={amt}
                           onClick={() => setTopUpAmt(amt.toString())}
@@ -3912,23 +3912,6 @@ Thank you for your order! 🙏` },
                         </button>
                       ))}
                     </div>
-                  </div>
-                  
-                  {/* Custom Amount Input */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Or Enter Custom Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">$</span>
-                      <input
-                        type="number"
-                        value={topUpAmt}
-                        onChange={(e) => setTopUpAmt(e.target.value)}
-                        placeholder="Enter amount (min $10)"
-                        min="10"
-                        className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg text-lg font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">Minimum top-up amount: $10</p>
                   </div>
                   
                   {topUpAmt && parseFloat(topUpAmt) >= 10 && (
