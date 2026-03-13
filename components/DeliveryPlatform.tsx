@@ -3968,6 +3968,8 @@ Thank you for your order! 🙏` },
                         
                         // Redirect to Stripe checkout
                         if (data.url) {
+                          // Use direct navigation - most reliable across all platforms including iOS WebViews
+                          // window.open and target='_blank' are blocked by iOS popup blockers in WebViews
                           window.location.href = data.url;
                         }
                       } catch (error: any) {
