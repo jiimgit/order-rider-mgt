@@ -171,6 +171,8 @@ const DeliveryPlatform = () => {
   const [adminView, setAdminView] = useState('customers');
   const [editCust, setEditCust] = useState<any>(null);
   const [editRider, setEditRider] = useState<any>(null);
+  const [showCreateRider, setShowCreateRider] = useState(false);
+  const [createRiderForm, setCreateRiderForm] = useState({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time' });
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmt, setTopUpAmt] = useState('');
   const [payNowQR, setPayNowQR] = useState('');
@@ -2566,6 +2568,12 @@ Thank you for your order! 🙏` },
         setAuth(authData);
         localStorage.setItem('moveit_auth', JSON.stringify(authData)); // Persistent login
         setLoginForm({ email: '', password: '' });
+        // Update last_login timestamp
+        try {
+          await api(`${table}?id=eq.${users[0].id}`, 'PATCH', { last_login: new Date().toISOString() });
+        } catch (e) {
+          console.log('Failed to update last_login:', e);
+        }
         alert('Login successful!');
       } else {
         alert('Invalid credentials. Please check:\n- Email is correct\n- Password is correct\n- You have registered an account');
@@ -3624,7 +3632,7 @@ Thank you for your order! 🙏` },
                     Sign In
                   </button>
                 </div>
-                {cfg.canReg && (
+                {cfg.canReg && view !== 'rider' && (
                   <div className="mt-6 text-center">
                     <p className="text-gray-600 mb-3">Don't have an account?</p>
                     <button 
@@ -3636,7 +3644,7 @@ Thank you for your order! 🙏` },
                     </button>
                   </div>
                 )}
-                {view !== 'admin' && view === 'rider' && (
+                {false && view === 'rider' && (
                   <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                     <p className="text-xs text-blue-800">
                       Register to get your unique referral code and start earning!
@@ -6129,6 +6137,8 @@ Thank you for your order! 🙏` },
                             <p className="font-semibold text-lg">{c.name}</p>
                             <p className="text-sm text-gray-600">{c.email} | {c.phone}</p>
                             <p className="text-sm font-bold text-green-600 mt-1">Credits: ${(c.credits || 0).toFixed(2)}</p>
+                            <p className="text-xs text-gray-400 mt-1">📅 Registered: {c.created_at ? formatSGT(c.created_at) : 'N/A'}</p>
+                            <p className="text-xs text-gray-400">🕐 Last Login: {c.last_login ? formatSGT(c.last_login) : 'Never'}</p>
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => setEditCust({...c, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
@@ -6193,6 +6203,12 @@ Thank you for your order! 🙏` },
                     >
                       <FileText size={16} /> PDF
                     </button>
+                    <button 
+                      onClick={() => setShowCreateRider(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
+                    >
+                      <UserPlus size={16} /> Create a New Rider
+                    </button>
                   </div>
                 </div>
                 
@@ -6220,6 +6236,13 @@ Thank you for your order! 🙏` },
                             <p className="text-sm text-gray-600">{r.email} | {r.phone}</p>
                             <p className="text-sm text-gray-600 mt-1">Code: <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">{r.referral_code}</span></p>
                             <p className="text-sm font-bold text-green-600 mt-1">Earnings: ${(r.earnings || 0).toFixed(2)} | Jobs: {r.completed_jobs || 0}</p>
+                            <p className="text-xs text-gray-400 mt-1">📅 Registered: {r.created_at ? formatSGT(r.created_at) : 'N/A'}</p>
+                            <p className="text-xs text-gray-400">🕐 Last Login: {r.last_login ? formatSGT(r.last_login) : 'Never'}</p>
+                            <p className="text-xs mt-1">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${r.employment_type === 'full-time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                {r.employment_type === 'full-time' ? 'Full-Time' : 'Part-Time'}
+                              </span>
+                            </p>
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => setEditRider({...r, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
@@ -8841,6 +8864,17 @@ Thank you for your order! 🙏` },
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
+                  <select
+                    value={editRider.employment_type || 'part-time'}
+                    onChange={(e) => setEditRider({...editRider, employment_type: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="part-time">Part-Time</option>
+                    <option value="full-time">Full-Time</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     New Password <span className="text-gray-400 font-normal">(leave empty to keep current)</span>
                   </label>
@@ -8870,7 +8904,8 @@ Thank you for your order! 🙏` },
                           email: editRider.email,
                           phone: editRider.phone,
                           tier: editRider.tier,
-                          earnings: editRider.earnings
+                          earnings: editRider.earnings,
+                          employment_type: editRider.employment_type || 'part-time'
                         };
                         // Only update password if a new one was entered
                         if (editRider.password && editRider.password.trim() !== '') {
@@ -8887,6 +8922,123 @@ Thank you for your order! 🙏` },
                     className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
                   >
                     Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create New Rider Modal (Admin) */}
+        {showCreateRider && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Create a New Rider</h3>
+                <button onClick={() => setShowCreateRider(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                  <input 
+                    type="text" 
+                    value={createRiderForm.name} 
+                    onChange={(e) => setCreateRiderForm({...createRiderForm, name: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                    placeholder="Rider's full name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input 
+                    type="email" 
+                    value={createRiderForm.email} 
+                    onChange={(e) => setCreateRiderForm({...createRiderForm, email: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                    placeholder="rider@email.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                  <input 
+                    type="password" 
+                    value={createRiderForm.password} 
+                    onChange={(e) => setCreateRiderForm({...createRiderForm, password: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                    placeholder="Set a password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                  <input 
+                    type="text" 
+                    value={createRiderForm.phone} 
+                    onChange={(e) => setCreateRiderForm({...createRiderForm, phone: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                    placeholder="e.g., 91234567"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tier</label>
+                  <input 
+                    type="number" 
+                    value={createRiderForm.tier} 
+                    onChange={(e) => setCreateRiderForm({...createRiderForm, tier: parseInt(e.target.value) || 1})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Employment Type</label>
+                  <select
+                    value={createRiderForm.employment_type}
+                    onChange={(e) => setCreateRiderForm({...createRiderForm, employment_type: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="part-time">Part-Time</option>
+                    <option value="full-time">Full-Time</option>
+                  </select>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button 
+                    onClick={() => setShowCreateRider(false)} 
+                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      if (!createRiderForm.name || !createRiderForm.email || !createRiderForm.password || !createRiderForm.phone) {
+                        alert('Please fill in all required fields');
+                        return;
+                      }
+                      try {
+                        const code = createRiderForm.name.substring(0, 4).toUpperCase() + Math.floor(Math.random() * 10000);
+                        await api('riders', 'POST', {
+                          name: createRiderForm.name,
+                          email: createRiderForm.email,
+                          password: createRiderForm.password,
+                          phone: createRiderForm.phone,
+                          tier: createRiderForm.tier || 1,
+                          referral_code: code,
+                          earnings: 0,
+                          completed_jobs: 0,
+                          employment_type: createRiderForm.employment_type,
+                          upline_chain: []
+                        });
+                        alert(`Rider "${createRiderForm.name}" created successfully!\nReferral Code: ${code}`);
+                        setShowCreateRider(false);
+                        setCreateRiderForm({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time' });
+                        loadData();
+                      } catch (e: any) {
+                        alert('Error creating rider: ' + e.message);
+                      }
+                    }} 
+                    className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                  >
+                    Create Rider
                   </button>
                 </div>
               </div>
