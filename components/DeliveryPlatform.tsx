@@ -229,6 +229,7 @@ const DeliveryPlatform = () => {
     pickupPhone: '',
     stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
     timeframe: '',
+    deliveryDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
     price: '10',
     parcelSize: 'small',
     remarks: ''
@@ -8016,6 +8017,17 @@ Thank you for your order! 🙏` },
                   <h4 className="font-semibold text-purple-900 mb-3">📦 Job Details</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Date <span className="text-red-500">*</span></label>
+                      <input
+                        type="date"
+                        value={adminJobForm.deliveryDate || ''}
+                        onChange={(e) => setAdminJobForm({...adminJobForm, deliveryDate: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                        min={new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })}
+                        required
+                      />
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Time Slot <span className="text-red-500">*</span></label>
                       <select
                         value={adminJobForm.timeframe}
@@ -8128,6 +8140,7 @@ Thank you for your order! 🙏` },
                         pickupPhone: '',
                         stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
                         timeframe: '',
+                        deliveryDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
                         price: '10',
                         parcelSize: 'small',
                         remarks: ''
