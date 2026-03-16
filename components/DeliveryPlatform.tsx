@@ -193,7 +193,7 @@ const DeliveryPlatform = () => {
   const [editCust, setEditCust] = useState<any>(null);
   const [editRider, setEditRider] = useState<any>(null);
   const [showCreateRider, setShowCreateRider] = useState(false);
-  const [createRiderForm, setCreateRiderForm] = useState({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time' });
+  const [createRiderForm, setCreateRiderForm] = useState({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time', referralCode: '' });
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmt, setTopUpAmt] = useState('');
   const [payNowQR, setPayNowQR] = useState('');
@@ -9166,6 +9166,17 @@ Thank you for your order! 🙏` },
                     <option value="full-time">Full-Time</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Referral Code (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={createRiderForm.referralCode} 
+                    onChange={(e) => setCreateRiderForm({...createRiderForm, referralCode: e.target.value.toUpperCase()})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" 
+                    placeholder="Enter existing rider's referral code"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">If this rider was referred by another rider, enter their referral code to link the upline chain.</p>
+                </div>
                 <div className="flex gap-3 mt-6">
                   <button 
                     onClick={() => setShowCreateRider(false)} 
@@ -9181,21 +9192,35 @@ Thank you for your order! 🙏` },
                       }
                       try {
                         const code = createRiderForm.name.substring(0, 4).toUpperCase() + Math.floor(Math.random() * 10000);
+                        
+                        // Build upline chain if referral code provided
+                        let uplineChain: any[] = [];
+                        let riderTier = createRiderForm.tier || 1;
+                        if (createRiderForm.referralCode) {
+                          const ref = await api(`riders?referral_code=eq.${createRiderForm.referralCode}`);
+                          if (ref && ref.length > 0) {
+                            uplineChain = [{ id: ref[0].id, name: ref[0].name, tier: ref[0].tier }, ...(ref[0].upline_chain || [])];
+                            riderTier = (ref[0].tier || 1) + 1;
+                          } else {
+                            alert('Referral code not found. Rider will be created without upline.');
+                          }
+                        }
+                        
                         await api('riders', 'POST', {
                           name: createRiderForm.name,
                           email: createRiderForm.email,
                           password: createRiderForm.password,
                           phone: createRiderForm.phone,
-                          tier: createRiderForm.tier || 1,
+                          tier: riderTier,
                           referral_code: code,
                           earnings: 0,
                           completed_jobs: 0,
                           employment_type: createRiderForm.employment_type,
-                          upline_chain: []
+                          upline_chain: uplineChain
                         });
-                        alert(`Rider "${createRiderForm.name}" created successfully!\nReferral Code: ${code}`);
+                        alert(`Rider "${createRiderForm.name}" created successfully!\nReferral Code: ${code}${uplineChain.length > 0 ? `\nUpline: ${uplineChain[0].name} (Tier ${uplineChain[0].tier})` : ''}\nTier: ${riderTier}`);
                         setShowCreateRider(false);
-                        setCreateRiderForm({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time' });
+                        setCreateRiderForm({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time', referralCode: '' });
                         loadData();
                       } catch (e: any) {
                         alert('Error creating rider: ' + e.message);
