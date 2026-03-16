@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle, Search, Download, ChevronLeft, ChevronRight, FileText, Calendar, Upload, MapPin, Eye, UserCheck, BarChart3, Clock, CheckCircle, XCircle, Send, Link, Check } from 'lucide-react';
+import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, CreditCard, QrCode, X, Navigation, AlertCircle, Search, Download, ChevronLeft, ChevronRight, FileText, Calendar, Upload, MapPin, Eye, UserCheck, BarChart3, Clock, CheckCircle, XCircle, Send, Link, Check, RefreshCw } from 'lucide-react';
 
 const SUPABASE_URL = 'https://esylsugzysfjntukmxks.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeWxzdWd6eXNmam50dWtteGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDgyODEsImV4cCI6MjA4NDYyNDI4MX0.Ldbk29uDGte1ue7LSAzEoHjAJNjYToAA2zyHWloS2fI';
@@ -6458,6 +6458,20 @@ Thank you for your order! 🙏` },
                                 <UserCheck size={16} /> Assign
                               </button>
                             )}
+                            {/* Reassign Rider Button - Shows when rider already assigned and job not completed/cancelled */}
+                            {j.rider_id && j.status !== 'completed' && j.status !== 'cancelled' && (
+                              <button 
+                                onClick={() => {
+                                  if (window.confirm(`Reassign this job from ${j.rider_name || 'current rider'}?\n\nThe current rider will be removed and you can select a new rider.`)) {
+                                    setShowAssignRider(j);
+                                  }
+                                }}
+                                className="p-2 bg-purple-100 rounded hover:bg-purple-200 flex items-center gap-1 text-xs text-purple-700" 
+                                title="Reassign to another rider"
+                              >
+                                <RefreshCw size={16} /> Reassign
+                              </button>
+                            )}
                             {/* Cancel Job Button - Refunds customer credits */}
                             {j.status !== 'completed' && j.status !== 'cancelled' && (
                               <button 
@@ -8485,7 +8499,7 @@ Thank you for your order! 🙏` },
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold">Assign Rider</h3>
+                <h3 className="text-2xl font-bold">{showAssignRider.rider_id ? 'Reassign Rider' : 'Assign Rider'}</h3>
                 <button onClick={() => setShowAssignRider(null)} className="p-2 hover:bg-gray-100 rounded-full">
                   <X size={24} />
                 </button>
@@ -8496,6 +8510,14 @@ Thank you for your order! 🙏` },
                 <p className="text-sm text-blue-700">Customer: {showAssignRider.customer_name}</p>
                 <p className="text-sm text-blue-700">Price: ${showAssignRider.price}</p>
               </div>
+
+              {/* Show current rider if reassigning */}
+              {showAssignRider.rider_id && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">🔄 Current Rider: <strong>{showAssignRider.rider_name}</strong> ({showAssignRider.rider_phone})</p>
+                  <p className="text-xs text-red-600 mt-1">Selecting a new rider below will replace the current rider.</p>
+                </div>
+              )}
 
               <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-sm text-yellow-800">⚠️ Only <strong>online</strong> riders with <strong>GPS enabled</strong> are shown below.</p>
@@ -8510,13 +8532,15 @@ Thank you for your order! 🙏` },
                     const riderLoc = allRiderLocations?.find((loc: any) => loc.rider_id === r.id);
                     const isOnline = r.is_online === true;
                     const hasRecentGPS = riderLoc && riderLoc.updated_at > thirtyMinsAgo;
-                    return isOnline && hasRecentGPS;
+                    // Exclude the currently assigned rider from the list when reassigning
+                    const isCurrentRider = showAssignRider.rider_id === r.id;
+                    return isOnline && hasRecentGPS && !isCurrentRider;
                   });
                   
                   if (onlineRidersWithGPS.length === 0) {
                     return (
                       <div className="text-center py-6">
-                        <p className="text-gray-500 mb-2">No riders available</p>
+                        <p className="text-gray-500 mb-2">No other riders available</p>
                         <p className="text-sm text-gray-400">Riders must be online with GPS enabled to be assigned jobs.</p>
                       </div>
                     );
@@ -8525,7 +8549,21 @@ Thank you for your order! 🙏` },
                   return onlineRidersWithGPS.map((r: any) => (
                     <button
                       key={r.id}
-                      onClick={() => assignRiderToJob(showAssignRider.id, r.id, r.name, r.phone)}
+                      onClick={async () => {
+                        try {
+                          await assignRiderToJob(showAssignRider.id, r.id, r.name, r.phone);
+                          if (showAssignRider.rider_id) {
+                            await logAuditAction('admin_reassign_rider', {
+                              jobId: showAssignRider.id,
+                              orderId: showAssignRider.order_id,
+                              previousRider: showAssignRider.rider_name,
+                              newRider: r.name
+                            });
+                          }
+                        } catch (e: any) {
+                          alert('Error assigning rider: ' + e.message);
+                        }
+                      }}
                       className="w-full p-3 border rounded-lg hover:border-green-500 hover:bg-green-50 text-left transition-colors"
                     >
                       <div className="flex items-center justify-between">
