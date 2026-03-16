@@ -90,7 +90,15 @@ const extractPostalCode = (address: string): string | null => {
 // Format date/time in Singapore timezone (SGT, UTC+8)
 const formatSGT = (dateStr: string | Date): string => {
   try {
-    return new Date(dateStr).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' });
+    return new Date(dateStr).toLocaleString('en-SG', { 
+      timeZone: 'Asia/Singapore',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   } catch {
     return new Date(dateStr).toLocaleString();
   }
@@ -183,7 +191,7 @@ const DeliveryPlatform = () => {
     pickupPhone: '',
     stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }], // Multi-stop support with unit no
     timeframe: '', 
-    deliveryDate: '',
+    deliveryDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
     price: '10',
     parcelSize: 'small',
     remarks: ''
@@ -1791,6 +1799,9 @@ const DeliveryPlatform = () => {
             {job.order_id && (
               <p className="text-sm font-bold text-purple-600">Order ID: #{job.order_id}</p>
             )}
+            {job.delivery_date && (
+              <p className="text-sm text-gray-600">📅 Delivery Date: {job.delivery_date}</p>
+            )}
             {(job.timeframe || job.delivery_slot) && (
               <p className="text-sm text-gray-600">🕐 Delivery Slot: {job.timeframe || job.delivery_slot}</p>
             )}
@@ -2652,6 +2663,7 @@ Thank you for your order! 🙏` },
     if (!jobForm.stops[0]?.address) return alert('Please fill in at least one drop-off location');
     if (!jobForm.parcelSize) return alert('Please select a parcel size');
     if (!jobForm.timeframe) return alert('Please select a delivery time slot');
+    if (!jobForm.deliveryDate) return alert('Please select a delivery date');
     
     // Validate all stops have addresses and unit numbers
     const emptyStops = jobForm.stops.filter(s => !s.address);
@@ -2684,6 +2696,7 @@ Thank you for your order! 🙏` },
         total_stops: jobForm.stops.length,
         timeframe: jobForm.timeframe, 
         delivery_slot: jobForm.timeframe,
+        delivery_date: jobForm.deliveryDate || null,
         price, 
         status: 'posted',
         recipient_name: jobForm.stops[0]?.recipientName || null,
@@ -2722,7 +2735,7 @@ Thank you for your order! 🙏` },
         pickupPhone: '',
         stops: [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
         timeframe: '', 
-        deliveryDate: '',
+        deliveryDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
         price: '10', 
         parcelSize: 'small', 
         remarks: '' 
@@ -4255,13 +4268,14 @@ Thank you for your order! 🙏` },
 
                 {/* Delivery Date */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date <span className="text-red-500">*</span></label>
                   <input 
                     type="date" 
                     value={jobForm.deliveryDate || ''} 
                     onChange={(e) => setJobForm({...jobForm, deliveryDate: e.target.value})} 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    min={new Date().toISOString().split('T')[0]}
+                    min={new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })}
+                    required
                   />
                 </div>
 
@@ -8093,6 +8107,7 @@ Thank you for your order! 🙏` },
                         total_stops: adminJobForm.stops.length,
                         timeframe: adminJobForm.timeframe,
                         delivery_slot: adminJobForm.timeframe,
+                        delivery_date: adminJobForm.deliveryDate || null,
                         price,
                         status: 'posted',
                         recipient_name: adminJobForm.stops[0]?.recipientName || null,
