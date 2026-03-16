@@ -1352,8 +1352,8 @@ const DeliveryPlatform = () => {
           delivery: deliveryAddr,
           stops: [{ address: job.delivery || '', unitNo: job.delivery_unit_no || '', recipientName: job.recipient_name || '', recipientPhone: job.recipient_phone || '' }],
           total_stops: 1,
-          timeframe: job.timeframe || 'same-day',
-          delivery_slot: job.timeframe || 'same-day',
+          timeframe: job.delivery_slot || '6am-11am',
+          delivery_slot: job.delivery_slot || '6am-11am',
           delivery_date: job.delivery_date || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
           price: parseFloat(job.price) || 10,
           status: 'posted',
@@ -1955,9 +1955,9 @@ Thank you for your order! 🙏`;
   const downloadJobTemplate = () => {
     // Template with headers and sample data
     const template = [
-      ['customer_name', 'customer_phone', 'pickup', 'pickup_unit_no', 'delivery', 'delivery_unit_no', 'recipient_name', 'recipient_phone', 'timeframe', 'delivery_date', 'parcel_size', 'price', 'notes'],
-      ['John Doe', '91234567', '123 Orchard Road Singapore 238858', '#01-01', '456 Marina Bay Sands Singapore 018956', '#05-10', 'Alice Tan', '81234567', 'same-day', '2026-03-16', 'small', '15', 'Handle with care'],
-      ['Jane Smith', '98765432', '789 Bugis Street Singapore 188067', 'N/A', '321 Tampines Ave 5 Singapore 529651', '#02-15', 'Bob Lee', '92345678', 'next-day', '2026-03-17', 'medium', '12', 'Call before delivery'],
+      ['customer_name', 'customer_phone', 'pickup', 'pickup_unit_no', 'delivery', 'delivery_unit_no', 'recipient_name', 'recipient_phone', 'delivery_slot', 'delivery_date', 'parcel_size', 'price', 'notes'],
+      ['John Doe', '91234567', '123 Orchard Road Singapore 238858', '#01-01', '456 Marina Bay Sands Singapore 018956', '#05-10', 'Alice Tan', '81234567', '6am-11am', '2026-03-16', 'small', '15', 'Handle with care'],
+      ['Jane Smith', '98765432', '789 Bugis Street Singapore 188067', 'N/A', '321 Tampines Ave 5 Singapore 529651', '#02-15', 'Bob Lee', '92345678', '12pm-5pm', '2026-03-17', 'medium', '12', 'Call before delivery'],
       ['', '', '', '', '', '', '', '', '', '', '', '', ''],
       ['DELETE THE SAMPLE ROWS ABOVE AND ADD YOUR OWN DATA', '', '', '', '', '', '', '', '', '', '', '', ''],
     ];
@@ -2062,8 +2062,8 @@ Thank you for your order! 🙏`;
           delivery: deliveryAddr,
           stops: [{ address: job.delivery || '', unitNo: job.delivery_unit_no || '', recipientName: job.recipient_name || '', recipientPhone: job.recipient_phone || '' }],
           total_stops: 1,
-          timeframe: job.timeframe || 'same-day',
-          delivery_slot: job.timeframe || 'same-day',
+          timeframe: job.delivery_slot || '6am-11am',
+          delivery_slot: job.delivery_slot || '6am-11am',
           delivery_date: job.delivery_date || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
           price: job.price,
           status: 'posted',
@@ -4384,11 +4384,11 @@ Thank you for your order! 🙏` },
                   {/* CSV Template */}
                   <div className="mb-4 p-3 bg-white rounded-lg border">
                     <p className="text-sm font-medium text-gray-700 mb-2">Required Columns:</p>
-                    <code className="text-xs text-gray-600">pickup, pickup_unit_no, delivery, delivery_unit_no, recipient_name, recipient_phone, timeframe, delivery_date, parcel_size, price, notes</code>
+                    <code className="text-xs text-gray-600">pickup, pickup_unit_no, delivery, delivery_unit_no, recipient_name, recipient_phone, delivery_slot, delivery_date, parcel_size, price, notes</code>
                     <div className="flex gap-2 mt-2">
                       <button
                         onClick={() => {
-                          const template = 'pickup,pickup_unit_no,delivery,delivery_unit_no,recipient_name,recipient_phone,timeframe,delivery_date,parcel_size,price,notes\n"123 Orchard Rd","#01-01","456 Marina Bay","#05-10","John Doe","91234567","same-day","2026-03-16","small","12","Handle with care"\n"789 Bugis St","N/A","321 Tampines Ave","#02-15","Jane Smith","98765432","next-day","2026-03-17","medium","10",""';
+                          const template = 'pickup,pickup_unit_no,delivery,delivery_unit_no,recipient_name,recipient_phone,delivery_slot,delivery_date,parcel_size,price,notes\n"123 Orchard Rd","#01-01","456 Marina Bay","#05-10","John Doe","91234567","6am-11am","2026-03-16","small","12","Handle with care"\n"789 Bugis St","N/A","321 Tampines Ave","#02-15","Jane Smith","98765432","12pm-5pm","2026-03-17","medium","10",""';
                           const blob = new Blob([template], { type: 'text/csv' });
                           const link = document.createElement('a');
                           link.href = URL.createObjectURL(blob);
@@ -4402,10 +4402,10 @@ Thank you for your order! 🙏` },
                       <span className="text-gray-400">|</span>
                       <button
                         onClick={() => {
-                          const headers = ['pickup', 'pickup_unit_no', 'delivery', 'delivery_unit_no', 'recipient_name', 'recipient_phone', 'timeframe', 'delivery_date', 'parcel_size', 'price', 'notes'];
+                          const headers = ['pickup', 'pickup_unit_no', 'delivery', 'delivery_unit_no', 'recipient_name', 'recipient_phone', 'delivery_slot', 'delivery_date', 'parcel_size', 'price', 'notes'];
                           const sampleData = [
-                            ['123 Orchard Rd', '#01-01', '456 Marina Bay', '#05-10', 'John Doe', '91234567', 'same-day', '2026-03-16', 'small', '12', 'Handle with care'],
-                            ['789 Bugis St', 'N/A', '321 Tampines Ave', '#02-15', 'Jane Smith', '98765432', 'next-day', '2026-03-17', 'medium', '10', '']
+                            ['123 Orchard Rd', '#01-01', '456 Marina Bay', '#05-10', 'John Doe', '91234567', '6am-11am', '2026-03-16', 'small', '12', 'Handle with care'],
+                            ['789 Bugis St', 'N/A', '321 Tampines Ave', '#02-15', 'Jane Smith', '98765432', '12pm-5pm', '2026-03-17', 'medium', '10', '']
                           ];
                           
                           let csvContent = headers.join(',') + '\n';
@@ -8202,7 +8202,7 @@ Thank you for your order! 🙏` },
                         <th className="p-2 text-left font-semibold text-blue-800">delivery_unit_no</th>
                         <th className="p-2 text-left font-semibold text-blue-800">recipient_name</th>
                         <th className="p-2 text-left font-semibold text-blue-800">recipient_phone</th>
-                        <th className="p-2 text-left font-semibold text-blue-800">timeframe</th>
+                        <th className="p-2 text-left font-semibold text-blue-800">delivery_slot</th>
                         <th className="p-2 text-left font-semibold text-blue-800">delivery_date</th>
                         <th className="p-2 text-left font-semibold text-blue-800">parcel_size</th>
                         <th className="p-2 text-left font-semibold text-blue-800">price</th>
@@ -8219,7 +8219,7 @@ Thank you for your order! 🙏` },
                         <td className="p-2">#05-10</td>
                         <td className="p-2">Alice Tan</td>
                         <td className="p-2">81234567</td>
-                        <td className="p-2">same-day</td>
+                        <td className="p-2">6am-11am</td>
                         <td className="p-2">2026-03-16</td>
                         <td className="p-2">small</td>
                         <td className="p-2">15</td>
@@ -8234,7 +8234,7 @@ Thank you for your order! 🙏` },
                         <td className="p-2">#02-15</td>
                         <td className="p-2">Bob Lee</td>
                         <td className="p-2">92345678</td>
-                        <td className="p-2">next-day</td>
+                        <td className="p-2">12pm-5pm</td>
                         <td className="p-2">2026-03-17</td>
                         <td className="p-2">medium</td>
                         <td className="p-2">12</td>
@@ -8253,10 +8253,10 @@ Thank you for your order! 🙏` },
                   </button>
                   <button 
                     onClick={() => {
-                      const headers = ['customer_name', 'customer_phone', 'pickup', 'pickup_unit_no', 'delivery', 'delivery_unit_no', 'recipient_name', 'recipient_phone', 'timeframe', 'delivery_date', 'parcel_size', 'price', 'notes'];
+                      const headers = ['customer_name', 'customer_phone', 'pickup', 'pickup_unit_no', 'delivery', 'delivery_unit_no', 'recipient_name', 'recipient_phone', 'delivery_slot', 'delivery_date', 'parcel_size', 'price', 'notes'];
                       const sampleData = [
-                        ['John Doe', '91234567', '123 Orchard Rd', '#01-01', '456 Marina Bay', '#05-10', 'Alice Tan', '81234567', 'same-day', '2026-03-16', 'small', '15', 'Handle with care'],
-                        ['Jane Smith', '98765432', '789 Bugis St', 'N/A', '321 Tampines Ave', '#02-15', 'Bob Lee', '92345678', 'next-day', '2026-03-17', 'medium', '12', '']
+                        ['John Doe', '91234567', '123 Orchard Rd', '#01-01', '456 Marina Bay', '#05-10', 'Alice Tan', '81234567', '6am-11am', '2026-03-16', 'small', '15', 'Handle with care'],
+                        ['Jane Smith', '98765432', '789 Bugis St', 'N/A', '321 Tampines Ave', '#02-15', 'Bob Lee', '92345678', '12pm-5pm', '2026-03-17', 'medium', '12', '']
                       ];
                       
                       let csvContent = headers.join(',') + '\n';
@@ -8340,8 +8340,8 @@ Thank you for your order! 🙏` },
                   <div className="flex items-start gap-2">
                     <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-xs font-medium">Optional</span>
                     <div>
-                      <code className="font-mono bg-gray-200 px-1 rounded">timeframe</code>
-                      <p className="text-gray-500 text-xs">same-day, next-day, or express</p>
+                      <code className="font-mono bg-gray-200 px-1 rounded">delivery_slot</code>
+                      <p className="text-gray-500 text-xs">6am-11am, 12pm-5pm, or 6pm-11pm</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
