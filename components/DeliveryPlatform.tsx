@@ -112,6 +112,19 @@ const formatSGTDate = (dateStr: string | Date): string => {
   }
 };
 
+const formatSGTTime = (dateStr: string | Date): string => {
+  try {
+    return new Date(dateStr).toLocaleTimeString('en-SG', { 
+      timeZone: 'Asia/Singapore',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return new Date(dateStr).toLocaleTimeString();
+  }
+};
+
 const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChain: any[], totalStops: number = 1): any => {
   const platformFee = 1 * totalStops; // $1 per drop-off
   const remaining = deliveryFee - platformFee;
@@ -3496,7 +3509,7 @@ Thank you for your order! 🙏` },
                       <div>
                         <p className="text-xs text-gray-500">Last updated</p>
                         <p className="font-semibold text-gray-700">
-                          {new Date(publicRiderLocation.updated_at).toLocaleTimeString()}
+                          {formatSGTTime(publicRiderLocation.updated_at)}
                         </p>
                       </div>
                       <button
@@ -6785,7 +6798,7 @@ Thank you for your order! 🙏` },
                           <tr key={req.id} className="border-t hover:bg-gray-50">
                             <td className="p-2 text-xs">
                               {formatSGTDate(req.timestamp)}<br/>
-                              <span className="text-gray-400">{new Date(req.timestamp).toLocaleTimeString()}</span>
+                              <span className="text-gray-400">{formatSGTTime(req.timestamp)}</span>
                             </td>
                             <td className="p-2 font-medium">{req.details?.fullName || req.details?.riderName || 'N/A'}</td>
                             <td className="p-2">{req.details?.mobileNumber || req.details?.riderPhone || 'N/A'}</td>
@@ -7671,7 +7684,7 @@ Thank you for your order! 🙏` },
                     <div key={loc.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                       <div>
                         <p className="font-medium">{rider?.name || 'Unknown Rider'}</p>
-                        <p className="text-xs text-gray-500">Last update: {new Date(loc.updated_at).toLocaleTimeString()}</p>
+                        <p className="text-xs text-gray-500">Last update: {formatSGTTime(loc.updated_at)}</p>
                       </div>
                       <a
                         href={`https://www.openstreetmap.org/?mlat=${loc.latitude}&mlon=${loc.longitude}#map=17/${loc.latitude}/${loc.longitude}`}
@@ -9195,7 +9208,7 @@ Thank you for your order! 🙏` },
                           Lat: {riderLocation.latitude?.toFixed(6)} | Lng: {riderLocation.longitude?.toFixed(6)}
                         </p>
                         <p className="text-xs text-gray-400">
-                          Last updated: {new Date(riderLocation.updated_at).toLocaleTimeString()}
+                          Last updated: {formatSGTTime(riderLocation.updated_at)}
                         </p>
                       </div>
                       <button
