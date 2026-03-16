@@ -193,7 +193,7 @@ const DeliveryPlatform = () => {
   const [editCust, setEditCust] = useState<any>(null);
   const [editRider, setEditRider] = useState<any>(null);
   const [showCreateRider, setShowCreateRider] = useState(false);
-  const [createRiderForm, setCreateRiderForm] = useState({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time', referralCode: '' });
+  const [createRiderForm, setCreateRiderForm] = useState({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time', vehicle_type: 'bike', referralCode: '' });
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmt, setTopUpAmt] = useState('');
   const [payNowQR, setPayNowQR] = useState('');
@@ -2114,10 +2114,12 @@ Thank you for your order! 🙏`;
   // Assign rider to job
   const assignRiderToJob = async (jobId: string, riderId: string, riderName: string, riderPhone: string) => {
     try {
+      const riderData = riders.find((r: any) => r.id === riderId);
       await api(`jobs?id=eq.${jobId}`, 'PATCH', {
         rider_id: riderId,
         rider_name: riderName,
         rider_phone: riderPhone,
+        rider_vehicle_type: riderData?.vehicle_type || 'bike',
         status: 'accepted',
         accepted_at: new Date().toISOString()
       });
@@ -2821,6 +2823,7 @@ Thank you for your order! 🙏` },
         rider_id: auth.id, 
         rider_name: curr.name, 
         rider_phone: curr.phone, 
+        rider_vehicle_type: curr.vehicle_type || 'bike',
         accepted_at: new Date().toISOString() 
       });
       
@@ -2857,6 +2860,7 @@ Thank you for your order! 🙏` },
               rider_id: auth.id, 
               rider_name: curr.name, 
               rider_phone: curr.phone, 
+              rider_vehicle_type: curr.vehicle_type || 'bike',
               accepted_at: new Date().toISOString() 
             });
             setNewJobNotifications(prev => prev.filter(n => n.id !== jobId));
@@ -3233,7 +3237,7 @@ Thank you for your order! 🙏` },
 
   const handleTopUp = () => {
     const amt = parseFloat(topUpAmt);
-    if (!amt || amt < 10) return alert('Minimum top-up amount is $10');
+    if (!amt || amt < 5) return alert('Minimum top-up amount is $5');
     const refNumber = generateTopUpReference(); // e.g., TOPUP-A7X3K9
     
     // Generate proper PayNow QR string
@@ -3960,7 +3964,7 @@ Thank you for your order! 🙏` },
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Select Amount</label>
                     <div className="grid grid-cols-3 gap-2">
-                      {[10, 20, 50, 100, 500, 1000].map((amt) => (
+                      {[5, 10, 20, 50, 100, 500, 1000].map((amt) => (
                         <button
                           key={amt}
                           onClick={() => setTopUpAmt(amt.toString())}
@@ -3976,7 +3980,7 @@ Thank you for your order! 🙏` },
                     </div>
                   </div>
                   
-                  {topUpAmt && parseFloat(topUpAmt) >= 10 && (
+                  {topUpAmt && parseFloat(topUpAmt) >= 5 && (
                     <div className="bg-green-50 p-4 rounded-lg">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-700">Amount to pay:</span>
@@ -4727,6 +4731,11 @@ Thank you for your order! 🙏` },
                             <div>
                               <p className="font-semibold">{job.rider_name}</p>
                               {job.rider_phone && <p className="text-sm text-gray-600">{job.rider_phone}</p>}
+                              {job.rider_vehicle_type && (
+                                <p className="text-xs text-blue-600 mt-1">
+                                  {job.rider_vehicle_type === 'car' ? '🚗 Car' : job.rider_vehicle_type === 'van' ? '🚐 Van' : job.rider_vehicle_type === 'lorry' ? '🚛 Lorry' : '🏍️ Bike'}
+                                </p>
+                              )}
                             </div>
                             {job.rider_phone && (
                               <div className="flex gap-2">
@@ -6296,6 +6305,15 @@ Thank you for your order! 🙏` },
                               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${r.employment_type === 'full-time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                 {r.employment_type === 'full-time' ? 'Full-Time' : 'Part-Time'}
                               </span>
+                              {' '}
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                                r.vehicle_type === 'car' ? 'bg-purple-100 text-purple-700' :
+                                r.vehicle_type === 'van' ? 'bg-teal-100 text-teal-700' :
+                                r.vehicle_type === 'lorry' ? 'bg-gray-200 text-gray-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {r.vehicle_type === 'car' ? '🚗 Car' : r.vehicle_type === 'van' ? '🚐 Van' : r.vehicle_type === 'lorry' ? '🚛 Lorry' : '🏍️ Bike'}
+                              </span>
                             </p>
                           </div>
                           <div className="flex gap-2">
@@ -6443,6 +6461,16 @@ Thank you for your order! 🙏` },
                                 <span className="text-green-600 font-medium">{j.rider_name}</span>
                               ) : (
                                 <span className="text-orange-500">Unassigned</span>
+                              )}
+                              {j.rider_vehicle_type && (
+                                <span className={`ml-2 inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  j.rider_vehicle_type === 'car' ? 'bg-purple-100 text-purple-700' :
+                                  j.rider_vehicle_type === 'van' ? 'bg-teal-100 text-teal-700' :
+                                  j.rider_vehicle_type === 'lorry' ? 'bg-gray-200 text-gray-700' :
+                                  'bg-green-100 text-green-700'
+                                }`}>
+                                  {j.rider_vehicle_type === 'car' ? '🚗 Car' : j.rider_vehicle_type === 'van' ? '🚐 Van' : j.rider_vehicle_type === 'lorry' ? '🚛 Lorry' : '🏍️ Bike'}
+                                </span>
                               )}
                             </p>
                             <p className="text-xs text-gray-400 mt-1">Created: {formatSGT(j.created_at)}</p>
@@ -9040,6 +9068,19 @@ Thank you for your order! 🙏` },
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Vehicle Type</label>
+                  <select
+                    value={editRider.vehicle_type || 'bike'}
+                    onChange={(e) => setEditRider({...editRider, vehicle_type: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="bike">Bike</option>
+                    <option value="car">Car</option>
+                    <option value="van">Van</option>
+                    <option value="lorry">Lorry</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     New Password <span className="text-gray-400 font-normal">(leave empty to keep current)</span>
                   </label>
@@ -9070,7 +9111,8 @@ Thank you for your order! 🙏` },
                           phone: editRider.phone,
                           tier: editRider.tier,
                           earnings: editRider.earnings,
-                          employment_type: editRider.employment_type || 'part-time'
+                          employment_type: editRider.employment_type || 'part-time',
+                          vehicle_type: editRider.vehicle_type || 'bike'
                         };
                         // Only update password if a new one was entered
                         if (editRider.password && editRider.password.trim() !== '') {
@@ -9167,6 +9209,19 @@ Thank you for your order! 🙏` },
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Vehicle Type</label>
+                  <select
+                    value={createRiderForm.vehicle_type}
+                    onChange={(e) => setCreateRiderForm({...createRiderForm, vehicle_type: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="bike">Bike</option>
+                    <option value="car">Car</option>
+                    <option value="van">Van</option>
+                    <option value="lorry">Lorry</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Referral Code (Optional)</label>
                   <input 
                     type="text" 
@@ -9216,11 +9271,12 @@ Thank you for your order! 🙏` },
                           earnings: 0,
                           completed_jobs: 0,
                           employment_type: createRiderForm.employment_type,
+                          vehicle_type: createRiderForm.vehicle_type,
                           upline_chain: uplineChain
                         });
                         alert(`Rider "${createRiderForm.name}" created successfully!\nReferral Code: ${code}${uplineChain.length > 0 ? `\nUpline: ${uplineChain[0].name} (Tier ${uplineChain[0].tier})` : ''}\nTier: ${riderTier}`);
                         setShowCreateRider(false);
-                        setCreateRiderForm({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time', referralCode: '' });
+                        setCreateRiderForm({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time', vehicle_type: 'bike', referralCode: '' });
                         loadData();
                       } catch (e: any) {
                         alert('Error creating rider: ' + e.message);
