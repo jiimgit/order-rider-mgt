@@ -630,10 +630,25 @@ const DeliveryPlatform = () => {
         const riderData = riders.find((r: any) => r.id === auth.id);
         if (riderData) {
           const comm = calculateCommissions(job.price, riderData.tier, riderData.upline_chain || [], job.total_stops || 1);
+          
+          // Update active rider earnings
           await api(`riders?id=eq.${auth.id}`, 'PATCH', {
             earnings: (riderData.earnings || 0) + comm.activeRider,
             completed_jobs: (riderData.completed_jobs || 0) + 1
           });
+          
+          // Update upline rider earnings
+          for (const up of comm.uplines) {
+            const upRider = riders.find((r: any) => r.id === up.riderId);
+            if (upRider) {
+              await api(`riders?id=eq.${up.riderId}`, 'PATCH', { 
+                earnings: (upRider.earnings || 0) + up.amount 
+              });
+            }
+          }
+          
+          // Save commission breakdown to job
+          await api(`jobs?id=eq.${jobId}`, 'PATCH', { commissions: comm });
         }
       }
       
