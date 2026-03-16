@@ -3996,8 +3996,8 @@ Thank you for your order! 🙏` },
                   <button 
                     onClick={async () => {
                       const amt = parseFloat(topUpAmt);
-                      if (!amt || amt < 10) {
-                        alert('Minimum top-up amount is $10');
+                      if (!amt || amt < 5) {
+                        alert('Minimum top-up amount is $5');
                         return;
                       }
                       
