@@ -1362,8 +1362,12 @@ const DeliveryPlatform = () => {
     }
     
     const totalCost = customerImportedJobs.reduce((sum, job) => sum + (parseFloat(job.price) || 10), 0);
-    if (curr.credits < totalCost) {
-      alert(`Insufficient credits. You need $${totalCost.toFixed(2)} but only have $${curr.credits.toFixed(2)}`);
+    
+    // Fetch fresh credits from database to avoid stale state
+    const freshCust = await api(`customers?id=eq.${auth.id}`);
+    const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : (curr.credits || 0);
+    if (freshCredits < totalCost) {
+      alert(`Insufficient credits. You need $${totalCost.toFixed(2)} but only have $${freshCredits.toFixed(2)}`);
       return;
     }
     
@@ -1393,9 +1397,9 @@ const DeliveryPlatform = () => {
         successCount++;
       }
       
-      // Deduct credits
+      // Deduct credits using fresh value
       await api(`customers?id=eq.${auth.id}`, 'PATCH', { 
-        credits: curr.credits - totalCost 
+        credits: freshCredits - totalCost 
       });
       
       alert(`Successfully imported ${successCount} jobs! $${totalCost.toFixed(2)} deducted from credits.`);
@@ -2700,7 +2704,11 @@ Thank you for your order! 🙏` },
     const price = parseFloat(jobForm.price);
     const minPrice = 3 + (jobForm.stops.length - 1) * 2; // $3 base + $2 per extra stop
     if (price < minPrice) return alert(`Minimum price is $${minPrice} for ${jobForm.stops.length} stop(s)`);
-    if (curr.credits < price) return alert('Insufficient credits. Please top up.');
+    
+    // Fetch fresh credits from database to avoid stale state
+    const freshCust = await api(`customers?id=eq.${curr.id}`);
+    const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : (curr.credits || 0);
+    if (freshCredits < price) return alert(`Insufficient credits. Your current balance is $${freshCredits.toFixed(2)}. Please top up.`);
     if (!jobForm.pickup) return alert('Please fill in pickup location');
     if (!jobForm.pickupUnitNo) return alert('Please fill in pickup Unit No (enter "N/A" if not applicable)');
     if (!jobForm.stops[0]?.address) return alert('Please fill in at least one drop-off location');
@@ -2747,7 +2755,7 @@ Thank you for your order! 🙏` },
         parcel_size: jobForm.parcelSize,
         remarks: jobForm.remarks || null
       });
-      await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: curr.credits - price });
+      await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: freshCredits - price });
       
       // Send email notification to admin
       try {
@@ -3259,7 +3267,10 @@ Thank you for your order! 🙏` },
   const confirmTopUp = async () => {
     try {
       const qrData = JSON.parse(payNowQR);
-      await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: curr.credits + parseFloat(topUpAmt) });
+      // Fetch fresh credits from database to avoid stale state
+      const freshCust = await api(`customers?id=eq.${auth.id}`);
+      const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : (curr.credits || 0);
+      await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits + parseFloat(topUpAmt) });
       
       // Log the top-up for admin reference (can be used for approval queue later)
       await logAuditAction('customer_topup', {
@@ -6511,9 +6522,10 @@ Thank you for your order! 🙏` },
                                       
                                       // Refund credits to customer if customer_id exists
                                       if (j.customer_id) {
-                                        const customer = customers.find((c: any) => c.id === j.customer_id);
-                                        if (customer) {
-                                          const newCredits = (customer.credits || 0) + parseFloat(j.price);
+                                        // Fetch fresh customer data from database to avoid stale credits
+                                        const freshCustomer = await api(`customers?id=eq.${j.customer_id}`);
+                                        if (freshCustomer && freshCustomer.length > 0) {
+                                          const newCredits = (freshCustomer[0].credits || 0) + parseFloat(j.price);
                                           await api(`customers?id=eq.${j.customer_id}`, 'PATCH', { credits: newCredits });
                                           
                                           // Log the refund
