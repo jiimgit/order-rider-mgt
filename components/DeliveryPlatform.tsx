@@ -263,7 +263,10 @@ const DeliveryPlatform = () => {
   // POD (Proof of Delivery) states
   const [podImage, setPodImage] = useState<string | null>(null);
   const [showPodModal, setShowPodModal] = useState(false);
+  const [podStopIndex, setPodStopIndex] = useState<number>(0); // Current stop being photographed
+  const [stopPods, setStopPods] = useState<any[]>([]); // Array of {stopIndex, image, timestamp, address}
   const podInputRef = useRef<HTMLInputElement>(null);
+  const podGalleryRef = useRef<HTMLInputElement>(null); // Separate ref for gallery selection
 
   // Rider online status and notifications
   const [riderIsOnline, setRiderIsOnline] = useState(false);
@@ -598,30 +601,102 @@ const DeliveryPlatform = () => {
   };
 
   // POD (Proof of Delivery) - Feature 2
-  const handlePodCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
+  const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.6): Promise<string> => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPodImage(reader.result as string);
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePodCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const compressed = await compressImage(file);
+      setPodImage(compressed);
+    }
+  };
+
+  // Save POD for current stop
+  const saveStopPod = () => {
+    if (!podImage || !activeJob) return;
+    const stops = activeJob.stops || [];
+    const stopAddress = stops[podStopIndex]?.address || `Drop-off ${podStopIndex + 1}`;
+    
+    setStopPods(prev => {
+      const updated = [...prev.filter(p => p.stopIndex !== podStopIndex)];
+      updated.push({
+        stopIndex: podStopIndex,
+        image: podImage,
+        timestamp: new Date().toISOString(),
+        address: stopAddress
+      });
+      return updated.sort((a, b) => a.stopIndex - b.stopIndex);
+    });
+    
+    setPodImage(null);
+    
+    // Move to next stop if available
+    const totalStops = stops.length || 1;
+    if (podStopIndex < totalStops - 1) {
+      setPodStopIndex(podStopIndex + 1);
+      alert(`Photo saved for Drop-off ${podStopIndex + 1}. Now take photo for Drop-off ${podStopIndex + 2}.`);
+    } else {
+      alert(`Photo saved for Drop-off ${podStopIndex + 1}. All stops photographed! You can now submit to complete the delivery.`);
     }
   };
 
   const submitPodAndComplete = async (jobId: string) => {
-    if (!podImage) {
+    const totalStops = activeJob?.stops?.length || 1;
+    
+    // For multi-stop jobs, require photo for each stop
+    if (totalStops > 1 && stopPods.length < totalStops) {
+      alert(`Please take photos for all ${totalStops} drop-offs before completing. You have ${stopPods.length}/${totalStops} photos.`);
+      return;
+    }
+    
+    // For single-stop jobs, use the current podImage
+    if (totalStops === 1 && !podImage && stopPods.length === 0) {
       alert('Please capture a photo as proof of delivery');
       return;
     }
     
     try {
-      // Save POD image as full base64 (for demo - in production, upload to cloud storage)
+      // Build POD data
+      const podData = totalStops > 1 ? stopPods : [{
+        stopIndex: 0,
+        image: podImage,
+        timestamp: new Date().toISOString(),
+        address: activeJob?.stops?.[0]?.address || activeJob?.delivery || 'Delivery'
+      }];
+      
+      // Save first POD image as main pod_image for backward compatibility
+      const mainPodImage = podData[0]?.image || podImage;
+      
       await api(`jobs?id=eq.${jobId}`, 'PATCH', {
         status: 'completed',
         completed_at: new Date().toISOString(),
-        pod_image: podImage, // Store full base64 image
-        pod_timestamp: new Date().toISOString()
+        pod_image: mainPodImage,
+        pod_timestamp: new Date().toISOString(),
+        pod_stops: podData.map(p => ({ stopIndex: p.stopIndex, timestamp: p.timestamp, address: p.address, hasImage: true })),
+        pod_images: podData.map(p => ({ stopIndex: p.stopIndex, image: p.image, timestamp: p.timestamp, address: p.address }))
       });
       
       // Update rider earnings
@@ -631,13 +706,11 @@ const DeliveryPlatform = () => {
         if (riderData) {
           const comm = calculateCommissions(job.price, riderData.tier, riderData.upline_chain || [], job.total_stops || 1);
           
-          // Update active rider earnings
           await api(`riders?id=eq.${auth.id}`, 'PATCH', {
             earnings: (riderData.earnings || 0) + comm.activeRider,
             completed_jobs: (riderData.completed_jobs || 0) + 1
           });
           
-          // Update upline rider earnings
           for (const up of comm.uplines) {
             const upRider = riders.find((r: any) => r.id === up.riderId);
             if (upRider) {
@@ -647,12 +720,13 @@ const DeliveryPlatform = () => {
             }
           }
           
-          // Save commission breakdown to job
           await api(`jobs?id=eq.${jobId}`, 'PATCH', { commissions: comm });
         }
       }
       
       setPodImage(null);
+      setStopPods([]);
+      setPodStopIndex(0);
       setShowPodModal(false);
       stopGPSTracking();
       alert('Delivery completed with proof of delivery!');
@@ -4800,7 +4874,30 @@ Thank you for your order! 🙏` },
                       {job.status === 'completed' && (
                         <div className="bg-green-50 p-3 rounded-lg mb-3">
                           <p className="text-sm font-medium text-green-800 mb-2">✅ Delivery Completed</p>
-                          {job.pod_image && !job.pod_image.includes('truncated') ? (
+                          
+                          {/* Multi-stop POD photos */}
+                          {job.pod_images && Array.isArray(job.pod_images) && job.pod_images.length > 0 ? (
+                            <div>
+                              <p className="text-xs text-gray-600 mb-2">Proof of Delivery ({job.pod_images.length} photo{job.pod_images.length > 1 ? 's' : ''}):</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {job.pod_images.map((pod: any, idx: number) => (
+                                  <div key={idx} className="border rounded-lg overflow-hidden">
+                                    <img 
+                                      src={pod.image} 
+                                      alt={`POD Drop-off ${pod.stopIndex + 1}`} 
+                                      className="w-full h-24 object-cover cursor-pointer hover:opacity-90"
+                                      onClick={() => setViewingPodImage(pod.image)}
+                                    />
+                                    <div className="p-1 bg-white">
+                                      <p className="text-xs font-medium text-gray-700">Drop-off {pod.stopIndex + 1}</p>
+                                      <p className="text-xs text-gray-500 truncate">{pod.address}</p>
+                                      <p className="text-xs text-gray-400">{formatSGT(pod.timestamp)}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : job.pod_image && !job.pod_image.includes('truncated') ? (
                             <div>
                               <p className="text-xs text-gray-600 mb-2">Proof of Delivery:</p>
                               <img 
@@ -5846,31 +5943,83 @@ Thank you for your order! 🙏` },
             {/* POD (Proof of Delivery) Modal - Feature 2 */}
             {showPodModal && activeJob && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-bold">📸 Proof of Delivery</h3>
-                    <button onClick={() => { setShowPodModal(false); setPodImage(null); }} className="p-2 hover:bg-gray-100 rounded-full">
+                    <button onClick={() => { setShowPodModal(false); setPodImage(null); setStopPods([]); setPodStopIndex(0); }} className="p-2 hover:bg-gray-100 rounded-full">
                       <X size={24} />
                     </button>
                   </div>
                   
-                  <p className="text-gray-600 mb-4">Please take a photo of the delivered package as proof of delivery.</p>
+                  {/* Stop progress for multi-stop jobs */}
+                  {(activeJob.stops?.length || 1) > 1 && (
+                    <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                      <p className="text-sm font-medium text-blue-800">
+                        📍 Drop-off {podStopIndex + 1} of {activeJob.stops?.length || 1}
+                      </p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        {activeJob.stops?.[podStopIndex]?.address || `Stop ${podStopIndex + 1}`}
+                      </p>
+                      <div className="flex gap-1 mt-2">
+                        {(activeJob.stops || []).map((_: any, idx: number) => (
+                          <div key={idx} className={`h-2 flex-1 rounded ${
+                            stopPods.find(p => p.stopIndex === idx) ? 'bg-green-500' : 
+                            idx === podStopIndex ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+                          }`} />
+                        ))}
+                      </div>
+                      <p className="text-xs text-blue-700 mt-1">{stopPods.length}/{activeJob.stops?.length || 1} photos taken</p>
+                    </div>
+                  )}
+
+                  {/* Already captured stop photos */}
+                  {stopPods.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Captured Photos:</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {stopPods.map((pod, idx) => (
+                          <div key={idx} className="relative">
+                            <img src={pod.image} alt={`Stop ${pod.stopIndex + 1}`} className="w-full h-16 object-cover rounded-lg border-2 border-green-500" />
+                            <span className="absolute top-0 left-0 bg-green-600 text-white text-xs px-1 rounded-br">#{pod.stopIndex + 1}</span>
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{formatSGTTime(pod.timestamp)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <p className="text-gray-600 mb-4">
+                    {(activeJob.stops?.length || 1) > 1 
+                      ? `Take a photo for Drop-off ${podStopIndex + 1}: ${activeJob.stops?.[podStopIndex]?.address || ''}`
+                      : 'Please take a photo of the delivered package as proof of delivery.'}
+                  </p>
                   
                   <div className="space-y-4">
-                    {/* Camera Input */}
+                    {/* Camera & Gallery Inputs */}
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                       {podImage ? (
                         <div className="space-y-3">
                           <img src={podImage} alt="POD" className="max-h-48 mx-auto rounded-lg" />
-                          <button 
-                            onClick={() => setPodImage(null)}
-                            className="text-red-600 text-sm hover:underline"
-                          >
-                            Remove & Retake
-                          </button>
+                          <div className="flex gap-2 justify-center">
+                            <button 
+                              onClick={() => setPodImage(null)}
+                              className="text-red-600 text-sm hover:underline"
+                            >
+                              Retake
+                            </button>
+                            {(activeJob.stops?.length || 1) > 1 && (
+                              <button 
+                                onClick={saveStopPod}
+                                className="bg-green-600 text-white px-4 py-1 rounded-lg text-sm hover:bg-green-700"
+                              >
+                                ✓ Save for Drop-off {podStopIndex + 1}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div>
+                          {/* Camera input */}
                           <input
                             ref={podInputRef}
                             type="file"
@@ -5879,32 +6028,73 @@ Thank you for your order! 🙏` },
                             onChange={handlePodCapture}
                             className="hidden"
                           />
-                          <button
-                            onClick={() => podInputRef.current?.click()}
-                            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700"
-                          >
-                            📷 Take Photo
-                          </button>
-                          <p className="text-sm text-gray-500 mt-2">or tap to select from gallery</p>
+                          {/* Gallery input (separate, no capture attribute) */}
+                          <input
+                            ref={podGalleryRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePodCapture}
+                            className="hidden"
+                          />
+                          <div className="flex flex-col gap-3 items-center">
+                            <button
+                              onClick={() => podInputRef.current?.click()}
+                              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 w-full"
+                            >
+                              📷 Take Photo
+                            </button>
+                            <button
+                              onClick={() => podGalleryRef.current?.click()}
+                              className="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 w-full"
+                            >
+                              🖼️ Select from Gallery
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
                     
+                    {/* Stop navigation for multi-stop */}
+                    {(activeJob.stops?.length || 1) > 1 && (
+                      <div className="flex gap-2">
+                        {(activeJob.stops || []).map((_: any, idx: number) => (
+                          <button
+                            key={idx}
+                            onClick={() => { setPodStopIndex(idx); setPodImage(null); }}
+                            className={`flex-1 py-2 rounded-lg text-xs font-medium ${
+                              stopPods.find(p => p.stopIndex === idx) 
+                                ? 'bg-green-100 text-green-700 border-2 border-green-500' 
+                                : idx === podStopIndex 
+                                  ? 'bg-blue-100 text-blue-700 border-2 border-blue-500' 
+                                  : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {stopPods.find(p => p.stopIndex === idx) ? '✓' : ''} #{idx + 1}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    
                     {/* Submit Button */}
                     <button
                       onClick={() => submitPodAndComplete(activeJob.id)}
-                      disabled={!podImage}
+                      disabled={
+                        (activeJob.stops?.length || 1) > 1 
+                          ? stopPods.length < (activeJob.stops?.length || 1)
+                          : !podImage
+                      }
                       className={`w-full py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-2 ${
-                        podImage 
+                        ((activeJob.stops?.length || 1) > 1 ? stopPods.length >= (activeJob.stops?.length || 1) : podImage)
                           ? 'bg-green-600 text-white hover:bg-green-700' 
                           : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
                     >
                       ✓ Submit & Complete Delivery
+                      {(activeJob.stops?.length || 1) > 1 && ` (${stopPods.length}/${activeJob.stops?.length || 1} photos)`}
                     </button>
                     
                     <p className="text-xs text-gray-400 text-center">
-                      Photo will be timestamped: {formatSGT(new Date())}
+                      Photos are compressed and timestamped: {formatSGT(new Date())}
                     </p>
                   </div>
                 </div>
@@ -7408,7 +7598,9 @@ Thank you for your order! 🙏` },
                                 <span className="text-gray-400 text-xs ml-1">({log.user_id?.substring(0, 8)}...)</span>
                               </td>
                               <td className="p-3 text-xs text-gray-500 max-w-xs truncate">
-                                {log.details?.substring(0, 50)}...
+                                {typeof log.details === 'string' 
+                                  ? (log.details?.substring(0, 80) || 'N/A')
+                                  : (JSON.stringify(log.details)?.substring(0, 80) || 'N/A')}
                               </td>
                             </tr>
                           ))
@@ -9416,7 +9608,7 @@ Thank you for your order! 🙏` },
         {/* POD View Modal */}
         {selectedPodJob && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold">📸 Proof of Delivery</h3>
                 <button onClick={() => setSelectedPodJob(null)} className="p-2 hover:bg-gray-100 rounded-full">
@@ -9425,12 +9617,31 @@ Thank you for your order! 🙏` },
               </div>
               
               <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <p className="font-semibold">{selectedPodJob.pickup} → {selectedPodJob.delivery}</p>
+                <p className="font-semibold">{selectedPodJob.order_id && <span className="text-purple-600">[{selectedPodJob.order_id}] </span>}{selectedPodJob.pickup} → {selectedPodJob.delivery}</p>
                 <p className="text-sm text-gray-600">Rider: {selectedPodJob.rider_name}</p>
                 <p className="text-sm text-gray-600">Customer: {selectedPodJob.customer_name}</p>
               </div>
               
-              {selectedPodJob.pod_image ? (
+              {/* Multi-stop POD photos */}
+              {selectedPodJob.pod_images && Array.isArray(selectedPodJob.pod_images) && selectedPodJob.pod_images.length > 0 ? (
+                <div className="space-y-4">
+                  <p className="text-sm font-medium text-gray-700">{selectedPodJob.pod_images.length} POD Photo{selectedPodJob.pod_images.length > 1 ? 's' : ''}:</p>
+                  {selectedPodJob.pod_images.map((pod: any, idx: number) => (
+                    <div key={idx} className="border rounded-lg overflow-hidden">
+                      <img 
+                        src={pod.image} 
+                        alt={`POD Drop-off ${pod.stopIndex + 1}`} 
+                        className="w-full max-h-48 object-contain bg-gray-100"
+                      />
+                      <div className="p-3 bg-white">
+                        <p className="text-sm font-medium text-gray-700">📍 Drop-off {pod.stopIndex + 1}</p>
+                        <p className="text-xs text-gray-500">{pod.address}</p>
+                        <p className="text-xs text-gray-400">📸 {formatSGT(pod.timestamp)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : selectedPodJob.pod_image ? (
                 <div className="text-center">
                   <img 
                     src={selectedPodJob.pod_image.includes('truncated') ? '/placeholder-pod.png' : selectedPodJob.pod_image} 
