@@ -634,70 +634,104 @@ const DeliveryPlatform = () => {
     }
   };
 
-  // Save POD for current stop
-  const saveStopPod = () => {
+  // Submit POD for current stop immediately to database
+  const submitStopPod = async () => {
     if (!podImage || !activeJob) return;
     const stops = activeJob.stops || [];
+    const totalStops = stops.length || 1;
     const stopAddress = stops[podStopIndex]?.address || `Drop-off ${podStopIndex + 1}`;
     
-    setStopPods(prev => {
-      const updated = [...prev.filter(p => p.stopIndex !== podStopIndex)];
-      updated.push({
-        stopIndex: podStopIndex,
-        image: podImage,
-        timestamp: new Date().toISOString(),
-        address: stopAddress
+    const newPod = {
+      stopIndex: podStopIndex,
+      image: podImage,
+      timestamp: new Date().toISOString(),
+      address: stopAddress
+    };
+    
+    try {
+      // Get existing pod_images from the job (in case some stops already submitted)
+      const freshJob = await api(`jobs?id=eq.${activeJob.id}`);
+      const existingPodImages = (freshJob && freshJob[0]?.pod_images) || [];
+      
+      // Replace or add this stop's photo
+      const updatedPodImages = [...existingPodImages.filter((p: any) => p.stopIndex !== podStopIndex), newPod]
+        .sort((a: any, b: any) => a.stopIndex - b.stopIndex);
+      
+      const updatedPodStops = updatedPodImages.map((p: any) => ({ 
+        stopIndex: p.stopIndex, timestamp: p.timestamp, address: p.address, hasImage: true 
+      }));
+      
+      // Save to database immediately — customer and admin can see it right away
+      await api(`jobs?id=eq.${activeJob.id}`, 'PATCH', {
+        pod_images: updatedPodImages,
+        pod_stops: updatedPodStops,
+        pod_image: updatedPodImages[0]?.image || podImage, // backward compatibility
+        pod_timestamp: new Date().toISOString()
       });
-      return updated.sort((a, b) => a.stopIndex - b.stopIndex);
-    });
-    
-    setPodImage(null);
-    
-    // Move to next stop if available
-    const totalStops = stops.length || 1;
-    if (podStopIndex < totalStops - 1) {
-      setPodStopIndex(podStopIndex + 1);
-      alert(`Photo saved for Drop-off ${podStopIndex + 1}. Now take photo for Drop-off ${podStopIndex + 2}.`);
-    } else {
-      alert(`Photo saved for Drop-off ${podStopIndex + 1}. All stops photographed! You can now submit to complete the delivery.`);
+      
+      // Update local state
+      setStopPods(updatedPodImages);
+      setPodImage(null);
+      
+      if (podStopIndex < totalStops - 1) {
+        // More stops to go — advance to next
+        setPodStopIndex(podStopIndex + 1);
+        alert(`✅ Drop-off ${podStopIndex + 1} photo submitted!\n\nProceeding to Drop-off ${podStopIndex + 2}.`);
+      } else {
+        // Last stop — photo saved, now rider can complete the job
+        alert(`✅ Drop-off ${podStopIndex + 1} photo submitted!\n\nAll ${totalStops} drop-offs have photos. You can now complete the delivery.`);
+      }
+      
+      loadData();
+    } catch (e: any) {
+      alert('Error submitting photo: ' + e.message);
     }
   };
 
   const submitPodAndComplete = async (jobId: string) => {
     const totalStops = activeJob?.stops?.length || 1;
     
-    // For multi-stop jobs, require photo for each stop
-    if (totalStops > 1 && stopPods.length < totalStops) {
-      alert(`Please take photos for all ${totalStops} drop-offs before completing. You have ${stopPods.length}/${totalStops} photos.`);
-      return;
-    }
-    
-    // For single-stop jobs, use the current podImage
-    if (totalStops === 1 && !podImage && stopPods.length === 0) {
-      alert('Please capture a photo as proof of delivery');
-      return;
+    if (totalStops > 1) {
+      // For multi-stop: check all stops have photos in the database
+      const freshJob = await api(`jobs?id=eq.${jobId}`);
+      const savedPods = (freshJob && freshJob[0]?.pod_images) || [];
+      if (savedPods.length < totalStops) {
+        alert(`Please submit photos for all ${totalStops} drop-offs before completing.\nYou have ${savedPods.length}/${totalStops} photos submitted.`);
+        return;
+      }
+    } else {
+      // For single-stop: require current photo
+      if (!podImage && stopPods.length === 0) {
+        alert('Please capture a photo as proof of delivery');
+        return;
+      }
     }
     
     try {
-      // Build POD data
-      const podData = totalStops > 1 ? stopPods : [{
-        stopIndex: 0,
-        image: podImage,
-        timestamp: new Date().toISOString(),
-        address: activeJob?.stops?.[0]?.address || activeJob?.delivery || 'Delivery'
-      }];
-      
-      // Save first POD image as main pod_image for backward compatibility
-      const mainPodImage = podData[0]?.image || podImage;
-      
-      await api(`jobs?id=eq.${jobId}`, 'PATCH', {
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        pod_image: mainPodImage,
-        pod_timestamp: new Date().toISOString(),
-        pod_stops: podData.map(p => ({ stopIndex: p.stopIndex, timestamp: p.timestamp, address: p.address, hasImage: true })),
-        pod_images: podData.map(p => ({ stopIndex: p.stopIndex, image: p.image, timestamp: p.timestamp, address: p.address }))
-      });
+      if (totalStops === 1) {
+        // Single stop — save photo and complete in one go
+        const podData = [{
+          stopIndex: 0,
+          image: podImage,
+          timestamp: new Date().toISOString(),
+          address: activeJob?.stops?.[0]?.address || activeJob?.delivery || 'Delivery'
+        }];
+        
+        await api(`jobs?id=eq.${jobId}`, 'PATCH', {
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          pod_image: podImage,
+          pod_timestamp: new Date().toISOString(),
+          pod_stops: podData.map(p => ({ stopIndex: p.stopIndex, timestamp: p.timestamp, address: p.address, hasImage: true })),
+          pod_images: podData
+        });
+      } else {
+        // Multi-stop — photos already submitted per stop, just mark as completed
+        await api(`jobs?id=eq.${jobId}`, 'PATCH', {
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        });
+      }
       
       // Update rider earnings
       const job = jobs.find((j: any) => j.id === jobId);
@@ -5930,12 +5964,23 @@ Thank you for your order! 🙏` },
                         On My Way
                       </button>
                     )}
-                    {activeJob.status === 'on-the-way' && (
+                    {(activeJob.status === 'on-the-way' || activeJob.status === 'picked-up') && (
                       <button 
-                        onClick={() => setShowPodModal(true)} 
+                        onClick={() => {
+                          // Load any previously submitted stop photos
+                          const existingPods = activeJob.pod_images || [];
+                          setStopPods(existingPods);
+                          // Set to first unsubmitted stop
+                          const totalStops = activeJob.stops?.length || 1;
+                          const nextUnsubmitted = Array.from({length: totalStops}, (_, i) => i)
+                            .find(i => !existingPods.find((p: any) => p.stopIndex === i));
+                          setPodStopIndex(nextUnsubmitted !== undefined ? nextUnsubmitted : 0);
+                          setPodImage(null);
+                          setShowPodModal(true);
+                        }} 
                         className="w-full bg-green-600 text-white py-2 px-3 rounded-lg font-medium text-sm hover:bg-green-700 transition-colors"
                       >
-                        📸 Complete
+                        📸 {activeJob.pod_images?.length > 0 ? `POD (${activeJob.pod_images.length}/${activeJob.stops?.length || 1})` : 'Complete'}
                       </button>
                     )}
                   </div>
@@ -5949,47 +5994,80 @@ Thank you for your order! 🙏` },
                 <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-bold">📸 Proof of Delivery</h3>
-                    <button onClick={() => { setShowPodModal(false); setPodImage(null); setStopPods([]); setPodStopIndex(0); }} className="p-2 hover:bg-gray-100 rounded-full">
+                    <button onClick={() => { setShowPodModal(false); setPodImage(null); setPodStopIndex(0); }} className="p-2 hover:bg-gray-100 rounded-full">
                       <X size={24} />
                     </button>
                   </div>
                   
                   {/* Stop progress for multi-stop jobs */}
-                  {(activeJob.stops?.length || 1) > 1 && (
-                    <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                      <p className="text-sm font-medium text-blue-800">
-                        📍 Drop-off {podStopIndex + 1} of {activeJob.stops?.length || 1}
-                      </p>
-                      <p className="text-xs text-blue-600 mt-1">
-                        {activeJob.stops?.[podStopIndex]?.address || `Stop ${podStopIndex + 1}`}
-                      </p>
-                      <div className="flex gap-1 mt-2">
-                        {(activeJob.stops || []).map((_: any, idx: number) => (
-                          <div key={idx} className={`h-2 flex-1 rounded ${
-                            stopPods.find(p => p.stopIndex === idx) ? 'bg-green-500' : 
-                            idx === podStopIndex ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
-                          }`} />
-                        ))}
+                  {(activeJob.stops?.length || 1) > 1 && (() => {
+                    const totalStops = activeJob.stops?.length || 1;
+                    const submittedPods = activeJob.pod_images || stopPods || [];
+                    return (
+                      <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                        <p className="text-sm font-medium text-blue-800">
+                          📍 Drop-off {podStopIndex + 1} of {totalStops}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          {activeJob.stops?.[podStopIndex]?.address || `Stop ${podStopIndex + 1}`}
+                        </p>
+                        <div className="flex gap-1 mt-2">
+                          {(activeJob.stops || []).map((_: any, idx: number) => {
+                            const isSubmitted = submittedPods.find((p: any) => p.stopIndex === idx);
+                            return (
+                              <div key={idx} className={`h-2 flex-1 rounded ${
+                                isSubmitted ? 'bg-green-500' : 
+                                idx === podStopIndex ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+                              }`} />
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-blue-700 mt-1">{submittedPods.length}/{totalStops} photos submitted</p>
                       </div>
-                      <p className="text-xs text-blue-700 mt-1">{stopPods.length}/{activeJob.stops?.length || 1} photos taken</p>
-                    </div>
-                  )}
+                    );
+                  })()}
 
-                  {/* Already captured stop photos */}
-                  {stopPods.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Captured Photos:</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {stopPods.map((pod, idx) => (
-                          <div key={idx} className="relative">
-                            <img src={pod.image} alt={`Stop ${pod.stopIndex + 1}`} className="w-full h-16 object-cover rounded-lg border-2 border-green-500" />
-                            <span className="absolute top-0 left-0 bg-green-600 text-white text-xs px-1 rounded-br">#{pod.stopIndex + 1}</span>
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">{formatSGTTime(pod.timestamp)}</p>
-                          </div>
-                        ))}
+                  {/* Already submitted stop photos */}
+                  {(() => {
+                    const submittedPods = activeJob.pod_images || stopPods || [];
+                    return submittedPods.length > 0 ? (
+                      <div className="mb-4">
+                        <p className="text-sm font-medium text-gray-700 mb-2">✅ Submitted Photos:</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {submittedPods.map((pod: any, idx: number) => (
+                            <div key={idx} className="relative">
+                              <img src={pod.image} alt={`Stop ${pod.stopIndex + 1}`} className="w-full h-16 object-cover rounded-lg border-2 border-green-500" />
+                              <span className="absolute top-0 left-0 bg-green-600 text-white text-xs px-1 rounded-br">#{pod.stopIndex + 1}</span>
+                              <p className="text-xs text-gray-500 mt-0.5 truncate">{formatSGTTime(pod.timestamp)}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    ) : null;
+                  })()}
+                  
+                  {/* Check if current stop already has a submitted photo */}
+                  {(() => {
+                    const submittedPods = activeJob.pod_images || stopPods || [];
+                    const currentStopSubmitted = submittedPods.find((p: any) => p.stopIndex === podStopIndex);
+                    const totalStops = activeJob.stops?.length || 1;
+                    const allStopsSubmitted = submittedPods.length >= totalStops;
+                    
+                    if (currentStopSubmitted && !allStopsSubmitted) {
+                      return (
+                        <div className="mb-4 p-3 bg-green-50 rounded-lg text-center">
+                          <p className="text-sm text-green-700">✅ Drop-off {podStopIndex + 1} photo already submitted.</p>
+                          <button
+                            onClick={() => setPodStopIndex(submittedPods.length)}
+                            className="mt-2 text-sm text-blue-600 hover:underline"
+                          >
+                            Go to next unsubmitted drop-off →
+                          </button>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   
                   <p className="text-gray-600 mb-4">
                     {(activeJob.stops?.length || 1) > 1 
@@ -6012,10 +6090,10 @@ Thank you for your order! 🙏` },
                             </button>
                             {(activeJob.stops?.length || 1) > 1 && (
                               <button 
-                                onClick={saveStopPod}
-                                className="bg-green-600 text-white px-4 py-1 rounded-lg text-sm hover:bg-green-700"
+                                onClick={submitStopPod}
+                                className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700"
                               >
-                                ✓ Save for Drop-off {podStopIndex + 1}
+                                ✓ Submit Drop-off {podStopIndex + 1} Photo
                               </button>
                             )}
                           </div>
@@ -6060,41 +6138,49 @@ Thank you for your order! 🙏` },
                     {/* Stop navigation for multi-stop */}
                     {(activeJob.stops?.length || 1) > 1 && (
                       <div className="flex gap-2">
-                        {(activeJob.stops || []).map((_: any, idx: number) => (
-                          <button
-                            key={idx}
-                            onClick={() => { setPodStopIndex(idx); setPodImage(null); }}
-                            className={`flex-1 py-2 rounded-lg text-xs font-medium ${
-                              stopPods.find(p => p.stopIndex === idx) 
-                                ? 'bg-green-100 text-green-700 border-2 border-green-500' 
-                                : idx === podStopIndex 
-                                  ? 'bg-blue-100 text-blue-700 border-2 border-blue-500' 
-                                  : 'bg-gray-100 text-gray-600'
-                            }`}
-                          >
-                            {stopPods.find(p => p.stopIndex === idx) ? '✓' : ''} #{idx + 1}
-                          </button>
-                        ))}
+                        {(activeJob.stops || []).map((_: any, idx: number) => {
+                          const submittedPods = activeJob.pod_images || stopPods || [];
+                          const isSubmitted = submittedPods.find((p: any) => p.stopIndex === idx);
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => { setPodStopIndex(idx); setPodImage(null); }}
+                              className={`flex-1 py-2 rounded-lg text-xs font-medium ${
+                                isSubmitted 
+                                  ? 'bg-green-100 text-green-700 border-2 border-green-500' 
+                                  : idx === podStopIndex 
+                                    ? 'bg-blue-100 text-blue-700 border-2 border-blue-500' 
+                                    : 'bg-gray-100 text-gray-600'
+                              }`}
+                            >
+                              {isSubmitted ? '✓' : ''} #{idx + 1}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                     
-                    {/* Submit Button */}
-                    <button
-                      onClick={() => submitPodAndComplete(activeJob.id)}
-                      disabled={
-                        (activeJob.stops?.length || 1) > 1 
-                          ? stopPods.length < (activeJob.stops?.length || 1)
-                          : !podImage
-                      }
-                      className={`w-full py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-2 ${
-                        ((activeJob.stops?.length || 1) > 1 ? stopPods.length >= (activeJob.stops?.length || 1) : podImage)
-                          ? 'bg-green-600 text-white hover:bg-green-700' 
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      ✓ Submit & Complete Delivery
-                      {(activeJob.stops?.length || 1) > 1 && ` (${stopPods.length}/${activeJob.stops?.length || 1} photos)`}
-                    </button>
+                    {/* Submit & Complete Button — only enabled when ALL stops have photos */}
+                    {(() => {
+                      const totalStops = activeJob.stops?.length || 1;
+                      const submittedPods = activeJob.pod_images || stopPods || [];
+                      const allSubmitted = totalStops > 1 ? submittedPods.length >= totalStops : !!podImage;
+                      
+                      return (
+                        <button
+                          onClick={() => submitPodAndComplete(activeJob.id)}
+                          disabled={!allSubmitted}
+                          className={`w-full py-4 rounded-lg font-semibold text-lg flex items-center justify-center gap-2 ${
+                            allSubmitted
+                              ? 'bg-green-600 text-white hover:bg-green-700' 
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          }`}
+                        >
+                          ✓ Submit & Complete Delivery
+                          {totalStops > 1 && ` (${submittedPods.length}/${totalStops})`}
+                        </button>
+                      );
+                    })()}
                     
                     <p className="text-xs text-gray-400 text-center">
                       Photos are compressed and timestamped: {formatSGT(new Date())}
