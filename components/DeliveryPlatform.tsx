@@ -3693,54 +3693,39 @@ Thank you for your order! 🙏` },
   }
 
   if (!auth.isAuth) {
+    // Skip portal selection - go directly to customer login
     if (view === 'select') {
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
-          <div className="max-w-4xl w-full">
-            <div className="text-center mb-12">
-              <h1 className="text-5xl font-bold text-white mb-4">MoveIt</h1>
-              <p className="text-lg text-white opacity-90">Choose your portal to get started</p>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-              {[
-                { type: 'customer', icon: User, title: 'Customer Portal', color: 'blue', desc: 'Post deliveries' },
-                { type: 'rider', icon: Package, title: 'Rider Portal', color: 'green', desc: 'Accept jobs' }
-              ].map(({ type, icon: Icon, title, color, desc }) => (
-                <button key={type} onClick={() => setView(type)} className="bg-white rounded-2xl p-8 shadow-2xl hover:scale-105 transition-transform">
-                  <div className="flex justify-center mb-4">
-                    <div className={`bg-${color}-100 p-4 rounded-full`}>
-                      <Icon className={`text-${color}-600`} size={48} />
-                    </div>
-                  </div>
-                  <h2 className="text-2xl font-bold mb-2">{title}</h2>
-                  <p className="text-gray-600 text-sm">{desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      );
+      setView('customer');
+      return null;
     }
 
     const cfg = {
-      admin: { color: 'purple', icon: TrendingUp, bg: 'from-purple-500 to-purple-700', canReg: false },
-      customer: { color: 'blue', icon: User, bg: 'from-blue-500 to-blue-700', canReg: true },
-      rider: { color: 'green', icon: Package, bg: 'from-green-500 to-green-700', canReg: true }
+      admin: { color: 'purple', icon: TrendingUp, bg: 'bg-gray-100', canReg: false },
+      customer: { color: 'blue', icon: User, bg: 'bg-white', canReg: true },
+      rider: { color: 'green', icon: Package, bg: 'bg-blue-50', canReg: true }
     }[view];
     const Icon = cfg.icon;
 
     return (
-      <div className={`min-h-screen bg-gradient-to-br ${cfg.bg} flex items-center justify-center p-4`}>
+      <div className={`min-h-screen ${cfg.bg} flex items-center justify-center p-4`}>
         <div className="max-w-md w-full">
-          <button onClick={() => { setView('select'); setIsReg(false); setLoginForm({ email: '', password: '' }); }} className="text-white mb-6 hover:underline">
-            ← Back to portal selection
-          </button>
           <div className="bg-white rounded-2xl shadow-2xl p-8">
-            <div className="flex justify-center mb-6">
-              <div className={`bg-${cfg.color}-100 p-4 rounded-full`}>
-                <Icon className={`text-${cfg.color}-600`} size={48} />
-              </div>
+            {/* MoveIt Logo */}
+            <div className="flex justify-center mb-3">
+              <img 
+                src="/icons/manifest-icon-192.maskable.png" 
+                alt="MoveIt Logo" 
+                className="w-20 h-20 rounded-2xl"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
             </div>
+            <h1 className="text-2xl font-bold text-center mb-1">MoveIt</h1>
+            <p className="text-sm text-gray-500 text-center mb-4">
+              {view === 'admin' ? 'Admin Portal' : view === 'rider' ? 'Rider Portal' : 'Customer Portal'}
+            </p>
+            
             {!isReg ? (
               <>
                 <h2 className="text-3xl font-bold text-center mb-2">{view === 'admin' ? 'Admin' : view === 'customer' ? 'Customer' : 'Rider'} Login</h2>
@@ -3868,6 +3853,28 @@ Thank you for your order! 🙏` },
               </>
             )}
           </div>
+          
+          {/* Switch between Customer and Rider portals */}
+          {view === 'customer' && (
+            <div className="text-center mt-4">
+              <button 
+                onClick={() => { setView('rider'); setIsReg(false); setLoginForm({ email: '', password: '' }); }}
+                className="text-sm text-gray-500 hover:text-green-600 hover:underline"
+              >
+                Login As Rider →
+              </button>
+            </div>
+          )}
+          {view === 'rider' && (
+            <div className="text-center mt-4">
+              <button 
+                onClick={() => { setView('customer'); setIsReg(false); setLoginForm({ email: '', password: '' }); }}
+                className="text-sm text-gray-500 hover:text-blue-600 hover:underline"
+              >
+                Login As Customer →
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
