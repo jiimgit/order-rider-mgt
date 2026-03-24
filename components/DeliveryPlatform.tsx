@@ -3701,9 +3701,8 @@ Thank you for your order! 🙏` },
               <h1 className="text-5xl font-bold text-white mb-4">MoveIt</h1>
               <p className="text-lg text-white opacity-90">Choose your portal to get started</p>
             </div>
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
               {[
-                { type: 'admin', icon: TrendingUp, title: 'Admin Portal', color: 'purple', desc: 'Manage platform' },
                 { type: 'customer', icon: User, title: 'Customer Portal', color: 'blue', desc: 'Post deliveries' },
                 { type: 'rider', icon: Package, title: 'Rider Portal', color: 'green', desc: 'Accept jobs' }
               ].map(({ type, icon: Icon, title, color, desc }) => (
