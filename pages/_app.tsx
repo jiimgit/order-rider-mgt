@@ -40,7 +40,7 @@ export default function App({ Component, pageProps }: AppProps) {
         {/* Primary Meta Tags */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <meta name="theme-color" content="#7C3AED" />
-        <meta name="description" content="MoveIt Delivery - Delivery Platform for Customers, Riders & Admin" />
+        <meta name="description" content="MoveIt Logistics - Platform for Customers, Riders & Admin" />
         
         {/* PWA Meta Tags */}
         <link rel="manifest" href="/manifest.json" />
@@ -54,7 +54,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="icon" type="image/png" sizes="32x32" href="/icons/manifest-icon-192.maskable.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/icons/manifest-icon-192.maskable.png" />
         
-        <title>MoveIt Delivery</title>
+        <title>MoveIt Logistics</title>
       </Head>
       <Component {...pageProps} />
     </>
