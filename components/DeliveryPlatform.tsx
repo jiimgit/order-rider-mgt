@@ -1546,27 +1546,55 @@ const DeliveryPlatform = () => {
         return;
       }
       
-      // Swap their upline chains
+      // Swap their upline chains and tiers
       const rider1Upline = rider1.upline_chain || [];
       const rider2Upline = rider2.upline_chain || [];
+      const rider1Tier = rider1.tier || 1;
+      const rider2Tier = rider2.tier || 1;
       
-      // Update rider1 with rider2's upline
+      // Update rider1 with rider2's upline and tier
       await api(`riders?id=eq.${rider1Id}`, 'PATCH', { 
-        upline_chain: rider2Upline 
+        upline_chain: rider2Upline,
+        tier: rider2Tier
       });
       
-      // Update rider2 with rider1's upline
+      // Update rider2 with rider1's upline and tier
       await api(`riders?id=eq.${rider2Id}`, 'PATCH', { 
-        upline_chain: rider1Upline 
+        upline_chain: rider1Upline,
+        tier: rider1Tier
       });
+      
+      // Update all downline riders that reference either rider in their upline chains
+      for (const r of riders) {
+        if (r.id === rider1Id || r.id === rider2Id) continue;
+        const chain = r.upline_chain || [];
+        if (chain.length === 0) continue;
+        
+        let needsUpdate = false;
+        const updatedChain = chain.map((u: any) => {
+          if (u.id === rider1Id) {
+            needsUpdate = true;
+            return { id: rider2Id, name: rider2.name, tier: rider1Tier };
+          }
+          if (u.id === rider2Id) {
+            needsUpdate = true;
+            return { id: rider1Id, name: rider1.name, tier: rider2Tier };
+          }
+          return u;
+        });
+        
+        if (needsUpdate) {
+          await api(`riders?id=eq.${r.id}`, 'PATCH', { upline_chain: updatedChain });
+        }
+      }
       
       await logAuditAction('swap_upline_downline', { 
-        rider1Id, rider1Name: rider1.name,
-        rider2Id, rider2Name: rider2.name
+        rider1Id, rider1Name: rider1.name, rider1OldTier: rider1Tier, rider1NewTier: rider2Tier,
+        rider2Id, rider2Name: rider2.name, rider2OldTier: rider2Tier, rider2NewTier: rider1Tier
       });
       
-      alert(`Swapped positions: ${rider1.name} ↔ ${rider2.name}\nThis will affect future payouts only.`);
-      loadData();
+      await loadData();
+      alert(`Swapped positions: ${rider1.name} (now Tier ${rider2Tier}) ↔ ${rider2.name} (now Tier ${rider1Tier})\nAll downline references updated.\nThis will affect future payouts only.`);
     } catch (e: any) {
       alert('Error swapping positions: ' + e.message);
     }
@@ -9659,9 +9687,9 @@ Thank you for your order! 🙏` },
                           updateData.password = editRider.password;
                         }
                         await api(`riders?id=eq.${editRider.id}`, 'PATCH', updateData);
-                        alert('Rider updated successfully!');
                         setEditRider(null);
-                        loadData();
+                        await loadData();
+                        alert('Rider updated successfully!');
                       } catch (e: any) {
                         alert('Error updating rider: ' + e.message);
                       }
