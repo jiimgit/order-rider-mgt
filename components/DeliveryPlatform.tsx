@@ -7933,7 +7933,7 @@ Thank you for your order! 🙏` },
                 <div className="bg-white rounded-lg shadow p-6">
                   <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                     <UserCheck className="text-purple-600" />
-                    Rider Management
+                    Swapping Upline
                   </h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
