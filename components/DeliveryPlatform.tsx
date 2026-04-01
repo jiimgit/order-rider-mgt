@@ -358,6 +358,10 @@ const DeliveryPlatform = () => {
 
   // Customer Order History Page state
   const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState<any>(null);
+  const [promoError, setPromoError] = useState('');
+  const [editingPromo, setEditingPromo] = useState<any>(null);
 
   // Customer Bulk Import state
   const [showCustomerBulkImport, setShowCustomerBulkImport] = useState(false);
@@ -1695,6 +1699,93 @@ const DeliveryPlatform = () => {
     }
   };
 
+  // Customer - Redeem promo code
+  const redeemPromoCode = async () => {
+    if (!promoCode.trim()) {
+      setPromoError('Please enter a promo code.');
+      return;
+    }
+    setPromoError('');
+    setPromoDiscount(null);
+    
+    try {
+      const promos = await api(`promotions?code=eq.${promoCode.toUpperCase()}`);
+      if (!promos || promos.length === 0) {
+        setPromoError("Sorry, the code you've entered is fully redeemed or invalid.");
+        return;
+      }
+      
+      const promo = promos[0];
+      
+      // Check if active
+      if (promo.active === false) {
+        setPromoError("Sorry, the code you've entered is fully redeemed or invalid.");
+        return;
+      }
+      
+      // Check if max uses reached
+      if (promo.max_uses && (promo.uses_count || 0) >= promo.max_uses) {
+        setPromoError("Sorry, the code you've entered is fully redeemed or invalid.");
+        return;
+      }
+      
+      // Check expiry
+      if (promo.expiry_date && new Date(promo.expiry_date) < new Date()) {
+        setPromoError("Sorry, the code you've entered is fully redeemed or invalid.");
+        return;
+      }
+      
+      // Valid promo!
+      setPromoDiscount(promo);
+      setPromoError('');
+    } catch (e: any) {
+      setPromoError("Sorry, the code you've entered is fully redeemed or invalid.");
+    }
+  };
+
+  // Calculate discounted price
+  const getDiscountedPrice = (originalPrice: number): number => {
+    if (!promoDiscount) return originalPrice;
+    if (promoDiscount.discount_type === 'fixed') {
+      return Math.max(0, originalPrice - promoDiscount.discount_value);
+    } else {
+      return Math.max(0, originalPrice * (1 - promoDiscount.discount_value / 100));
+    }
+  };
+
+  // Admin - Edit promotion
+  const updatePromotion = async () => {
+    if (!editingPromo) return;
+    try {
+      await api(`promotions?id=eq.${editingPromo.id}`, 'PATCH', {
+        code: editingPromo.code,
+        discount_type: editingPromo.discount_type,
+        discount_value: editingPromo.discount_value,
+        min_order: editingPromo.min_order,
+        max_uses: editingPromo.max_uses,
+        expiry_date: editingPromo.expiry_date || null,
+        active: editingPromo.active
+      });
+      alert('Promotion updated!');
+      setEditingPromo(null);
+      loadPromotions();
+    } catch (e: any) {
+      alert('Error updating promotion: ' + e.message);
+    }
+  };
+
+  // Admin - Delete promotion
+  const deletePromotion = async (promoId: string) => {
+    if (!window.confirm('Delete this promotion? This cannot be undone.')) return;
+    try {
+      await api(`promotions?id=eq.${promoId}`, 'DELETE');
+      alert('Promotion deleted!');
+      loadPromotions();
+    } catch (e: any) {
+      alert('Error deleting promotion: ' + e.message);
+    }
+  };
+
   // Admin - Send broadcast (placeholder - would integrate with actual messaging)
   const sendBroadcast = async () => {
     if (!broadcastMessage.message) {
@@ -2809,9 +2900,12 @@ Thank you for your order! 🙏` },
   };
 
   const createJob = async () => {
-    const price = parseFloat(jobForm.price);
+    const originalPrice = parseFloat(jobForm.price);
     const minPrice = 3 + (jobForm.stops.length - 1) * 2; // $3 base + $2 per extra stop
-    if (price < minPrice) return alert(`Minimum price is $${minPrice} for ${jobForm.stops.length} stop(s)`);
+    if (originalPrice < minPrice) return alert(`Minimum price is $${minPrice} for ${jobForm.stops.length} stop(s)`);
+    
+    // Apply promo discount if any
+    const price = promoDiscount ? getDiscountedPrice(originalPrice) : originalPrice;
     
     // Fetch fresh credits from database to avoid stale state
     const freshCust = await api(`customers?id=eq.${curr.id}`);
@@ -2861,9 +2955,25 @@ Thank you for your order! 🙏` },
         recipient_name: jobForm.stops[0]?.recipientName || null,
         recipient_phone: jobForm.stops[0]?.recipientPhone || null,
         parcel_size: jobForm.parcelSize,
-        remarks: jobForm.remarks || null
+        remarks: jobForm.remarks || null,
+        promo_code: promoDiscount?.code || null,
+        original_price: promoDiscount ? originalPrice : null,
+        discount_amount: promoDiscount ? (originalPrice - price) : null
       });
       await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: freshCredits - price });
+      
+      // Update promo usage count if promo was applied
+      if (promoDiscount) {
+        try {
+          await api(`promotions?id=eq.${promoDiscount.id}`, 'PATCH', { 
+            uses_count: (promoDiscount.uses_count || 0) + 1 
+          });
+        } catch (e) {
+          console.log('Failed to update promo usage:', e);
+        }
+        setPromoCode('');
+        setPromoDiscount(null);
+      }
       
       // Send email notification to admin
       try {
@@ -4510,11 +4620,59 @@ Thank you for your order! 🙏` },
                   />
                 </div>
 
+                {/* Promo Code Section */}
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <label className="block text-sm font-medium text-purple-800 mb-2">🎟️ Promo Code</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={promoCode} 
+                      onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); setPromoDiscount(null); }} 
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" 
+                      placeholder="Enter promo code"
+                    />
+                    <button 
+                      onClick={redeemPromoCode} 
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 text-sm"
+                    >
+                      Apply
+                    </button>
+                    {promoDiscount && (
+                      <button 
+                        onClick={() => { setPromoCode(''); setPromoDiscount(null); setPromoError(''); }} 
+                        className="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 text-sm"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  {promoError && (
+                    <p className="text-sm text-red-600 mt-2">{promoError}</p>
+                  )}
+                  {promoDiscount && (
+                    <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-700 font-medium">
+                        ✅ Code "{promoDiscount.code}" applied! 
+                        {promoDiscount.discount_type === 'fixed' 
+                          ? ` $${promoDiscount.discount_value} off` 
+                          : ` ${promoDiscount.discount_value}% off`}
+                      </p>
+                      {jobForm.price && (
+                        <p className="text-xs text-green-600 mt-1">
+                          Original: ${parseFloat(jobForm.price).toFixed(2)} → 
+                          You pay: <strong>${getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2)}</strong>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <button 
                   onClick={createJob} 
                   className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
                 >
-                  Post Job - ${jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
+                  Post Job - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
+                  {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}
                 </button>
                 
                 {/* Bulk Import Option */}
@@ -8064,22 +8222,27 @@ Thank you for your order! 🙏` },
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold">🎉 Promotions & Deals</h3>
-                <button onClick={() => setShowPromotions(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                <h3 className="text-2xl font-bold">🎟️ Promo Codes</h3>
+                <button onClick={() => { setShowPromotions(false); setEditingPromo(null); }} className="p-2 hover:bg-gray-100 rounded-full">
                   <X size={24} />
                 </button>
               </div>
               
-              {/* Create New Promotion */}
+              {/* Create / Edit Promotion Form */}
               <div className="mb-6 p-4 bg-purple-50 rounded-lg">
-                <h4 className="font-semibold text-purple-800 mb-3">Create New Promotion</h4>
+                <h4 className="font-semibold text-purple-800 mb-3">
+                  {editingPromo ? '✏️ Edit Promotion' : '➕ Create New Promotion'}
+                </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Promo Code</label>
                     <input
                       type="text"
-                      value={newPromotion.code}
-                      onChange={(e) => setNewPromotion({...newPromotion, code: e.target.value.toUpperCase()})}
+                      value={editingPromo ? editingPromo.code : newPromotion.code}
+                      onChange={(e) => editingPromo 
+                        ? setEditingPromo({...editingPromo, code: e.target.value.toUpperCase()})
+                        : setNewPromotion({...newPromotion, code: e.target.value.toUpperCase()})
+                      }
                       className="w-full px-3 py-2 border rounded-lg"
                       placeholder="e.g., SAVE10"
                     />
@@ -8087,8 +8250,11 @@ Thank you for your order! 🙏` },
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
                     <select
-                      value={newPromotion.discountType}
-                      onChange={(e) => setNewPromotion({...newPromotion, discountType: e.target.value})}
+                      value={editingPromo ? editingPromo.discount_type : newPromotion.discountType}
+                      onChange={(e) => editingPromo
+                        ? setEditingPromo({...editingPromo, discount_type: e.target.value})
+                        : setNewPromotion({...newPromotion, discountType: e.target.value})
+                      }
                       className="w-full px-3 py-2 border rounded-lg"
                     >
                       <option value="fixed">Fixed Amount ($)</option>
@@ -8099,8 +8265,11 @@ Thank you for your order! 🙏` },
                     <label className="block text-sm font-medium text-gray-700 mb-1">Discount Value</label>
                     <input
                       type="number"
-                      value={newPromotion.discountValue}
-                      onChange={(e) => setNewPromotion({...newPromotion, discountValue: parseFloat(e.target.value)})}
+                      value={editingPromo ? editingPromo.discount_value : newPromotion.discountValue}
+                      onChange={(e) => editingPromo
+                        ? setEditingPromo({...editingPromo, discount_value: parseFloat(e.target.value)})
+                        : setNewPromotion({...newPromotion, discountValue: parseFloat(e.target.value)})
+                      }
                       className="w-full px-3 py-2 border rounded-lg"
                     />
                   </div>
@@ -8108,39 +8277,117 @@ Thank you for your order! 🙏` },
                     <label className="block text-sm font-medium text-gray-700 mb-1">Max Uses</label>
                     <input
                       type="number"
-                      value={newPromotion.maxUses}
-                      onChange={(e) => setNewPromotion({...newPromotion, maxUses: parseInt(e.target.value)})}
+                      value={editingPromo ? editingPromo.max_uses : newPromotion.maxUses}
+                      onChange={(e) => editingPromo
+                        ? setEditingPromo({...editingPromo, max_uses: parseInt(e.target.value)})
+                        : setNewPromotion({...newPromotion, maxUses: parseInt(e.target.value)})
+                      }
                       className="w-full px-3 py-2 border rounded-lg"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Order ($)</label>
+                    <input
+                      type="number"
+                      value={editingPromo ? editingPromo.min_order : newPromotion.minOrder}
+                      onChange={(e) => editingPromo
+                        ? setEditingPromo({...editingPromo, min_order: parseFloat(e.target.value)})
+                        : setNewPromotion({...newPromotion, minOrder: parseFloat(e.target.value)})
+                      }
+                      className="w-full px-3 py-2 border rounded-lg"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+                    <input
+                      type="date"
+                      value={editingPromo ? (editingPromo.expiry_date || '') : newPromotion.expiryDate}
+                      onChange={(e) => editingPromo
+                        ? setEditingPromo({...editingPromo, expiry_date: e.target.value})
+                        : setNewPromotion({...newPromotion, expiryDate: e.target.value})
+                      }
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+                  {editingPromo && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                      <select
+                        value={editingPromo.active ? 'true' : 'false'}
+                        onChange={(e) => setEditingPromo({...editingPromo, active: e.target.value === 'true'})}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      >
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={createPromotion}
-                  className="mt-4 w-full py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700"
-                >
-                  Create Promotion
-                </button>
+                <div className="flex gap-2 mt-4">
+                  {editingPromo ? (
+                    <>
+                      <button
+                        onClick={updatePromotion}
+                        className="flex-1 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                      >
+                        Save Changes
+                      </button>
+                      <button
+                        onClick={() => setEditingPromo(null)}
+                        className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={createPromotion}
+                      className="w-full py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700"
+                    >
+                      Create Promotion
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Existing Promotions */}
-              <h4 className="font-semibold text-gray-800 mb-3">Active Promotions</h4>
+              <h4 className="font-semibold text-gray-800 mb-3">All Promotions ({promotions.length})</h4>
               {promotions.length === 0 ? (
                 <p className="text-center text-gray-500 py-4">No promotions created yet</p>
               ) : (
                 <div className="space-y-2">
                   {promotions.map((promo: any) => (
-                    <div key={promo.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <div>
+                    <div key={promo.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border">
+                      <div className="flex-1">
                         <p className="font-bold text-purple-600">{promo.code}</p>
                         <p className="text-sm text-gray-600">
                           {promo.discount_type === 'fixed' ? `$${promo.discount_value} off` : `${promo.discount_value}% off`}
+                          {promo.min_order > 0 && ` (min order $${promo.min_order})`}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Used: {promo.uses_count || 0}/{promo.max_uses}
+                          {promo.expiry_date && ` | Expires: ${formatSGTDate(promo.expiry_date)}`}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm">{promo.uses_count || 0} / {promo.max_uses} used</p>
-                        <span className={`text-xs px-2 py-1 rounded ${promo.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {promo.active ? 'Active' : 'Inactive'}
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-1 rounded ${promo.active !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {promo.active !== false ? 'Active' : 'Inactive'}
                         </span>
+                        <button
+                          onClick={() => setEditingPromo({...promo})}
+                          className="p-1 bg-blue-100 rounded hover:bg-blue-200"
+                          title="Edit"
+                        >
+                          <Edit2 size={14} className="text-blue-700" />
+                        </button>
+                        <button
+                          onClick={() => deletePromotion(promo.id)}
+                          className="p-1 bg-red-100 rounded hover:bg-red-200"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} className="text-red-700" />
+                        </button>
                       </div>
                     </div>
                   ))}
