@@ -1535,68 +1535,87 @@ const DeliveryPlatform = () => {
     }
   };
 
-  // Admin - Swap upline/downline positions
-  const swapUplineDownline = async (rider1Id: string, rider2Id: string) => {
+  // Admin - Assign new upline to a rider
+  const assignUpline = async (riderId: string, newUplineId: string | null) => {
     try {
-      const rider1 = riders.find((r: any) => r.id === rider1Id);
-      const rider2 = riders.find((r: any) => r.id === rider2Id);
+      const rider = riders.find((r: any) => r.id === riderId);
+      if (!rider) { alert('Rider not found'); return; }
       
-      if (!rider1 || !rider2) {
-        alert('Riders not found');
-        return;
-      }
-      
-      // Swap their upline chains and tiers
-      const rider1Upline = rider1.upline_chain || [];
-      const rider2Upline = rider2.upline_chain || [];
-      const rider1Tier = rider1.tier || 1;
-      const rider2Tier = rider2.tier || 1;
-      
-      // Update rider1 with rider2's upline and tier
-      await api(`riders?id=eq.${rider1Id}`, 'PATCH', { 
-        upline_chain: rider2Upline,
-        tier: rider2Tier
-      });
-      
-      // Update rider2 with rider1's upline and tier
-      await api(`riders?id=eq.${rider2Id}`, 'PATCH', { 
-        upline_chain: rider1Upline,
-        tier: rider1Tier
-      });
-      
-      // Update all downline riders that reference either rider in their upline chains
-      for (const r of riders) {
-        if (r.id === rider1Id || r.id === rider2Id) continue;
-        const chain = r.upline_chain || [];
-        if (chain.length === 0) continue;
-        
-        let needsUpdate = false;
-        const updatedChain = chain.map((u: any) => {
-          if (u.id === rider1Id) {
-            needsUpdate = true;
-            return { id: rider2Id, name: rider2.name, tier: rider1Tier };
-          }
-          if (u.id === rider2Id) {
-            needsUpdate = true;
-            return { id: rider1Id, name: rider1.name, tier: rider2Tier };
-          }
-          return u;
+      if (newUplineId === null) {
+        // Remove upline — make this rider top level (Tier 1)
+        await api(`riders?id=eq.${riderId}`, 'PATCH', { 
+          upline_chain: [],
+          tier: 1
         });
         
-        if (needsUpdate) {
-          await api(`riders?id=eq.${r.id}`, 'PATCH', { upline_chain: updatedChain });
+        await logAuditAction('assign_upline', { 
+          riderId, riderName: rider.name,
+          action: 'removed_upline',
+          newTier: 1
+        });
+        
+        await loadData();
+        alert(`${rider.name} is now Top Level (Tier 1) with no upline.`);
+      } else {
+        const newUpline = riders.find((r: any) => r.id === newUplineId);
+        if (!newUpline) { alert('Upline rider not found'); return; }
+        
+        // Prevent circular reference — can't set someone as upline if they are in this rider's downline
+        const isDownline = (checkId: string, chain: any[]): boolean => {
+          for (const u of chain) {
+            if (u.id === riderId) return true;
+          }
+          return false;
+        };
+        if (isDownline(riderId, newUpline.upline_chain || [])) {
+          alert(`Cannot set ${newUpline.name} as upline because ${rider.name} is already in their upline chain. This would create a circular reference.`);
+          return;
         }
+        
+        // Build new upline chain: [newUpline, ...newUpline's upline chain]
+        const newUplineChain = [
+          { id: newUpline.id, name: newUpline.name, tier: newUpline.tier },
+          ...(newUpline.upline_chain || [])
+        ];
+        const newTier = (newUpline.tier || 1) + 1;
+        
+        // Update the rider
+        await api(`riders?id=eq.${riderId}`, 'PATCH', { 
+          upline_chain: newUplineChain,
+          tier: newTier
+        });
+        
+        // Also update any downline riders of this rider — their upline chains need to include the new chain
+        for (const r of riders) {
+          if (r.id === riderId || r.id === newUplineId) continue;
+          const chain = r.upline_chain || [];
+          const riderIdx = chain.findIndex((u: any) => u.id === riderId);
+          if (riderIdx >= 0) {
+            // This rider has the moved rider in their upline — update the chain from that point
+            const updatedChain = [
+              ...chain.slice(0, riderIdx), // keep entries above the moved rider
+              { id: rider.id, name: rider.name, tier: newTier }, // updated moved rider
+              ...newUplineChain // new upline chain
+            ];
+            const updatedTier = updatedChain.length + 1;
+            await api(`riders?id=eq.${r.id}`, 'PATCH', { 
+              upline_chain: updatedChain,
+              tier: updatedTier
+            });
+          }
+        }
+        
+        await logAuditAction('assign_upline', { 
+          riderId, riderName: rider.name,
+          newUplineId, newUplineName: newUpline.name,
+          newTier
+        });
+        
+        await loadData();
+        alert(`${rider.name} is now under ${newUpline.name} (Tier ${newTier}).\nAll downline references updated.`);
       }
-      
-      await logAuditAction('swap_upline_downline', { 
-        rider1Id, rider1Name: rider1.name, rider1OldTier: rider1Tier, rider1NewTier: rider2Tier,
-        rider2Id, rider2Name: rider2.name, rider2OldTier: rider2Tier, rider2NewTier: rider1Tier
-      });
-      
-      await loadData();
-      alert(`Swapped positions: ${rider1.name} (now Tier ${rider2Tier}) ↔ ${rider2.name} (now Tier ${rider1Tier})\nAll downline references updated.\nThis will affect future payouts only.`);
     } catch (e: any) {
-      alert('Error swapping positions: ' + e.message);
+      alert('Error assigning upline: ' + e.message);
     }
   };
 
@@ -7968,6 +7987,7 @@ Thank you for your order! 🙏` },
                       <thead className="bg-gray-100">
                         <tr>
                           <th className="text-left p-3">Rider</th>
+                          <th className="text-center p-3">Tier</th>
                           <th className="text-center p-3">Upline</th>
                           <th className="text-center p-3">Jobs</th>
                           <th className="text-center p-3">Earnings</th>
@@ -7987,6 +8007,11 @@ Thank you for your order! 🙏` },
                                 <p className="font-medium">{rider.name}</p>
                                 <p className="text-xs text-gray-500">{rider.referral_code}</p>
                               </td>
+                              <td className="p-3 text-center">
+                                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                  Tier {rider.tier || 1}
+                                </span>
+                              </td>
                               <td className="p-3 text-center text-sm text-gray-600">
                                 {uplineName}
                               </td>
@@ -7999,18 +8024,25 @@ Thank you for your order! 🙏` },
                                 <select
                                   defaultValue=""
                                   onChange={(e) => {
-                                    if (e.target.value) {
-                                      if (confirm(`Swap ${rider.name} with ${riders.find((r: any) => r.id === e.target.value)?.name}?\n\nThis will only affect future payouts.`)) {
-                                        swapUplineDownline(rider.id, e.target.value);
+                                    if (e.target.value === 'none') {
+                                      if (confirm(`Remove upline for ${rider.name}? They will become Top Level (Tier 1).`)) {
+                                        assignUpline(rider.id, null);
+                                      }
+                                      e.target.value = '';
+                                    } else if (e.target.value) {
+                                      const selectedRider = riders.find((r: any) => r.id === e.target.value);
+                                      if (confirm(`Place ${rider.name} under ${selectedRider?.name}?\n\n${rider.name} will become Tier ${(selectedRider?.tier || 1) + 1} under ${selectedRider?.name} (Tier ${selectedRider?.tier || 1}).\n\nThis will only affect future payouts.`)) {
+                                        assignUpline(rider.id, e.target.value);
                                       }
                                       e.target.value = '';
                                     }
                                   }}
                                   className="px-2 py-1 border rounded text-xs"
                                 >
-                                  <option value="">Swap with...</option>
+                                  <option value="">Set upline...</option>
+                                  <option value="none">❌ No Upline (Top Level)</option>
                                   {riders.filter((r: any) => r.id !== rider.id).map((r: any) => (
-                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                    <option key={r.id} value={r.id}>{r.name} (Tier {r.tier || 1})</option>
                                   ))}
                                 </select>
                               </td>
@@ -8022,8 +8054,8 @@ Thank you for your order! 🙏` },
                   </div>
                   <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
                     <p className="text-sm text-yellow-800">
-                      <strong>⚠️ Note:</strong> Swapping positions only affects <strong>future payouts</strong>. 
-                      Past earnings remain unchanged.
+                      <strong>⚠️ Note:</strong> Changing upline only affects <strong>future payouts</strong>. 
+                      Past earnings remain unchanged. Tier is automatically calculated based on the upline chain.
                     </p>
                   </div>
                 </div>
