@@ -1982,9 +1982,11 @@ const DeliveryPlatform = () => {
   const calculateJobDistances = async (pickupAddress: string, stops: any[]): Promise<{distances: number[], totalDistance: number} | null> => {
     try {
       const pickupPostal = extractPostalCode(pickupAddress);
+      console.log('[Distance] Pickup:', pickupAddress, '→ Postal:', pickupPostal);
       if (!pickupPostal) return null;
 
       const pickupCoords = await lookupCoordinates(pickupPostal);
+      console.log('[Distance] Pickup coords:', pickupCoords);
       if (!pickupCoords) return null;
 
       const distances: number[] = [];
@@ -1992,7 +1994,10 @@ const DeliveryPlatform = () => {
       let totalDistance = 0;
 
       for (const stop of stops) {
-        const stopPostal = extractPostalCode(stop.address || '');
+        // Try extracting postal code from stop address, unitNo, or combined
+        const fullStopAddr = `${stop.address || ''} ${stop.unitNo || ''}`;
+        const stopPostal = extractPostalCode(fullStopAddr);
+        console.log('[Distance] Stop:', fullStopAddr, '→ Postal:', stopPostal);
         if (!stopPostal) { distances.push(0); continue; }
         
         const stopCoords = await lookupCoordinates(stopPostal);
@@ -2005,9 +2010,10 @@ const DeliveryPlatform = () => {
         prevCoords = stopCoords;
       }
 
+      console.log('[Distance] Result:', { distances, totalDistance: parseFloat(totalDistance.toFixed(1)) });
       return { distances, totalDistance: parseFloat(totalDistance.toFixed(1)) };
     } catch (error) {
-      console.error('Distance calculation failed:', error);
+      console.error('[Distance] Calculation failed:', error);
       return null;
     }
   };
@@ -2061,24 +2067,34 @@ const DeliveryPlatform = () => {
 
   // Fetch and cache distances for a job
   const fetchJobDistances = async (jobId: string, pickup: string, stops: any[]) => {
-    if (jobDistanceCache[jobId]) return;
     const result = await calculateJobDistances(pickup, stops);
     if (result) {
-      setJobDistanceCache(prev => ({ ...prev, [jobId]: result }));
+      setJobDistanceCache(prev => {
+        if (prev[jobId]) return prev; // already cached
+        return { ...prev, [jobId]: result };
+      });
     }
   };
 
   // Auto-calculate distances for all visible jobs
   useEffect(() => {
     if (jobs.length > 0) {
-      jobs.forEach((job: any) => {
+      const uncachedJobs = jobs.filter((job: any) => {
         const stops = job.stops || [];
-        if (!jobDistanceCache[job.id] && stops.length > 0 && job.pickup) {
-          fetchJobDistances(job.id, job.pickup, stops);
-        }
+        return !jobDistanceCache[job.id] && stops.length > 0 && job.pickup && extractPostalCode(job.pickup);
       });
+      
+      // Process one at a time to avoid flooding the API
+      const processDistances = async () => {
+        for (const job of uncachedJobs) {
+          if (!jobDistanceCache[job.id]) {
+            await fetchJobDistances(job.id, job.pickup, job.stops || []);
+          }
+        }
+      };
+      processDistances();
     }
-  }, [jobs]);
+  }, [jobs.length]); // Only re-run when number of jobs changes
 
   // Reusable improved job detail card
   const renderJobDetailCard = (job: any, showDeliveryFee: boolean = true) => {
