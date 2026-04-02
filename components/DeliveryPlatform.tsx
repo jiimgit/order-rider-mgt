@@ -362,6 +362,8 @@ const DeliveryPlatform = () => {
   const [promoDiscount, setPromoDiscount] = useState<any>(null);
   const [promoError, setPromoError] = useState('');
   const [editingPromo, setEditingPromo] = useState<any>(null);
+  const [customerNotifications, setCustomerNotifications] = useState<any[]>([]);
+  const [prevJobStatuses, setPrevJobStatuses] = useState<any>({});
 
   // Customer Bulk Import state
   const [showCustomerBulkImport, setShowCustomerBulkImport] = useState(false);
@@ -2828,6 +2830,73 @@ Thank you for your order! 🙏` },
       setAuditLogs(parsedLogs);
       setAllRiderLocations(Array.isArray(riderLocs) ? riderLocs : []);
       
+      // Customer notifications — check for job status changes
+      if (auth.type === 'customer' && auth.id && Array.isArray(j)) {
+        const myJobs = j.filter((job: any) => job.customer_id === auth.id);
+        const newNotifs: any[] = [];
+        
+        myJobs.forEach((job: any) => {
+          const prevStatus = prevJobStatuses[job.id];
+          if (prevStatus && prevStatus !== job.status) {
+            if (job.status === 'accepted' && prevStatus === 'posted') {
+              newNotifs.push({
+                id: `${job.id}-accepted-${Date.now()}`,
+                type: 'accepted',
+                message: `🏍️ Your delivery ${job.order_id || ''} has been accepted by ${job.rider_name || 'a rider'}!`,
+                jobId: job.id,
+                timestamp: new Date().toISOString()
+              });
+            } else if (job.status === 'picked-up') {
+              newNotifs.push({
+                id: `${job.id}-pickedup-${Date.now()}`,
+                type: 'picked-up',
+                message: `📦 Your parcel ${job.order_id || ''} has been picked up by ${job.rider_name || 'the rider'}!`,
+                jobId: job.id,
+                timestamp: new Date().toISOString()
+              });
+            } else if (job.status === 'on-the-way') {
+              newNotifs.push({
+                id: `${job.id}-otw-${Date.now()}`,
+                type: 'on-the-way',
+                message: `🚚 Your delivery ${job.order_id || ''} is on the way!`,
+                jobId: job.id,
+                timestamp: new Date().toISOString()
+              });
+            } else if (job.status === 'completed' && prevStatus !== 'completed') {
+              newNotifs.push({
+                id: `${job.id}-completed-${Date.now()}`,
+                type: 'completed',
+                message: `✅ Your delivery ${job.order_id || ''} has been completed by ${job.rider_name || 'the rider'}!`,
+                jobId: job.id,
+                timestamp: new Date().toISOString()
+              });
+            }
+          }
+        });
+        
+        if (newNotifs.length > 0) {
+          setCustomerNotifications(prev => [...newNotifs, ...prev].slice(0, 20));
+          // Play sound for new notifications
+          try {
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGczGjleqN/telerant7VxORFaKq8CkfEEyU4ery7F3MBUvXZzG2bFhKBMoWJnF3bJfJBAmU5C/2bNlKxUrVpW+1rRoLBkwX5u9y6tvNCA0YZ69yKdwNSQ6bKe6w6BqMiI4a6q+xaRvNyk+dLHAwp5pMiU+');
+            audio.volume = 0.3;
+            audio.play().catch(() => {});
+          } catch (e) {}
+          
+          // Browser notification
+          if ('Notification' in window && Notification.permission === 'granted') {
+            newNotifs.forEach(n => {
+              new Notification('MoveIt Logistics', { body: n.message, icon: '/icons/manifest-icon-192.maskable.png' });
+            });
+          }
+        }
+        
+        // Save current statuses for next comparison
+        const statusMap: any = {};
+        myJobs.forEach((job: any) => { statusMap[job.id] = job.status; });
+        setPrevJobStatuses(statusMap);
+      }
+      
       // Also set withdrawal requests from audit logs
       const withdrawals = (Array.isArray(logs) ? logs : []).filter((log: any) => log.action === 'withdrawal_request');
       setWithdrawalRequests(withdrawals);
@@ -4338,6 +4407,45 @@ Thank you for your order! 🙏` },
                     <span className="text-xs text-gray-400">Secure PayNow payment powered by Stripe</span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Customer Notifications Banner */}
+            {customerNotifications.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {customerNotifications.slice(0, 5).map((notif: any) => (
+                  <div key={notif.id} className={`p-3 rounded-lg flex justify-between items-center ${
+                    notif.type === 'completed' ? 'bg-green-50 border border-green-200' :
+                    notif.type === 'accepted' ? 'bg-blue-50 border border-blue-200' :
+                    notif.type === 'picked-up' ? 'bg-yellow-50 border border-yellow-200' :
+                    'bg-purple-50 border border-purple-200'
+                  }`}>
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        notif.type === 'completed' ? 'text-green-800' :
+                        notif.type === 'accepted' ? 'text-blue-800' :
+                        notif.type === 'picked-up' ? 'text-yellow-800' :
+                        'text-purple-800'
+                      }`}>{notif.message}</p>
+                      <p className="text-xs text-gray-500">{formatSGT(notif.timestamp)}</p>
+                    </div>
+                    <button 
+                      onClick={() => setCustomerNotifications(prev => prev.filter(n => n.id !== notif.id))}
+                      className="text-gray-400 hover:text-gray-600 ml-2"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                {customerNotifications.length > 5 && (
+                  <p className="text-xs text-gray-500 text-center">{customerNotifications.length - 5} more notifications</p>
+                )}
+                <button 
+                  onClick={() => setCustomerNotifications([])}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline"
+                >
+                  Clear all notifications
+                </button>
               </div>
             )}
 
