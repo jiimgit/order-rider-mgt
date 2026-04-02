@@ -2068,15 +2068,22 @@ const DeliveryPlatform = () => {
     }
   };
 
+  // Auto-calculate distances for all visible jobs
+  useEffect(() => {
+    if (jobs.length > 0) {
+      jobs.forEach((job: any) => {
+        const stops = job.stops || [];
+        if (!jobDistanceCache[job.id] && stops.length > 0 && job.pickup) {
+          fetchJobDistances(job.id, job.pickup, stops);
+        }
+      });
+    }
+  }, [jobs]);
+
   // Reusable improved job detail card
   const renderJobDetailCard = (job: any, showDeliveryFee: boolean = true) => {
     const stops = job.stops || [];
     const cachedDist = jobDistanceCache[job.id];
-    
-    // Trigger distance calculation if not cached and has stops
-    if (!cachedDist && stops.length > 0 && job.pickup) {
-      fetchJobDistances(job.id, job.pickup, stops);
-    }
 
     return (
       <div className="space-y-3">
