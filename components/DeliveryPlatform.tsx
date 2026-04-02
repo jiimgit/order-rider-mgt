@@ -270,9 +270,19 @@ const DeliveryPlatform = () => {
 
   // Rider online status and notifications
   const [riderIsOnline, setRiderIsOnline] = useState(false);
+  const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false);
+  const [showCustomerWallet, setShowCustomerWallet] = useState<any>(null);
   const [riderHasGPS, setRiderHasGPS] = useState(false);
   const [newJobNotifications, setNewJobNotifications] = useState<any[]>([]);
   const [lastJobCheck, setLastJobCheck] = useState<string | null>(null);
+  const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false);
+
+  // Customer urgent/boost states
+  const [showBoostModal, setShowBoostModal] = useState<any>(null);
+  const [boostAmount, setBoostAmount] = useState('');
+
+  // Admin wallet viewer
+  const [viewingWallet, setViewingWallet] = useState<any>(null);
 
   // Multi-job support states
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
@@ -836,7 +846,9 @@ const DeliveryPlatform = () => {
       activeRiders,
       totalRevenueToday,
       adminEarningsToday,
-      riderEarningsToday
+      riderEarningsToday,
+      totalStripeReceived: customers.reduce((sum: any, c: any) => sum + (c.credits || 0), 0) + jobs.filter((j: any) => j.status !== 'cancelled').reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0),
+      totalCustomerWallets: customers.reduce((sum: any, c: any) => sum + (c.credits || 0), 0)
     };
   }, [jobs, riders]);
 
@@ -912,6 +924,13 @@ const DeliveryPlatform = () => {
         j.customer_name?.toLowerCase().includes(riderJobFilter.customer.toLowerCase())
       );
     }
+    
+    // Sort: urgent/boosted jobs first, then by creation date (newest first)
+    availableJobs.sort((a: any, b: any) => {
+      if (a.is_urgent && !b.is_urgent) return -1;
+      if (!a.is_urgent && b.is_urgent) return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
     
     return availableJobs;
   }, [jobs, riderJobFilter]);
@@ -2116,6 +2135,13 @@ const DeliveryPlatform = () => {
 
     return (
       <div className="space-y-3">
+        {/* Urgent Label */}
+        {job.is_urgent && (
+          <div className="bg-red-50 p-2 rounded-lg border border-red-200 text-center">
+            <p className="text-sm font-bold text-red-700">🔥 URGENT — Priority Order {job.boost_amount ? `(+$${job.boost_amount})` : ''}</p>
+          </div>
+        )}
+
         {/* Order ID & Delivery Slot */}
         <div className="flex justify-between items-start">
           <div>
@@ -3054,6 +3080,50 @@ Thank you for your order! 🙏` },
     }
   };
 
+  // Customer - Boost/Urgent order to attract drivers faster
+  const boostOrder = async (jobId: string, extraAmount: number) => {
+    if (!extraAmount || extraAmount <= 0) {
+      alert('Please enter a valid boost amount');
+      return;
+    }
+    try {
+      const freshCust = await api(`customers?id=eq.${auth.id}`);
+      const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : 0;
+      if (freshCredits < extraAmount) {
+        alert(`Insufficient credits. Your balance is $${freshCredits.toFixed(2)}.`);
+        return;
+      }
+      
+      const job = jobs.find((j: any) => j.id === jobId);
+      if (!job) return;
+      
+      const newPrice = parseFloat(job.price) + extraAmount;
+      
+      await api(`jobs?id=eq.${jobId}`, 'PATCH', { 
+        price: newPrice, 
+        is_urgent: true,
+        boosted_at: new Date().toISOString(),
+        boost_amount: (job.boost_amount || 0) + extraAmount
+      });
+      
+      // Deduct credits
+      await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits - extraAmount });
+      
+      await logAuditAction('boost_order', {
+        jobId, orderId: job.order_id,
+        originalPrice: job.price, newPrice,
+        boostAmount: extraAmount
+      });
+      
+      setShowBoostModal(null);
+      setBoostAmount('');
+      alert(`Order boosted! Price increased to $${newPrice.toFixed(2)}.\n$${extraAmount.toFixed(2)} deducted from credits.\n\nYour order will be shown as URGENT to nearby drivers.`);
+      loadData();
+    } catch (e: any) {
+      alert('Error boosting order: ' + e.message);
+    }
+  };
+
   const createJob = async () => {
     const originalPrice = parseFloat(jobForm.price);
     const minPrice = 3 + (jobForm.stops.length - 1) * 2; // $3 base + $2 per extra stop
@@ -3369,12 +3439,8 @@ Thank you for your order! 🙏` },
           const existingIds = prev.map(n => n.id);
           const uniqueNewJobs = newJobs.filter((j: any) => !existingIds.includes(j.id));
           
-          // If there are truly new jobs, play sound and show notification
           if (uniqueNewJobs.length > 0) {
-            // Play notification sound
             playNotificationSound();
-            
-            // Show browser notification
             showBrowserNotification(
               '🚚 New Delivery Job!',
               `${uniqueNewJobs.length} new job${uniqueNewJobs.length > 1 ? 's' : ''} available. Tap to view.`
@@ -3383,6 +3449,51 @@ Thank you for your order! 🙏` },
           
           return [...uniqueNewJobs, ...prev];
         });
+        
+        // Auto-accept if enabled
+        if (autoAcceptEnabled && curr && currentLocation) {
+          const vehicleType = curr.vehicle_type || 'bike';
+          const maxDistance = vehicleType === 'car' || vehicleType === 'van' || vehicleType === 'lorry' ? 5 : 10; // Car: 5km, Bike: 10km
+          
+          for (const job of newJobs) {
+            // Check if job is still available
+            if (job.rider_id) continue;
+            
+            const jobPostal = extractPostalCode(job.pickup || '');
+            if (!jobPostal) continue;
+            
+            const jobCoords = await lookupCoordinatesCached(jobPostal);
+            if (!jobCoords) continue;
+            
+            const dist = haversineDistance(currentLocation.lat, currentLocation.lng, jobCoords.lat, jobCoords.lng);
+            
+            if (dist <= maxDistance) {
+              try {
+                await api(`jobs?id=eq.${job.id}`, 'PATCH', { 
+                  status: 'accepted', 
+                  rider_id: auth.id, 
+                  rider_name: curr.name, 
+                  rider_phone: curr.phone, 
+                  rider_vehicle_type: curr.vehicle_type || 'bike',
+                  accepted_at: new Date().toISOString() 
+                });
+                
+                showBrowserNotification(
+                  '✅ Auto-Accepted Job!',
+                  `Job ${job.order_id || ''} auto-accepted (${dist.toFixed(1)}km away)`
+                );
+                playNotificationSound();
+                
+                // Remove from notifications
+                setNewJobNotifications(prev => prev.filter(n => n.id !== job.id));
+                loadData();
+                break; // Only auto-accept one job at a time
+              } catch (e) {
+                console.log('Auto-accept failed:', e);
+              }
+            }
+          }
+        }
       }
       
       setLastJobCheck(new Date().toISOString());
@@ -5221,7 +5332,7 @@ Thank you for your order! 🙏` },
                                   📞
                                 </a>
                                 <a
-                                  href={`https://wa.me/65${job.rider_phone.replace(/\D/g, '')}`}
+                                  href={`https://wa.me/65${job.rider_phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${job.rider_name},\n\nCustomer: ${curr?.name || ''}\nOrder ID: ${job.order_id || 'N/A'}\nPickup: ${job.pickup}\nDrop-off: ${job.delivery}\n\nThank you!`)}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
@@ -5235,6 +5346,25 @@ Thank you for your order! 🙏` },
                         </div>
                       )}
                       
+                      {/* Urgent Label */}
+                      {job.is_urgent && (
+                        <div className="bg-red-100 border border-red-300 p-2 rounded-lg mb-3 text-center">
+                          <p className="text-sm font-bold text-red-700">🔥 URGENT — Priority Order {job.boost_amount ? `(+$${job.boost_amount})` : ''}</p>
+                        </div>
+                      )}
+                      
+                      {/* Boost/Urgent Button - for posted jobs waiting for a rider */}
+                      {job.status === 'posted' && (
+                        <div className="mb-3">
+                          <button
+                            onClick={() => setShowBoostModal(job)}
+                            className="w-full py-2 px-3 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
+                          >
+                            ⚡ Boost Order — Get a Driver Faster
+                          </button>
+                        </div>
+                      )}
+
                       {/* Tracking & Communication Buttons - for active jobs */}
                       {job.status !== 'posted' && job.status !== 'cancelled' && (
                         <div className="flex gap-2 mb-3">
@@ -5365,6 +5495,36 @@ Thank you for your order! 🙏` },
                 <p className="text-xs text-orange-600 mt-2">
                   ⚠️ GPS must be enabled to go online and accept jobs
                 </p>
+              )}
+              
+              {/* Auto-Accept Toggle */}
+              {riderIsOnline && (
+                <div className="mt-3 p-3 bg-white rounded-lg border flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">🤖 Auto-Accept Orders</p>
+                    <p className="text-xs text-gray-500">
+                      {curr?.vehicle_type === 'car' || curr?.vehicle_type === 'van' || curr?.vehicle_type === 'lorry'
+                        ? 'Auto-accept jobs within 5km'
+                        : 'Auto-accept jobs within 10km'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setAutoAcceptEnabled(!autoAcceptEnabled);
+                      alert(autoAcceptEnabled 
+                        ? '🔴 Auto-Accept disabled. You will need to manually accept jobs.'
+                        : `🟢 Auto-Accept enabled!\n\nJobs within ${curr?.vehicle_type === 'car' || curr?.vehicle_type === 'van' || curr?.vehicle_type === 'lorry' ? '5km' : '10km'} will be automatically accepted.`
+                      );
+                    }}
+                    className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+                      autoAcceptEnabled 
+                        ? 'bg-green-500 text-white hover:bg-green-600' 
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                    }`}
+                  >
+                    {autoAcceptEnabled ? 'ON' : 'OFF'}
+                  </button>
+                </div>
               )}
             </div>
 
@@ -6778,6 +6938,16 @@ Thank you for your order! 🙏` },
                   <p className="text-2xl font-bold">📈 ${calculateDashboardStats.adminEarningsToday.toFixed(2)}</p>
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-purple-100 text-sm">Total Stripe Received</p>
+                  <p className="text-2xl font-bold">💳 ${calculateDashboardStats.totalStripeReceived.toFixed(2)}</p>
+                </div>
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-purple-100 text-sm">Customer Wallet Balance</p>
+                  <p className="text-2xl font-bold">👛 ${calculateDashboardStats.totalCustomerWallets.toFixed(2)}</p>
+                </div>
+              </div>
             </div>
 
             {/* Quick Stats Cards */}
@@ -6841,11 +7011,14 @@ Thank you for your order! 🙏` },
                           <div>
                             <p className="font-semibold text-lg">{c.name}</p>
                             <p className="text-sm text-gray-600">{c.email} | {c.phone}</p>
-                            <p className="text-sm font-bold text-green-600 mt-1">Credits: ${(c.credits || 0).toFixed(2)}</p>
+                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => setShowCustomerWallet(c)}>
+                              Credits: ${(c.credits || 0).toFixed(2)} 👁️
+                            </p>
                             <p className="text-xs text-gray-400 mt-1">📅 Registered: {c.created_at ? formatSGT(c.created_at) : 'N/A'}</p>
                             <p className="text-xs text-gray-400">🕐 Last Login: {c.last_login ? formatSGT(c.last_login) : 'Never'}</p>
                           </div>
                           <div className="flex gap-2">
+                            <button onClick={() => setShowCustomerWallet(c)} className="p-2 bg-green-100 rounded hover:bg-green-200" title="View Wallet"><CreditCard size={18} /></button>
                             <button onClick={() => setEditCust({...c, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
                             <button onClick={async () => { if (window.confirm('Delete customer?')) { await api(`customers?id=eq.${c.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
                           </div>
@@ -9745,6 +9918,106 @@ Thank you for your order! 🙏` },
           </div>
         )}
 
+        {/* Customer Wallet Detail Modal */}
+        {showCustomerWallet && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">👛 Customer Wallet</h3>
+                <button onClick={() => setShowCustomerWallet(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <p className="font-semibold text-lg">{showCustomerWallet.name}</p>
+                <p className="text-sm text-gray-600">{showCustomerWallet.email} | {showCustomerWallet.phone}</p>
+              </div>
+              
+              {/* Wallet Summary */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-green-50 p-4 rounded-lg text-center border border-green-200">
+                  <p className="text-sm text-green-600">Current Balance</p>
+                  <p className="text-3xl font-bold text-green-700">${(showCustomerWallet.credits || 0).toFixed(2)}</p>
+                </div>
+                <div className="bg-blue-50 p-4 rounded-lg text-center border border-blue-200">
+                  <p className="text-sm text-blue-600">Amount Used</p>
+                  <p className="text-3xl font-bold text-blue-700">
+                    ${jobs.filter((j: any) => j.customer_id === showCustomerWallet.id && j.status !== 'cancelled')
+                      .reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Top-up History */}
+              <h4 className="font-semibold text-gray-800 mb-3">📜 Transaction History</h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {/* Show jobs as deductions and estimate top-ups */}
+                {(() => {
+                  const customerJobs = jobs
+                    .filter((j: any) => j.customer_id === showCustomerWallet.id)
+                    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                  
+                  // Get top-up audit logs for this customer
+                  const topUpLogs = auditLogs
+                    .filter((log: any) => 
+                      (log.action === 'customer_topup' || log.action === 'admin_job_cancel_refund') &&
+                      (typeof log.details === 'string' ? log.details.includes(showCustomerWallet.id) : 
+                       log.details?.customerId === showCustomerWallet.id)
+                    );
+                  
+                  // Combine and sort
+                  const transactions: any[] = [];
+                  
+                  topUpLogs.forEach((log: any) => {
+                    const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+                    transactions.push({
+                      type: log.action === 'admin_job_cancel_refund' ? 'refund' : 'topup',
+                      amount: details?.amount || details?.refundAmount || 0,
+                      date: log.timestamp,
+                      description: log.action === 'admin_job_cancel_refund' ? `Refund - ${details?.orderId || 'Job cancelled'}` : `Top-up via ${details?.status === 'self_confirmed' ? 'PayNow' : 'Stripe'}`
+                    });
+                  });
+                  
+                  customerJobs.forEach((j: any) => {
+                    transactions.push({
+                      type: j.status === 'cancelled' ? 'refund' : 'deduction',
+                      amount: parseFloat(j.price) || 0,
+                      date: j.created_at,
+                      description: `${j.status === 'cancelled' ? 'Cancelled' : 'Order'} ${j.order_id || ''} - ${j.pickup?.substring(0, 30)}...`
+                    });
+                  });
+                  
+                  transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                  
+                  return transactions.length === 0 ? (
+                    <p className="text-center text-gray-500 py-4">No transactions yet</p>
+                  ) : transactions.slice(0, 20).map((t: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded border">
+                      <div>
+                        <p className="text-sm text-gray-700">{t.description}</p>
+                        <p className="text-xs text-gray-400">{formatSGT(t.date)}</p>
+                      </div>
+                      <p className={`font-bold text-sm ${
+                        t.type === 'topup' || t.type === 'refund' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {t.type === 'topup' || t.type === 'refund' ? '+' : '-'}${t.amount.toFixed(2)}
+                      </p>
+                    </div>
+                  ));
+                })()}
+              </div>
+              
+              <button
+                onClick={() => setShowCustomerWallet(null)}
+                className="mt-4 w-full py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Edit Rider Modal */}
         {editRider && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -10310,6 +10583,95 @@ Thank you for your order! 🙏` },
                   Clicking a message will open WhatsApp with the pre-filled text. You can edit it before sending.
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Boost Order Modal (Customer) */}
+        {showBoostModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">⚡ Boost Your Order</h3>
+                <button onClick={() => { setShowBoostModal(null); setBoostAmount(''); }} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="mb-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <p className="text-sm text-orange-800">
+                  Your order is waiting for a driver. Add extra payment to increase your chances of getting a driver faster.
+                </p>
+              </div>
+              
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">Order: <span className="font-bold text-purple-600">{showBoostModal.order_id}</span></p>
+                <p className="text-sm text-gray-600">Current Price: <span className="font-bold">${parseFloat(showBoostModal.price).toFixed(2)}</span></p>
+                {showBoostModal.boost_amount > 0 && (
+                  <p className="text-xs text-orange-600 mt-1">Already boosted: +${showBoostModal.boost_amount.toFixed(2)}</p>
+                )}
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Add Extra Amount ($)</label>
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {[2, 5, 10, 20].map((amt) => (
+                    <button
+                      key={amt}
+                      onClick={() => setBoostAmount(amt.toString())}
+                      className={`py-2 rounded-lg text-sm font-semibold border-2 transition-colors ${
+                        boostAmount === amt.toString()
+                          ? 'bg-orange-500 text-white border-orange-500'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-orange-400'
+                      }`}
+                    >
+                      +${amt}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  value={boostAmount}
+                  onChange={(e) => setBoostAmount(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  placeholder="Or enter custom amount"
+                  min="1"
+                  step="0.5"
+                />
+              </div>
+              
+              {boostAmount && parseFloat(boostAmount) > 0 && (
+                <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Current Price:</span>
+                    <span>${parseFloat(showBoostModal.price).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-orange-600">
+                    <span>Boost Amount:</span>
+                    <span>+${parseFloat(boostAmount).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold mt-1 pt-1 border-t">
+                    <span>New Price:</span>
+                    <span className="text-green-700">${(parseFloat(showBoostModal.price) + parseFloat(boostAmount)).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+              
+              <button
+                onClick={() => boostOrder(showBoostModal.id, parseFloat(boostAmount))}
+                disabled={!boostAmount || parseFloat(boostAmount) <= 0}
+                className={`w-full py-3 rounded-lg font-semibold text-lg ${
+                  boostAmount && parseFloat(boostAmount) > 0
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                🔥 Boost Order {boostAmount && parseFloat(boostAmount) > 0 ? `(+$${parseFloat(boostAmount).toFixed(2)})` : ''}
+              </button>
+              
+              <p className="text-xs text-gray-400 text-center mt-2">
+                Amount will be deducted from your credits. Your order will be marked as URGENT.
+              </p>
             </div>
           </div>
         )}
