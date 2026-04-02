@@ -2147,6 +2147,13 @@ const DeliveryPlatform = () => {
           </div>
         )}
 
+        {/* Remarks */}
+        {job.remarks && (
+          <div className="bg-yellow-50 p-2 rounded border border-yellow-200">
+            <p className="text-sm text-gray-700 italic">📝 <span className="font-medium">Remarks:</span> {job.remarks}</p>
+          </div>
+        )}
+
         {/* Pickup Location */}
         <div className="bg-orange-50 p-3 rounded-lg border-l-4 border-orange-400">
           <p className="text-xs font-medium text-orange-600 uppercase mb-1">Pickup Location</p>
@@ -2210,10 +2217,6 @@ const DeliveryPlatform = () => {
           </div>
         )}
 
-        {/* Remarks */}
-        {job.remarks && (
-          <p className="text-xs text-gray-500 italic">📝 Remarks: {job.remarks}</p>
-        )}
       </div>
     );
   };
