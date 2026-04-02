@@ -1978,15 +1978,26 @@ const DeliveryPlatform = () => {
     }
   };
 
+  // Cache for coordinate lookups to avoid duplicate API calls
+  const coordsCacheRef = useRef<Record<string, {lat: number, lng: number} | null>>({});
+  
+  // Lookup coordinates with caching
+  const lookupCoordinatesCached = async (postalCode: string): Promise<{lat: number, lng: number} | null> => {
+    if (coordsCacheRef.current[postalCode] !== undefined) {
+      return coordsCacheRef.current[postalCode];
+    }
+    const result = await lookupCoordinates(postalCode);
+    coordsCacheRef.current[postalCode] = result;
+    return result;
+  };
+
   // Calculate distances between pickup and all stops for a job
   const calculateJobDistances = async (pickupAddress: string, stops: any[]): Promise<{distances: number[], totalDistance: number} | null> => {
     try {
       const pickupPostal = extractPostalCode(pickupAddress);
-      console.log('[Distance] Pickup:', pickupAddress, '→ Postal:', pickupPostal);
       if (!pickupPostal) return null;
 
-      const pickupCoords = await lookupCoordinates(pickupPostal);
-      console.log('[Distance] Pickup coords:', pickupCoords);
+      const pickupCoords = await lookupCoordinatesCached(pickupPostal);
       if (!pickupCoords) return null;
 
       const distances: number[] = [];
@@ -1994,13 +2005,11 @@ const DeliveryPlatform = () => {
       let totalDistance = 0;
 
       for (const stop of stops) {
-        // Try extracting postal code from stop address, unitNo, or combined
         const fullStopAddr = `${stop.address || ''} ${stop.unitNo || ''}`;
         const stopPostal = extractPostalCode(fullStopAddr);
-        console.log('[Distance] Stop:', fullStopAddr, '→ Postal:', stopPostal);
         if (!stopPostal) { distances.push(0); continue; }
         
-        const stopCoords = await lookupCoordinates(stopPostal);
+        const stopCoords = await lookupCoordinatesCached(stopPostal);
         if (!stopCoords) { distances.push(0); continue; }
 
         const dist = haversineDistance(prevCoords.lat, prevCoords.lng, stopCoords.lat, stopCoords.lng);
@@ -2010,7 +2019,6 @@ const DeliveryPlatform = () => {
         prevCoords = stopCoords;
       }
 
-      console.log('[Distance] Result:', { distances, totalDistance: parseFloat(totalDistance.toFixed(1)) });
       return { distances, totalDistance: parseFloat(totalDistance.toFixed(1)) };
     } catch (error) {
       console.error('[Distance] Calculation failed:', error);
@@ -2070,31 +2078,36 @@ const DeliveryPlatform = () => {
     const result = await calculateJobDistances(pickup, stops);
     if (result) {
       setJobDistanceCache(prev => {
-        if (prev[jobId]) return prev; // already cached
+        if (prev[jobId]) return prev;
         return { ...prev, [jobId]: result };
       });
     }
   };
 
-  // Auto-calculate distances for all visible jobs
+  // Auto-calculate distances for all visible jobs - process sequentially with delay
+  const distanceProcessingRef = useRef(false);
   useEffect(() => {
-    if (jobs.length > 0) {
-      const uncachedJobs = jobs.filter((job: any) => {
-        const stops = job.stops || [];
-        return !jobDistanceCache[job.id] && stops.length > 0 && job.pickup && extractPostalCode(job.pickup);
-      });
-      
-      // Process one at a time to avoid flooding the API
-      const processDistances = async () => {
-        for (const job of uncachedJobs) {
-          if (!jobDistanceCache[job.id]) {
-            await fetchJobDistances(job.id, job.pickup, job.stops || []);
-          }
-        }
-      };
-      processDistances();
-    }
-  }, [jobs.length]); // Only re-run when number of jobs changes
+    if (jobs.length === 0 || distanceProcessingRef.current) return;
+    
+    const uncachedJobs = jobs.filter((job: any) => {
+      const stops = job.stops || [];
+      return !jobDistanceCache[job.id] && stops.length > 0 && job.pickup && extractPostalCode(job.pickup);
+    });
+    
+    if (uncachedJobs.length === 0) return;
+    
+    distanceProcessingRef.current = true;
+    
+    const processDistances = async () => {
+      for (const job of uncachedJobs) {
+        await fetchJobDistances(job.id, job.pickup, job.stops || []);
+        // Small delay between jobs to avoid overwhelming the OneMap API
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      distanceProcessingRef.current = false;
+    };
+    processDistances();
+  }, [jobs.length]);
 
   // Reusable improved job detail card
   const renderJobDetailCard = (job: any, showDeliveryFee: boolean = true) => {
