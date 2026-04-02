@@ -275,7 +275,6 @@ const DeliveryPlatform = () => {
   const [riderHasGPS, setRiderHasGPS] = useState(false);
   const [newJobNotifications, setNewJobNotifications] = useState<any[]>([]);
   const [lastJobCheck, setLastJobCheck] = useState<string | null>(null);
-  const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false);
 
   // Customer urgent/boost states
   const [showBoostModal, setShowBoostModal] = useState<any>(null);
