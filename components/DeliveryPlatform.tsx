@@ -533,10 +533,39 @@ const DeliveryPlatform = () => {
       const topupStatus = urlParams.get('topup');
       const sessionId = urlParams.get('session_id');
       if (topupStatus === 'success' && sessionId) {
-        // Payment successful - show success message and reload data
-        setTimeout(() => {
+        // Payment successful - log the Stripe top-up
+        setTimeout(async () => {
+          try {
+            const savedAuth = localStorage.getItem('moveit_auth');
+            const pendingTopup = localStorage.getItem('moveit_pending_topup');
+            const topupData = pendingTopup ? JSON.parse(pendingTopup) : null;
+            
+            if (savedAuth) {
+              const parsedAuth = JSON.parse(savedAuth);
+              if (parsedAuth.id && parsedAuth.type === 'customer') {
+                const custData = await api(`customers?id=eq.${parsedAuth.id}`);
+                const custName = custData && custData.length > 0 ? custData[0].name : 'Unknown';
+                await api('audit_logs', 'POST', {
+                  action: 'customer_topup',
+                  user_id: parsedAuth.id,
+                  user_type: 'customer',
+                  details: JSON.stringify({
+                    customerId: parsedAuth.id,
+                    customerName: custName,
+                    amount: topupData?.amount || 0,
+                    sessionId: sessionId,
+                    status: 'stripe_payment'
+                  }),
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+            // Clear pending top-up
+            localStorage.removeItem('moveit_pending_topup');
+          } catch (e) {
+            console.log('Failed to log Stripe top-up:', e);
+          }
           alert('🎉 Payment successful! Your credits have been added to your account.');
-          // Clear URL parameters
           window.history.replaceState({}, '', window.location.pathname);
           loadData();
         }, 500);
@@ -4608,8 +4637,9 @@ Thank you for your order! 🙏` },
                         
                         // Redirect to Stripe checkout
                         if (data.url) {
+                          // Store amount for logging after successful payment
+                          localStorage.setItem('moveit_pending_topup', JSON.stringify({ amount: amt, timestamp: new Date().toISOString() }));
                           // Use direct navigation - most reliable across all platforms including iOS WebViews
-                          // window.open and target='_blank' are blocked by iOS popup blockers in WebViews
                           window.location.href = data.url;
                         }
                       } catch (error: any) {
@@ -10311,7 +10341,9 @@ Thank you for your order! 🙏` },
                         type: 'topup',
                         amount: details?.amount || 0,
                         date: log.timestamp,
-                        description: `Top-up via ${details?.status === 'self_confirmed' ? 'PayNow' : 'Stripe'}`
+                        description: details?.status === 'stripe_payment' 
+                          ? `💳 Top-up via Stripe` 
+                          : `📱 Top-up via PayNow${details?.refNumber ? ` (Ref: ${details.refNumber})` : ''}`
                       });
                     }
                   });
