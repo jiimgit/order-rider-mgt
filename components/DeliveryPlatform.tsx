@@ -87,6 +87,61 @@ const extractPostalCode = (address: string): string | null => {
   return match ? match[1] : null;
 };
 
+// Extract general area name from Singapore address
+const extractAreaName = (address: string): string => {
+  if (!address) return '';
+  const upper = address.toUpperCase();
+  
+  // Known Singapore estates/areas - check for these first
+  const areas = [
+    'ANG MO KIO', 'BEDOK', 'BISHAN', 'BUKIT BATOK', 'BUKIT MERAH', 'BUKIT PANJANG', 
+    'BUKIT TIMAH', 'CENTRAL', 'CHOA CHU KANG', 'CLEMENTI', 'GEYLANG', 'HOUGANG',
+    'JURONG EAST', 'JURONG WEST', 'KALLANG', 'MARINE PARADE', 'PASIR RIS', 'PUNGGOL',
+    'QUEENSTOWN', 'SENGKANG', 'SERANGOON', 'TAMPINES', 'TOA PAYOH', 'WOODLANDS',
+    'YISHUN', 'SEMBAWANG', 'SIMEI', 'CHANGI', 'CANBERRA', 'TENGAH', 'ORCHARD',
+    'TANJONG PAGAR', 'CHINATOWN', 'LITTLE INDIA', 'BUGIS', 'LAVENDER', 'NOVENA',
+    'NEWTON', 'RIVER VALLEY', 'TIONG BAHRU', 'ALEXANDRA', 'HARBOURFRONT', 'SENTOSA',
+    'MARINA BAY', 'RAFFLES PLACE', 'CITY HALL', 'DHOBY GHAUT', 'BOON LAY', 'PIONEER',
+    'LAKESIDE', 'DOVER', 'HOLLAND', 'COMMONWEALTH', 'REDHILL', 'MOUNTBATTEN',
+    'KATONG', 'SIGLAP', 'EAST COAST', 'UPPER SERANGOON', 'KOVAN', 'LORONG CHUAN',
+    'MACPHERSON', 'POTONG PASIR', 'BIDADARI', 'EUNOS', 'PAYA LEBAR', 'UBI',
+    'KEMBANGAN', 'TANAH MERAH', 'UPPER CHANGI', 'LOYANG', 'FLORA', 'FERNVALE',
+    'ANCHORVALE', 'COMPASSVALE', 'RIVERVALE', 'SUMANG', 'MATILDA', 'WATERWAY',
+    'ADMIRALTY', 'MARSILING', 'SPRINGLEAF', 'LENTOR', 'MAYFLOWER',
+    'FLORENCE', 'UPPER THOMSON', 'THOMSON', 'MARYMOUNT', 'BRADDELL',
+    'BENDEMEER', 'BOON KENG', 'FARRER PARK', 'ROCHOR', 'JALAN BESAR',
+    'TUAS', 'KRANJI', 'LIM CHU KANG', 'MANDAI', 'SELETAR', 'YISHUN'
+  ];
+  
+  for (const area of areas) {
+    if (upper.includes(area)) {
+      // Title case
+      return area.split(' ').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
+    }
+  }
+  
+  // Try to extract building/estate name from parentheses e.g. "(TREASURE CREST)"
+  const bracketMatch = address.match(/\(([^)]+)\)/);
+  if (bracketMatch) {
+    const name = bracketMatch[1].trim();
+    if (name.length > 3 && name.length < 30) {
+      return name.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+  }
+  
+  // Try to extract road name (take first meaningful words before Singapore/postal)
+  const roadMatch = address.match(/\d*[A-Z]?\s+([A-Z][A-Z\s]+?)(?:\s+(?:Singapore|S\d{6}|\d{6}|#))/i);
+  if (roadMatch) {
+    const road = roadMatch[1].trim();
+    if (road.length > 3) {
+      return road.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+  }
+  
+  // Fallback: take first 20 chars
+  return address.substring(0, 20) + (address.length > 20 ? '...' : '');
+};
+
 // Format date/time in Singapore timezone (SGT, UTC+8)
 const formatSGT = (dateStr: string | Date): string => {
   try {
@@ -286,6 +341,7 @@ const DeliveryPlatform = () => {
   // Multi-job support states
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [expandedActiveJob, setExpandedActiveJob] = useState(false);
 
   // Rider navigation history for back button
   const [riderViewHistory, setRiderViewHistory] = useState<string[]>(['home']);
@@ -6394,37 +6450,76 @@ Thank you for your order! 🙏` },
                   Active Delivery {activeJobsList.length > 1 && `(${activeJobsList.indexOf(activeJob) + 1}/${activeJobsList.length})`}
                 </h3>
                 
-                {/* Two Column Layout */}
-                <div className="flex gap-4">
-                  {/* Left Column - Delivery Details */}
-                  <div className="flex-1 bg-blue-50 p-4 rounded-lg">
-                    <p className="font-semibold text-sm text-gray-900 mb-2">{activeJob.pickup} → {activeJob.delivery}</p>
-                    <div className="text-sm text-gray-700 space-y-1">
-                      <p>👤 {activeJob.customer_name}</p>
-                      <p>📞 {activeJob.customer_phone}</p>
-                      {activeJob.recipient_name && (
-                        <p>🎯 {activeJob.recipient_name} {activeJob.recipient_phone && `(${activeJob.recipient_phone})`}</p>
-                      )}
+                {/* Summary View (always visible) */}
+                <div 
+                  className="bg-blue-50 p-4 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
+                  onClick={() => setExpandedActiveJob(!expandedActiveJob)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="font-bold text-lg text-gray-900">
+                        {extractAreaName(activeJob.pickup)} → {extractAreaName(activeJob.delivery)}
+                      </p>
+                      <p className="text-sm text-gray-700">👤 {activeJob.customer_name}</p>
+                      <p className="text-sm text-gray-700">📞 {activeJob.customer_phone}</p>
+                      {activeJob.parcel_size && <p className="text-sm text-gray-700">📦 <span className="capitalize">{activeJob.parcel_size}</span></p>}
                       {activeJob.delivery_date && (
-                        <p className="font-medium text-blue-700">📅 Delivery Date: {activeJob.delivery_date}</p>
+                        <p className="text-sm font-medium text-blue-700">📅 Date: {activeJob.delivery_date}</p>
                       )}
                       {(activeJob.timeframe || activeJob.delivery_slot) && (
-                        <p className="font-medium text-blue-700">🕐 Delivery Slot: {activeJob.timeframe || activeJob.delivery_slot}</p>
+                        <p className="text-sm font-medium text-blue-700">🕐 Slot: {activeJob.timeframe || activeJob.delivery_slot}</p>
                       )}
-                      {activeJob.parcel_size && <p>📦 {activeJob.parcel_size}</p>}
-                      {activeJob.remarks && <p className="text-gray-500 italic text-xs">📝 {activeJob.remarks}</p>}
+                      {activeJob.remarks && <p className="text-sm text-gray-500 italic">📝 {activeJob.remarks}</p>}
                     </div>
-                    {(() => {
-                      const earnings = calculateCommissions(activeJob.price, curr.tier, curr.upline_chain || [], activeJob.total_stops || 1);
-                      return (
-                        <div className="mt-3 pt-3 border-t border-blue-200">
-                          <p className="text-xs text-gray-600">Your earnings:</p>
-                          <p className="text-2xl font-bold text-green-600">${earnings.activeRider.toFixed(2)}</p>
-                        </div>
-                      );
-                    })()}
+                    <div className="text-right">
+                      {(() => {
+                        const earnings = calculateCommissions(activeJob.price, curr.tier, curr.upline_chain || [], activeJob.total_stops || 1);
+                        return <p className="text-2xl font-bold text-green-600">${earnings.activeRider.toFixed(2)}</p>;
+                      })()}
+                      <p className="text-xs text-gray-500 mt-1">{expandedActiveJob ? '▲ Tap to hide' : '▼ Tap for details'}</p>
+                    </div>
                   </div>
-                  
+                </div>
+
+                {/* Expanded Full Detail (toggle) */}
+                {expandedActiveJob && (
+                  <div className="mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-xs font-medium text-gray-500 uppercase mb-2">Full Address Details</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="bg-orange-50 p-2 rounded border-l-4 border-orange-400">
+                        <p className="text-xs font-medium text-orange-600">PICKUP</p>
+                        <p className="text-gray-800">{activeJob.pickup}</p>
+                        {activeJob.pickup_contact && (
+                          <p className="text-xs text-gray-500">Contact: {activeJob.pickup_contact} {activeJob.pickup_phone && `(${activeJob.pickup_phone})`}</p>
+                        )}
+                      </div>
+                      {(activeJob.stops || []).map((stop: any, idx: number) => (
+                        <div key={idx} className="bg-green-50 p-2 rounded border-l-4 border-green-400">
+                          <p className="text-xs font-medium text-green-600">DROP-OFF {idx + 1}</p>
+                          <p className="text-gray-800">{stop.address} {stop.unitNo || ''}</p>
+                          {stop.recipientName && (
+                            <p className="text-xs text-gray-500">Recipient: {stop.recipientName} {stop.recipientPhone && `(${stop.recipientPhone})`}</p>
+                          )}
+                        </div>
+                      ))}
+                      {(!activeJob.stops || activeJob.stops.length === 0) && (
+                        <div className="bg-green-50 p-2 rounded border-l-4 border-green-400">
+                          <p className="text-xs font-medium text-green-600">DROP-OFF</p>
+                          <p className="text-gray-800">{activeJob.delivery}</p>
+                          {activeJob.recipient_name && (
+                            <p className="text-xs text-gray-500">Recipient: {activeJob.recipient_name} {activeJob.recipient_phone && `(${activeJob.recipient_phone})`}</p>
+                          )}
+                        </div>
+                      )}
+                      {activeJob.order_id && (
+                        <p className="text-xs text-gray-500">Order ID: #{activeJob.order_id}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Two Column Layout - Action Buttons */}
+                <div className="flex gap-4 mt-3">
                   {/* Right Column - Action Buttons */}
                   <div className="w-48 flex flex-col gap-2">
                     {/* GPS Tracking Button */}
