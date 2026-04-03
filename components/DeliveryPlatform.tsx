@@ -257,6 +257,7 @@ const DeliveryPlatform = () => {
   const [adminView, setAdminView] = useState('customers');
   const [editCust, setEditCust] = useState<any>(null);
   const [editRider, setEditRider] = useState<any>(null);
+  const [editJob, setEditJob] = useState<any>(null);
   const [showCreateRider, setShowCreateRider] = useState(false);
   const [createRiderForm, setCreateRiderForm] = useState({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time', vehicle_type: 'bike', referralCode: '' });
   const [showTopUp, setShowTopUp] = useState(false);
@@ -7425,6 +7426,16 @@ Thank you for your order! 🙏` },
                                 <RefreshCw size={16} /> Reassign
                               </button>
                             )}
+                            {/* Edit Order Button */}
+                            {j.status !== 'completed' && j.status !== 'cancelled' && (
+                              <button 
+                                onClick={() => setEditJob({...j})}
+                                className="p-2 bg-yellow-100 rounded hover:bg-yellow-200 flex items-center gap-1 text-xs text-yellow-700" 
+                                title="Edit Order"
+                              >
+                                <Edit2 size={16} /> Edit
+                              </button>
+                            )}
                             {/* Cancel Job Button - Refunds customer credits */}
                             {j.status !== 'completed' && j.status !== 'cancelled' && (
                               <button 
@@ -9855,6 +9866,186 @@ Thank you for your order! 🙏` },
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Edit Order Modal (Admin) */}
+        {editJob && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">✏️ Edit Order</h3>
+                <button onClick={() => setEditJob(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="mb-4 p-3 bg-purple-50 rounded-lg">
+                <p className="font-bold text-purple-600">{editJob.order_id && `#${editJob.order_id}`}</p>
+                <p className="text-sm text-gray-600">Status: {editJob.status?.toUpperCase()}</p>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Address</label>
+                  <input
+                    type="text"
+                    value={editJob.pickup || ''}
+                    onChange={(e) => setEditJob({...editJob, pickup: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address</label>
+                  <input
+                    type="text"
+                    value={editJob.delivery || ''}
+                    onChange={(e) => setEditJob({...editJob, delivery: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact</label>
+                    <input
+                      type="text"
+                      value={editJob.pickup_contact || ''}
+                      onChange={(e) => setEditJob({...editJob, pickup_contact: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Phone</label>
+                    <input
+                      type="text"
+                      value={editJob.pickup_phone || ''}
+                      onChange={(e) => setEditJob({...editJob, pickup_phone: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name</label>
+                    <input
+                      type="text"
+                      value={editJob.recipient_name || ''}
+                      onChange={(e) => setEditJob({...editJob, recipient_name: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Phone</label>
+                    <input
+                      type="text"
+                      value={editJob.recipient_phone || ''}
+                      onChange={(e) => setEditJob({...editJob, recipient_phone: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Date</label>
+                    <input
+                      type="date"
+                      value={editJob.delivery_date || ''}
+                      onChange={(e) => setEditJob({...editJob, delivery_date: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Slot</label>
+                    <select
+                      value={editJob.timeframe || editJob.delivery_slot || ''}
+                      onChange={(e) => setEditJob({...editJob, timeframe: e.target.value, delivery_slot: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select slot</option>
+                      <option value="6am-11am">6am – 11am</option>
+                      <option value="12pm-5pm">12pm – 5pm</option>
+                      <option value="6pm-11pm">6pm – 11pm</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                    <input
+                      type="number"
+                      value={editJob.price || ''}
+                      onChange={(e) => setEditJob({...editJob, price: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      step="0.5"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Parcel Size</label>
+                    <select
+                      value={editJob.parcel_size || 'small'}
+                      onChange={(e) => setEditJob({...editJob, parcel_size: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                      <option value="extra-large">Extra Large</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                  <textarea
+                    value={editJob.remarks || ''}
+                    onChange={(e) => setEditJob({...editJob, remarks: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    rows={2}
+                  />
+                </div>
+                
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => setEditJob(null)}
+                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api(`jobs?id=eq.${editJob.id}`, 'PATCH', {
+                          pickup: editJob.pickup,
+                          delivery: editJob.delivery,
+                          pickup_contact: editJob.pickup_contact,
+                          pickup_phone: editJob.pickup_phone,
+                          recipient_name: editJob.recipient_name,
+                          recipient_phone: editJob.recipient_phone,
+                          delivery_date: editJob.delivery_date,
+                          timeframe: editJob.timeframe,
+                          delivery_slot: editJob.delivery_slot,
+                          price: parseFloat(editJob.price) || 0,
+                          parcel_size: editJob.parcel_size,
+                          remarks: editJob.remarks
+                        });
+                        await logAuditAction('admin_edit_order', {
+                          jobId: editJob.id,
+                          orderId: editJob.order_id
+                        });
+                        setEditJob(null);
+                        await loadData();
+                        alert('Order updated successfully!');
+                      } catch (e: any) {
+                        alert('Error updating order: ' + e.message);
+                      }
+                    }}
+                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
