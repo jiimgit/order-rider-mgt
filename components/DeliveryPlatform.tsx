@@ -6405,6 +6405,12 @@ Thank you for your order! 🙏` },
                       {activeJob.recipient_name && (
                         <p>🎯 {activeJob.recipient_name} {activeJob.recipient_phone && `(${activeJob.recipient_phone})`}</p>
                       )}
+                      {activeJob.delivery_date && (
+                        <p className="font-medium text-blue-700">📅 Delivery Date: {activeJob.delivery_date}</p>
+                      )}
+                      {(activeJob.timeframe || activeJob.delivery_slot) && (
+                        <p className="font-medium text-blue-700">🕐 Delivery Slot: {activeJob.timeframe || activeJob.delivery_slot}</p>
+                      )}
                       {activeJob.parcel_size && <p>📦 {activeJob.parcel_size}</p>}
                       {activeJob.remarks && <p className="text-gray-500 italic text-xs">📝 {activeJob.remarks}</p>}
                     </div>
