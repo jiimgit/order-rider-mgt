@@ -143,9 +143,19 @@ const extractAreaName = (address: string): string => {
 };
 
 // Format date/time in Singapore timezone (SGT, UTC+8)
+const ensureUTC = (dateStr: string | Date): Date => {
+  if (dateStr instanceof Date) return dateStr;
+  // If timestamp from Supabase doesn't end with Z or timezone offset, treat as UTC
+  const str = String(dateStr).trim();
+  if (str && !str.endsWith('Z') && !str.match(/[+-]\d{2}:\d{2}$/) && !str.match(/[+-]\d{4}$/)) {
+    return new Date(str + 'Z');
+  }
+  return new Date(str);
+};
+
 const formatSGT = (dateStr: string | Date): string => {
   try {
-    return new Date(dateStr).toLocaleString('en-SG', { 
+    return ensureUTC(dateStr).toLocaleString('en-SG', { 
       timeZone: 'Asia/Singapore',
       year: 'numeric',
       month: 'short',
@@ -161,7 +171,7 @@ const formatSGT = (dateStr: string | Date): string => {
 
 const formatSGTDate = (dateStr: string | Date): string => {
   try {
-    return new Date(dateStr).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' });
+    return ensureUTC(dateStr).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' });
   } catch {
     return new Date(dateStr).toLocaleDateString();
   }
@@ -169,7 +179,7 @@ const formatSGTDate = (dateStr: string | Date): string => {
 
 const formatSGTTime = (dateStr: string | Date): string => {
   try {
-    return new Date(dateStr).toLocaleTimeString('en-SG', { 
+    return ensureUTC(dateStr).toLocaleTimeString('en-SG', { 
       timeZone: 'Asia/Singapore',
       hour: '2-digit',
       minute: '2-digit',
