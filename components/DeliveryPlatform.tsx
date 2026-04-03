@@ -10235,9 +10235,24 @@ Thank you for your order! 🙏` },
             <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold">👛 Customer Wallet</h3>
-                <button onClick={() => setShowCustomerWallet(null)} className="p-2 hover:bg-gray-100 rounded-full">
-                  <X size={24} />
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={async () => {
+                      // Refresh customer data
+                      const fresh = await api(`customers?id=eq.${showCustomerWallet.id}`);
+                      if (fresh && fresh.length > 0) {
+                        setShowCustomerWallet(fresh[0]);
+                      }
+                      await loadData();
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded-full text-blue-600" title="Refresh"
+                  >
+                    <RefreshCw size={18} />
+                  </button>
+                  <button onClick={() => setShowCustomerWallet(null)} className="p-2 hover:bg-gray-100 rounded-full">
+                    <X size={24} />
+                  </button>
+                </div>
               </div>
               
               <div className="mb-4 p-4 bg-gray-50 rounded-lg">
@@ -10246,70 +10261,93 @@ Thank you for your order! 🙏` },
               </div>
               
               {/* Wallet Summary */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-green-50 p-4 rounded-lg text-center border border-green-200">
-                  <p className="text-sm text-green-600">Current Balance</p>
-                  <p className="text-3xl font-bold text-green-700">${(showCustomerWallet.credits || 0).toFixed(2)}</p>
-                </div>
-                <div className="bg-blue-50 p-4 rounded-lg text-center border border-blue-200">
-                  <p className="text-sm text-blue-600">Amount Used</p>
-                  <p className="text-3xl font-bold text-blue-700">
-                    ${jobs.filter((j: any) => j.customer_id === showCustomerWallet.id && j.status !== 'cancelled')
-                      .reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0).toFixed(2)}
-                  </p>
-                </div>
-              </div>
+              {(() => {
+                const customerJobs = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id);
+                const completedAndActiveJobs = customerJobs.filter((j: any) => j.status !== 'cancelled');
+                const amountUsed = completedAndActiveJobs.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+                const totalTopUps = amountUsed + (showCustomerWallet.credits || 0);
+                
+                return (
+                  <div className="grid grid-cols-3 gap-3 mb-6">
+                    <div className="bg-green-50 p-3 rounded-lg text-center border border-green-200">
+                      <p className="text-xs text-green-600">Current Balance</p>
+                      <p className="text-2xl font-bold text-green-700">${(showCustomerWallet.credits || 0).toFixed(2)}</p>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
+                      <p className="text-xs text-blue-600">Amount Used</p>
+                      <p className="text-2xl font-bold text-blue-700">${amountUsed.toFixed(2)}</p>
+                    </div>
+                    <div className="bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
+                      <p className="text-xs text-purple-600">Total Top-ups</p>
+                      <p className="text-2xl font-bold text-purple-700">${totalTopUps.toFixed(2)}</p>
+                    </div>
+                  </div>
+                );
+              })()}
               
-              {/* Top-up History */}
+              {/* Transaction History */}
               <h4 className="font-semibold text-gray-800 mb-3">📜 Transaction History</h4>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {/* Show jobs as deductions and estimate top-ups */}
                 {(() => {
                   const customerJobs = jobs
                     .filter((j: any) => j.customer_id === showCustomerWallet.id)
                     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                   
-                  // Get top-up audit logs for this customer
-                  const topUpLogs = auditLogs
-                    .filter((log: any) => 
-                      (log.action === 'customer_topup' || log.action === 'admin_job_cancel_refund') &&
-                      (typeof log.details === 'string' ? log.details.includes(showCustomerWallet.id) : 
-                       log.details?.customerId === showCustomerWallet.id)
-                    );
+                  // Get top-up and refund audit logs for this customer
+                  const relevantLogs = auditLogs
+                    .filter((log: any) => {
+                      if (log.action !== 'customer_topup' && log.action !== 'admin_job_cancel_refund') return false;
+                      const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
+                      return details?.customerId === showCustomerWallet.id;
+                    });
                   
-                  // Combine and sort
                   const transactions: any[] = [];
                   
-                  topUpLogs.forEach((log: any) => {
-                    const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
-                    transactions.push({
-                      type: log.action === 'admin_job_cancel_refund' ? 'refund' : 'topup',
-                      amount: details?.amount || details?.refundAmount || 0,
-                      date: log.timestamp,
-                      description: log.action === 'admin_job_cancel_refund' ? `Refund - ${details?.orderId || 'Job cancelled'}` : `Top-up via ${details?.status === 'self_confirmed' ? 'PayNow' : 'Stripe'}`
-                    });
+                  // Add top-up logs (NOT refund logs — refunds will be shown from cancelled jobs)
+                  relevantLogs.forEach((log: any) => {
+                    const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
+                    if (log.action === 'customer_topup') {
+                      transactions.push({
+                        type: 'topup',
+                        amount: details?.amount || 0,
+                        date: log.timestamp,
+                        description: `Top-up via ${details?.status === 'self_confirmed' ? 'PayNow' : 'Stripe'}`
+                      });
+                    }
                   });
                   
+                  // Add job transactions
                   customerJobs.forEach((j: any) => {
-                    transactions.push({
-                      type: j.status === 'cancelled' ? 'refund' : 'deduction',
-                      amount: parseFloat(j.price) || 0,
-                      date: j.created_at,
-                      description: `${j.status === 'cancelled' ? 'Cancelled' : 'Order'} ${j.order_id || ''} - ${j.pickup?.substring(0, 30)}...`
-                    });
+                    if (j.status === 'cancelled') {
+                      // Cancelled job = refund (show as single +refund entry)
+                      transactions.push({
+                        type: 'refund',
+                        amount: parseFloat(j.price) || 0,
+                        date: j.cancelled_at || j.created_at,
+                        description: `Refund - ${j.order_id || 'Cancelled order'}`
+                      });
+                    } else {
+                      // Active/completed job = deduction
+                      transactions.push({
+                        type: 'deduction',
+                        amount: parseFloat(j.price) || 0,
+                        date: j.created_at,
+                        description: `Order ${j.order_id || ''} - ${extractAreaName(j.pickup)} → ${extractAreaName(j.delivery)}`
+                      });
+                    }
                   });
                   
                   transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
                   
                   return transactions.length === 0 ? (
                     <p className="text-center text-gray-500 py-4">No transactions yet</p>
-                  ) : transactions.slice(0, 20).map((t: any, idx: number) => (
+                  ) : transactions.slice(0, 30).map((t: any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded border">
                       <div>
                         <p className="text-sm text-gray-700">{t.description}</p>
                         <p className="text-xs text-gray-400">{formatSGT(t.date)}</p>
                       </div>
-                      <p className={`font-bold text-sm ${
+                      <p className={`font-bold text-sm whitespace-nowrap ml-2 ${
                         t.type === 'topup' || t.type === 'refund' ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {t.type === 'topup' || t.type === 'refund' ? '+' : '-'}${t.amount.toFixed(2)}
