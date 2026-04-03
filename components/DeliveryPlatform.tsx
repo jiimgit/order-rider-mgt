@@ -180,6 +180,16 @@ const formatSGTTime = (dateStr: string | Date): string => {
   }
 };
 
+// Format delivery date from yyyy-mm-dd to dd-mm-yyyy
+const formatDeliveryDate = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+};
+
 const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChain: any[], totalStops: number = 1): any => {
   const platformFee = 1 * totalStops; // $1 per drop-off
   const remaining = deliveryFee - platformFee;
@@ -2204,7 +2214,7 @@ const DeliveryPlatform = () => {
               <p className="text-sm font-bold text-purple-600">Order ID: #{job.order_id}</p>
             )}
             {job.delivery_date && (
-              <p className="text-sm text-gray-600">📅 Delivery Date: {job.delivery_date}</p>
+              <p className="text-sm text-gray-600">📅 Delivery Date: {formatDeliveryDate(job.delivery_date)}</p>
             )}
             {(job.timeframe || job.delivery_slot) && (
               <p className="text-sm text-gray-600">🕐 Delivery Slot: {job.timeframe || job.delivery_slot}</p>
@@ -6464,7 +6474,7 @@ Thank you for your order! 🙏` },
                       <p className="text-sm text-gray-700">📞 {activeJob.customer_phone}</p>
                       {activeJob.parcel_size && <p className="text-sm text-gray-700">📦 <span className="capitalize">{activeJob.parcel_size}</span></p>}
                       {activeJob.delivery_date && (
-                        <p className="text-sm font-medium text-blue-700">📅 Date: {activeJob.delivery_date}</p>
+                        <p className="text-sm font-medium text-blue-700">📅 Date: {formatDeliveryDate(activeJob.delivery_date)}</p>
                       )}
                       {(activeJob.timeframe || activeJob.delivery_slot) && (
                         <p className="text-sm font-medium text-blue-700">🕐 Slot: {activeJob.timeframe || activeJob.delivery_slot}</p>
