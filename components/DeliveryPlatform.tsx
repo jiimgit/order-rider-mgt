@@ -359,6 +359,10 @@ const DeliveryPlatform = () => {
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<any>(null);
   const [showAiInput, setShowAiInput] = useState(false);
+  const [showCustomerTnC, setShowCustomerTnC] = useState(false);
+  const [showRiderTnC, setShowRiderTnC] = useState(false);
+  const [tncAccepted, setTncAccepted] = useState(false);
+  const [pendingTnCAction, setPendingTnCAction] = useState<any>(null);
 
   // Admin wallet viewer
   const [viewingWallet, setViewingWallet] = useState<any>(null);
@@ -2362,6 +2366,151 @@ const DeliveryPlatform = () => {
     { value: '12pm-5pm', label: '12pm – 5pm (cut off 3pm)' },
     { value: '6pm-11pm', label: '6pm – 11pm (cut off 9pm)' }
   ];
+
+  const CUSTOMER_TNC = `Terms and Conditions
+
+1. Wallet / Credit System
+All payments on the platform must be made through the in-app wallet system.
+• Customers are required to top up credits into the wallet first before placing any order
+• Direct payment to riders (cash, PayNow, bank transfer, etc.) is strictly not allowed, unless explicitly stated by the platform
+• Wallet credits are non-transferable: Cannot be transferred to another user, Cannot be exchanged for cash
+
+2. Strict No Refund Policy
+All wallet credits are strictly non-refundable.
+• No refunds will be provided under any circumstances, including: Change of mind, No usage of credits, Account inactivity
+• Wallet credits cannot be withdrawn as cash
+Example: If you top up $200 but decide not to use the service, the $200 will remain in your wallet and cannot be refunded.
+
+3. Expiry of Credits
+All wallet credits are valid for 6 months from the date of top-up.
+• After 6 months: Credits will automatically expire, Expired credits will be forfeited permanently
+• Extensions are not guaranteed and may only be granted at the platform's sole discretion
+Example: If you top up on 1 January, your credits will expire on 30 June.
+
+4. Failed or Cancelled Delivery
+If a delivery cannot be completed:
+• The amount paid will remain in your wallet as credits
+• No refund will be made to your bank account or card
+
+5. Pricing Control
+• All delivery fees shown in the app are final and binding before order confirmation
+• Customers may choose to increase the price to attract riders faster
+• Once confirmed, the price cannot be disputed
+
+6. No Guarantee of Service
+The platform does not guarantee:
+• Immediate job acceptance by riders
+• Delivery within a specific time
+• Availability of riders at all times
+
+7. Customer Responsibilities
+Customers must provide accurate and complete information, including: Pickup location, Drop-off location, Contact details.
+If incorrect information is provided: Delays may occur, Additional charges may apply, Customer bears full responsibility.
+
+8. Waiting Time & Additional Charges
+Additional charges may apply in situations such as: Long waiting time at pickup or drop-off, Incorrect address, Last-minute changes.
+All additional charges will be deducted directly from your wallet.
+
+9. Cancellation Policy
+• Once a rider accepts or picks up the order: Cancellation may not be allowed, OR Cancellation charges will apply
+• No refund of credits will be given
+
+10. Limitation of Liability
+The platform is not liable for: Lost items, Damaged items, Delivery delays.
+
+11. Rider Conduct
+• Riders are not employees of the platform
+• The platform is not responsible for rider behavior or actions
+
+12. Proof of Delivery
+• Photo proof is considered valid completion of delivery
+• If the item is left at the doorstep, it is considered successfully delivered
+
+13. Abuse / Misuse
+Customers must not: Create fake bookings, Abuse the system, Exploit pricing or promotions.
+If detected, the platform may: Suspend or terminate the account, Forfeit all wallet credits.
+
+14. Platform Control
+The platform reserves full rights to: Suspend or terminate accounts, Reject or cancel orders, Modify system features, pricing, or policies at any time.
+
+15. Disputes
+• All decisions made by the platform are final and binding
+• Customers agree not to file chargebacks or disputes after service is completed
+
+16. System / Technical Issues
+The platform is not responsible for: App errors, Payment processing delays, Network or connectivity issues.`;
+
+  const RIDER_TNC = `Terms and Conditions
+
+1. Rider Not an Employee
+The Rider acknowledges and agrees that he/she is not engaged strictly as an employee, partner, agent, or representative of the Company.
+The Rider further understands and agrees that:
+• The Company does not provide any form of employment benefits, including but not limited to: CPF contributions, Medical benefits, Insurance coverage, Paid leave
+• The Rider is solely responsible for: Personal taxes, Insurance coverage, Compliance with all applicable laws and regulations
+
+2. No Guarantee of Income or Jobs
+The Company does not guarantee:
+• Any minimum number of jobs
+• Any level of income or earnings
+• Any incentives, bonuses, or rewards
+
+3. Platform Control and Discretion
+The Company reserves the absolute right to:
+• Modify pricing, fees, commission structures, and incentives at any time
+• Assign, reassign, or remove jobs at its sole discretion
+• Restrict or revoke access to the platform
+Use of the platform is granted as a revocable privilege, not a right.
+
+4. Payment and Wallet System
+All Rider earnings shall be processed exclusively through the platform's internal wallet system.
+• Withdrawals are subject to a minimum payout threshold
+• The Company may delay, hold, or withhold payments in cases of: Disputes, Fraud investigations, System errors
+• The Company's calculation of earnings shall be final and binding
+
+5. Proof of Delivery Requirements
+The Rider must provide complete and accurate proof of delivery for every job, including: Clear photo evidence, GPS location data, Timestamp verification.
+Failure to provide valid proof will result in non-payment.
+
+6. Cancellation Policy
+• If cancellation occurs after pickup, the Rider must return the item and provide proof
+• Failure to provide proof will result in no payment
+• Excessive cancellations may lead to: Account suspension, Permanent termination
+
+7. Fraud and Abuse Prevention
+The Rider is strictly prohibited from: Creating fake jobs, GPS spoofing or location manipulation, Self-referral or collusion.
+Any violation will result in: Immediate suspension or permanent ban, Forfeiture of earnings, Recovery (clawback) of any amounts paid.
+
+8. Clawback Rights
+The Company reserves the right to recover or deduct any payments made to the Rider if issues are identified after payment.
+
+9. Limitation of Liability
+The Company shall not be liable for: Loss or damage of items, Delivery delays, Actions or negligence of the Rider.
+The Rider assumes full responsibility for all deliveries.
+
+10. Tier, Commission, and Performance System
+• Tier requirements may be changed at any time
+• There is no guarantee of maintaining any tier level
+• All tiers are strictly performance-based
+
+11. Suspension and Termination Rights
+The Company reserves the right to: Suspend or terminate the Rider's account at any time, without prior notice, with no compensation.
+
+12. Customer Ownership and Non-Circumvention
+All customers introduced through the platform remain the exclusive property of the Company.
+The Rider is strictly prohibited from: Soliciting customers outside the platform, Conducting offline transactions, Sharing personal contact details for business purposes.
+
+13. Data and System Authority
+All records maintained by the Company's system shall be deemed accurate and final.
+
+14. Minimum Activity Requirement
+The Rider may be required to meet minimum activity levels.
+Failure to meet requirements may result in: Tier downgrade, Reduced job allocation, Account removal.
+
+15. Dispute Resolution
+All operational decisions made by the Company are final and binding.
+
+16. Force Majeure
+The Company shall not be held liable for any failure or delay caused by events beyond its control.`;
 
   // Generate random reference number for PayNow top-up
   const generateTopUpReference = (): string => {
@@ -5260,7 +5409,7 @@ Thank you for your order! 🙏` },
                 </div>
 
                 <button 
-                  onClick={createJob} 
+                  onClick={() => { setShowCustomerTnC(true); setTncAccepted(false); }} 
                   className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
                 >
                   Post Job - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
@@ -5797,11 +5946,15 @@ Thank you for your order! 🙏` },
                   </div>
                   <button
                     onClick={() => {
-                      setAutoAcceptEnabled(!autoAcceptEnabled);
-                      alert(autoAcceptEnabled 
-                        ? '🔴 Auto-Accept disabled. You will need to manually accept jobs.'
-                        : `🟢 Auto-Accept enabled!\n\nJobs within ${curr?.vehicle_type === 'car' || curr?.vehicle_type === 'van' || curr?.vehicle_type === 'lorry' ? '5km' : '10km'} will be automatically accepted.`
-                      );
+                      if (autoAcceptEnabled) {
+                        setAutoAcceptEnabled(false);
+                        alert('🔴 Auto-Accept disabled. You will need to manually accept jobs.');
+                      } else {
+                        // Show T&C before enabling auto-accept
+                        setPendingTnCAction({ type: 'auto_accept' });
+                        setShowRiderTnC(true);
+                        setTncAccepted(false);
+                      }
                     }}
                     className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
                       autoAcceptEnabled 
@@ -5835,7 +5988,7 @@ Thank you for your order! 🙏` },
                         </p>
                       </div>
                       <button
-                        onClick={() => acceptJob(job.id)}
+                        onClick={() => { setPendingTnCAction({ type: 'accept', jobId: job.id }); setShowRiderTnC(true); setTncAccepted(false); }}
                         className="bg-green-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-600 text-sm"
                       >
                         Accept
@@ -7174,13 +7327,7 @@ Thank you for your order! 🙏` },
                     {selectedJobsForAccept.length > 0 && (
                       <div className="sticky bottom-0 bg-white pt-3 pb-2 border-t">
                         <button 
-                          onClick={async () => {
-                            // Accept all selected jobs - GPS check happens inside acceptJob
-                            for (const jobId of selectedJobsForAccept) {
-                              await acceptJob(jobId);
-                            }
-                            setSelectedJobsForAccept([]);
-                          }} 
+                          onClick={() => { setPendingTnCAction({ type: 'bulk_accept', jobIds: [...selectedJobsForAccept] }); setShowRiderTnC(true); setTncAccepted(false); }} 
                           className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors"
                         >
                           {`Accept ${selectedJobsForAccept.length} Job${selectedJobsForAccept.length > 1 ? 's' : ''}`}
@@ -11234,6 +11381,138 @@ Thank you for your order! 🙏` },
               <p className="text-xs text-gray-400 text-center mt-2">
                 Amount will be deducted from your credits. Your order will be marked as URGENT.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Customer Terms & Conditions Modal */}
+        {showCustomerTnC && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">📋 Terms and Conditions</h3>
+                <button onClick={() => { setShowCustomerTnC(false); setTncAccepted(false); }} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto mb-4 p-4 bg-gray-50 rounded-lg border text-sm text-gray-700 whitespace-pre-line" style={{maxHeight: '50vh'}}>
+                {CUSTOMER_TNC}
+              </div>
+              
+              <div className="border-t pt-4">
+                <label className="flex items-start gap-3 cursor-pointer mb-4">
+                  <input 
+                    type="checkbox" 
+                    checked={tncAccepted} 
+                    onChange={(e) => setTncAccepted(e.target.checked)}
+                    className="mt-1 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 font-medium">
+                    I have read and understood the Terms and Conditions
+                  </span>
+                </label>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setShowCustomerTnC(false); setTncAccepted(false); }}
+                    className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!tncAccepted) {
+                        alert('Please tick the checkbox to agree to the Terms and Conditions before proceeding.');
+                        return;
+                      }
+                      setShowCustomerTnC(false);
+                      setTncAccepted(false);
+                      createJob();
+                    }}
+                    disabled={!tncAccepted}
+                    className={`flex-1 py-3 rounded-lg font-semibold ${
+                      tncAccepted 
+                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    Agree & Submit Job
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rider Terms & Conditions Modal */}
+        {showRiderTnC && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">📋 Terms and Conditions</h3>
+                <button onClick={() => { setShowRiderTnC(false); setTncAccepted(false); setPendingTnCAction(null); }} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto mb-4 p-4 bg-gray-50 rounded-lg border text-sm text-gray-700 whitespace-pre-line" style={{maxHeight: '50vh'}}>
+                {RIDER_TNC}
+              </div>
+              
+              <div className="border-t pt-4">
+                <label className="flex items-start gap-3 cursor-pointer mb-4">
+                  <input 
+                    type="checkbox" 
+                    checked={tncAccepted} 
+                    onChange={(e) => setTncAccepted(e.target.checked)}
+                    className="mt-1 w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span className="text-sm text-gray-700 font-medium">
+                    I have read and understood the Terms and Conditions
+                  </span>
+                </label>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setShowRiderTnC(false); setTncAccepted(false); setPendingTnCAction(null); }}
+                    className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!tncAccepted) {
+                        alert('Please tick the checkbox to agree to the Terms and Conditions before proceeding.');
+                        return;
+                      }
+                      setShowRiderTnC(false);
+                      setTncAccepted(false);
+                      
+                      if (pendingTnCAction?.type === 'accept') {
+                        await acceptJob(pendingTnCAction.jobId);
+                      } else if (pendingTnCAction?.type === 'bulk_accept') {
+                        for (const jobId of pendingTnCAction.jobIds) {
+                          await acceptJob(jobId);
+                        }
+                        setSelectedJobsForAccept([]);
+                      } else if (pendingTnCAction?.type === 'auto_accept') {
+                        setAutoAcceptEnabled(true);
+                        alert(`🟢 Auto-Accept enabled!\n\nJobs within ${curr?.vehicle_type === 'car' || curr?.vehicle_type === 'van' || curr?.vehicle_type === 'lorry' ? '5km' : '10km'} will be automatically accepted.`);
+                      }
+                      setPendingTnCAction(null);
+                    }}
+                    disabled={!tncAccepted}
+                    className={`flex-1 py-3 rounded-lg font-semibold ${
+                      tncAccepted 
+                        ? 'bg-green-600 text-white hover:bg-green-700' 
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {pendingTnCAction?.type === 'auto_accept' ? 'Agree & Enable Auto-Accept' : 'Agree & Accept Job'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
