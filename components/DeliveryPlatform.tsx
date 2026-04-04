@@ -3440,6 +3440,24 @@ Thank you for your order! 🙏` },
     alert('✅ AI recommendations applied to the form! Please review and adjust if needed.');
   };
 
+  // Validate job form fields before showing T&C
+  const validateJobForm = (): boolean => {
+    const originalPrice = parseFloat(jobForm.price);
+    const minPrice = 3 + (jobForm.stops.length - 1) * 2;
+    if (!originalPrice || originalPrice < minPrice) { alert(`Minimum price is $${minPrice} for ${jobForm.stops.length} stop(s)`); return false; }
+    if (!jobForm.pickup) { alert('Please fill in pickup location'); return false; }
+    if (!jobForm.pickupUnitNo) { alert('Please fill in pickup Unit No (enter "N/A" if not applicable)'); return false; }
+    if (!jobForm.stops[0]?.address) { alert('Please fill in at least one drop-off location'); return false; }
+    if (!jobForm.parcelSize) { alert('Please select a parcel size'); return false; }
+    if (!jobForm.timeframe) { alert('Please select a delivery time slot'); return false; }
+    if (!jobForm.deliveryDate) { alert('Please select a delivery date'); return false; }
+    const emptyStops = jobForm.stops.filter(s => !s.address);
+    if (emptyStops.length > 0) { alert('Please fill in all drop-off addresses or remove empty stops'); return false; }
+    const missingUnitNo = jobForm.stops.filter(s => !s.unitNo);
+    if (missingUnitNo.length > 0) { alert('Please fill in Unit No for all drop-off locations (enter "N/A" if not applicable)'); return false; }
+    return true;
+  };
+
   const createJob = async () => {
     const originalPrice = parseFloat(jobForm.price);
     const minPrice = 3 + (jobForm.stops.length - 1) * 2; // $3 base + $2 per extra stop
@@ -5409,7 +5427,7 @@ Thank you for your order! 🙏` },
                 </div>
 
                 <button 
-                  onClick={() => { setShowCustomerTnC(true); setTncAccepted(false); }} 
+                  onClick={() => { if (validateJobForm()) { setShowCustomerTnC(true); setTncAccepted(false); } }} 
                   className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
                 >
                   Post Job - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
