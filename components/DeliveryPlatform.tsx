@@ -4761,7 +4761,7 @@ Thank you for your order! 🙏` },
                     💬 Contact Us
                   </a>
                   <button 
-                    onClick={() => setShowTopUp(true)} 
+                    onClick={() => { setShowTopUp(true); setTncAccepted(false); }} 
                     className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 transition-colors shadow-lg"
                   >
                     <CreditCard size={20} />
@@ -4825,11 +4825,39 @@ Thank you for your order! 🙏` },
                     </div>
                   )}
                   
+                  {/* Terms & Conditions checkbox */}
+                  {topUpAmt && parseFloat(topUpAmt) >= 10 && (
+                    <div className="p-3 bg-gray-50 rounded-lg border">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={tncAccepted} 
+                          onChange={(e) => setTncAccepted(e.target.checked)}
+                          className="mt-1 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">
+                          I have read and understood the{' '}
+                          <button 
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); setShowCustomerTnC(true); }}
+                            className="text-blue-600 underline hover:text-blue-800 font-medium"
+                          >
+                            Terms and Conditions
+                          </button>
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                  
                   <button 
                     onClick={async () => {
                       const amt = parseFloat(topUpAmt);
                       if (!amt || amt < 10) {
                         alert('Minimum top-up amount is $10');
+                        return;
+                      }
+                      if (!tncAccepted) {
+                        alert('Please tick the checkbox to agree to the Terms and Conditions before making payment.');
                         return;
                       }
                       
@@ -4881,7 +4909,7 @@ Thank you for your order! 🙏` },
                       }
                     }}
                     id="stripe-checkout-btn"
-                    disabled={!topUpAmt || parseFloat(topUpAmt) < 10}
+                    disabled={!topUpAmt || parseFloat(topUpAmt) < 10 || !tncAccepted}
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:from-purple-700 hover:to-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     <CreditCard size={20} />
@@ -5427,7 +5455,7 @@ Thank you for your order! 🙏` },
                 </div>
 
                 <button 
-                  onClick={() => { if (validateJobForm()) { setShowCustomerTnC(true); setTncAccepted(false); } }} 
+                  onClick={createJob} 
                   className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
                 >
                   Post Job - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
@@ -11403,62 +11431,27 @@ Thank you for your order! 🙏` },
           </div>
         )}
 
-        {/* Customer Terms & Conditions Modal */}
+        {/* Customer Terms & Conditions Modal (Read-only viewer) */}
         {showCustomerTnC && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] flex flex-col">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold">📋 Terms and Conditions</h3>
-                <button onClick={() => { setShowCustomerTnC(false); setTncAccepted(false); }} className="p-2 hover:bg-gray-100 rounded-full">
+                <button onClick={() => setShowCustomerTnC(false)} className="p-2 hover:bg-gray-100 rounded-full">
                   <X size={24} />
                 </button>
               </div>
               
-              <div className="flex-1 overflow-y-auto mb-4 p-4 bg-gray-50 rounded-lg border text-sm text-gray-700 whitespace-pre-line" style={{maxHeight: '50vh'}}>
+              <div className="flex-1 overflow-y-auto mb-4 p-4 bg-gray-50 rounded-lg border text-sm text-gray-700 whitespace-pre-line" style={{maxHeight: '60vh'}}>
                 {CUSTOMER_TNC}
               </div>
               
-              <div className="border-t pt-4">
-                <label className="flex items-start gap-3 cursor-pointer mb-4">
-                  <input 
-                    type="checkbox" 
-                    checked={tncAccepted} 
-                    onChange={(e) => setTncAccepted(e.target.checked)}
-                    className="mt-1 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700 font-medium">
-                    I have read and understood the Terms and Conditions
-                  </span>
-                </label>
-                
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => { setShowCustomerTnC(false); setTncAccepted(false); }}
-                    className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!tncAccepted) {
-                        alert('Please tick the checkbox to agree to the Terms and Conditions before proceeding.');
-                        return;
-                      }
-                      setShowCustomerTnC(false);
-                      setTncAccepted(false);
-                      createJob();
-                    }}
-                    disabled={!tncAccepted}
-                    className={`flex-1 py-3 rounded-lg font-semibold ${
-                      tncAccepted 
-                        ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    Agree & Submit Job
-                  </button>
-                </div>
-              </div>
+              <button
+                onClick={() => setShowCustomerTnC(false)}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
