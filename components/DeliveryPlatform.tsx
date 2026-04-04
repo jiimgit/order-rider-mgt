@@ -355,6 +355,10 @@ const DeliveryPlatform = () => {
   // Customer urgent/boost states
   const [showBoostModal, setShowBoostModal] = useState<any>(null);
   const [boostAmount, setBoostAmount] = useState('');
+  const [aiInput, setAiInput] = useState('');
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
+  const [showAiInput, setShowAiInput] = useState(false);
 
   // Admin wallet viewer
   const [viewingWallet, setViewingWallet] = useState<any>(null);
@@ -3229,6 +3233,64 @@ Thank you for your order! 🙏` },
     }
   };
 
+  // AI Auto Analysis for delivery orders
+  const analyzeWithAI = async () => {
+    if (!aiInput.trim() || aiInput.trim().length < 20) {
+      alert('Please paste your delivery details (at least 20 characters).');
+      return;
+    }
+    setAiAnalyzing(true);
+    setAiResult(null);
+    
+    try {
+      const response = await fetch('/api/ai-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryDetails: aiInput })
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        alert('AI analysis failed: ' + data.error);
+      } else {
+        setAiResult(data);
+      }
+    } catch (e: any) {
+      console.error('AI analysis error:', e);
+      alert('AI analysis failed. Please try again or enter details manually.');
+    }
+    setAiAnalyzing(false);
+  };
+
+  // Apply AI result to job form
+  const applyAiResult = () => {
+    if (!aiResult) return;
+    
+    setJobForm({
+      ...jobForm,
+      pickup: aiResult.pickup || '',
+      pickupUnitNo: aiResult.pickupUnitNo || 'N/A',
+      pickupContact: aiResult.pickupContact || '',
+      pickupPhone: aiResult.pickupPhone || '',
+      stops: aiResult.stops?.length > 0 ? aiResult.stops.map((s: any) => ({
+        address: s.address || '',
+        unitNo: s.unitNo || 'N/A',
+        recipientName: s.recipientName || '',
+        recipientPhone: s.recipientPhone || ''
+      })) : [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
+      parcelSize: aiResult.parcelSize || 'small',
+      remarks: aiResult.remarks || '',
+      price: aiResult.suggestedPrice?.toString() || '3',
+      deliveryDate: aiResult.deliveryDate || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
+      timeframe: aiResult.deliverySlot || ''
+    });
+    
+    setShowAiInput(false);
+    setAiInput('');
+    alert('✅ AI recommendations applied to the form! Please review and adjust if needed.');
+  };
+
   const createJob = async () => {
     const originalPrice = parseFloat(jobForm.price);
     const minPrice = 3 + (jobForm.stops.length - 1) * 2; // $3 base + $2 per extra stop
@@ -4707,6 +4769,125 @@ Thank you for your order! 🙏` },
 
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-6">Post New Delivery Job</h3>
+              
+              {/* AI Auto Analysis Toggle */}
+              <div className="mb-6">
+                <button
+                  onClick={() => { setShowAiInput(!showAiInput); setAiResult(null); }}
+                  className={`w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
+                    showAiInput 
+                      ? 'bg-purple-600 text-white hover:bg-purple-700' 
+                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  }`}
+                >
+                  🤖 {showAiInput ? 'Hide AI Auto-Fill' : 'AI Auto-Fill — Paste Your Delivery Details'}
+                </button>
+              </div>
+              
+              {/* AI Input Area */}
+              {showAiInput && (
+                <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
+                  <p className="text-sm text-purple-800 mb-3">
+                    📋 <strong>Paste your delivery details below</strong> and AI will automatically fill in the form for you.
+                  </p>
+                  <textarea
+                    value={aiInput}
+                    onChange={(e) => setAiInput(e.target.value)}
+                    className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                    rows={5}
+                    placeholder={"Example:\nPick up from 241 Bukit Panjang Ring Road #07-155 (Kalsom, 86294582)\nDeliver to:\n1) 66 Anchorvale Crescent #04-34 - Melissa 91899796\n2) 293B Compassvale Crescent #13-57 - Constance 91010052\nFrozen food, handle with care. Medium parcel. Pick up at 12.30pm today."}
+                  />
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={analyzeWithAI}
+                      disabled={aiAnalyzing || aiInput.trim().length < 20}
+                      className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
+                        aiAnalyzing || aiInput.trim().length < 20
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-purple-600 text-white hover:bg-purple-700'
+                      }`}
+                    >
+                      {aiAnalyzing ? '🔄 Analyzing...' : '🤖 Analyze with AI'}
+                    </button>
+                    <button
+                      onClick={() => { setAiInput(''); setAiResult(null); }}
+                      className="px-4 py-3 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  
+                  {/* AI Result Preview */}
+                  {aiResult && (
+                    <div className="mt-4 p-4 bg-white rounded-lg border border-green-300">
+                      <h4 className="font-bold text-green-800 mb-3">✅ AI Analysis Result</h4>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="bg-orange-50 p-2 rounded">
+                          <p className="text-xs font-medium text-orange-600">PICKUP</p>
+                          <p className="text-gray-800">{aiResult.pickup} {aiResult.pickupUnitNo !== 'N/A' ? aiResult.pickupUnitNo : ''}</p>
+                          {aiResult.pickupContact && <p className="text-xs text-gray-500">Contact: {aiResult.pickupContact} {aiResult.pickupPhone}</p>}
+                        </div>
+                        
+                        {aiResult.stops?.map((stop: any, idx: number) => (
+                          <div key={idx} className="bg-green-50 p-2 rounded">
+                            <p className="text-xs font-medium text-green-600">DROP-OFF {idx + 1}</p>
+                            <p className="text-gray-800">{stop.address} {stop.unitNo !== 'N/A' ? stop.unitNo : ''}</p>
+                            {stop.recipientName && <p className="text-xs text-gray-500">Recipient: {stop.recipientName} {stop.recipientPhone}</p>}
+                          </div>
+                        ))}
+                        
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="bg-blue-50 p-2 rounded">
+                            <p className="text-xs text-blue-600">Parcel Size</p>
+                            <p className="font-medium capitalize">{aiResult.parcelSize}</p>
+                          </div>
+                          <div className="bg-blue-50 p-2 rounded">
+                            <p className="text-xs text-blue-600">Suggested Price</p>
+                            <p className="font-medium">${aiResult.suggestedPrice}</p>
+                          </div>
+                          {aiResult.deliverySlot && (
+                            <div className="bg-blue-50 p-2 rounded">
+                              <p className="text-xs text-blue-600">Delivery Slot</p>
+                              <p className="font-medium">{aiResult.deliverySlot}</p>
+                            </div>
+                          )}
+                          <div className="bg-blue-50 p-2 rounded">
+                            <p className="text-xs text-blue-600">Suggested Drivers</p>
+                            <p className="font-medium">{aiResult.suggestedDrivers}</p>
+                          </div>
+                        </div>
+                        
+                        {aiResult.remarks && (
+                          <div className="bg-yellow-50 p-2 rounded">
+                            <p className="text-xs text-yellow-600">Remarks</p>
+                            <p className="text-gray-700 italic">{aiResult.remarks}</p>
+                          </div>
+                        )}
+                        
+                        {aiResult.analysis && (
+                          <p className="text-xs text-gray-500 italic mt-2">🤖 {aiResult.analysis}</p>
+                        )}
+                      </div>
+                      
+                      <div className="flex gap-2 mt-4">
+                        <button
+                          onClick={applyAiResult}
+                          className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                        >
+                          ✅ Accept & Fill Form
+                        </button>
+                        <button
+                          onClick={() => setAiResult(null)}
+                          className="flex-1 py-3 bg-gray-200 text-gray-600 rounded-lg font-semibold hover:bg-gray-300"
+                        >
+                          ✏️ Enter Manually
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {/* Postal Code Tip */}
               <div className="bg-blue-50 p-3 rounded-lg mb-4">
