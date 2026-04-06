@@ -1968,23 +1968,59 @@ const DeliveryPlatform = () => {
     }
   };
 
-  // Admin - Send broadcast (placeholder - would integrate with actual messaging)
+  // Admin - Send broadcast via WhatsApp
   const sendBroadcast = async () => {
     if (!broadcastMessage.message) {
       alert('Please enter a message');
       return;
     }
     
-    // In production, this would integrate with WhatsApp API, SMS, or push notifications
+    // Determine recipients
+    let recipients: any[] = [];
+    if (broadcastMessage.target === 'all_riders') {
+      recipients = riders.filter((r: any) => r.phone).map((r: any) => ({ name: r.name, phone: r.phone, type: 'rider' }));
+    } else if (broadcastMessage.target === 'online_riders') {
+      recipients = riders.filter((r: any) => r.phone && r.is_online).map((r: any) => ({ name: r.name, phone: r.phone, type: 'rider' }));
+    } else if (broadcastMessage.target === 'all_customers') {
+      recipients = customers.filter((c: any) => c.phone).map((c: any) => ({ name: c.name, phone: c.phone, type: 'customer' }));
+    } else {
+      recipients = [
+        ...riders.filter((r: any) => r.phone).map((r: any) => ({ name: r.name, phone: r.phone, type: 'rider' })),
+        ...customers.filter((c: any) => c.phone).map((c: any) => ({ name: c.name, phone: c.phone, type: 'customer' }))
+      ];
+    }
+    
+    if (recipients.length === 0) {
+      alert('No recipients found with phone numbers.');
+      return;
+    }
+    
+    const fullMessage = `📢 *MoveIt Logistics*${broadcastMessage.subject ? `\n*${broadcastMessage.subject}*` : ''}\n\n${broadcastMessage.message}`;
+    
+    if (!window.confirm(`Send broadcast to ${recipients.length} recipient(s)?\n\nThis will open WhatsApp for each recipient.\n\nTarget: ${broadcastMessage.target.replace(/_/g, ' ')}\nMessage preview:\n${fullMessage.substring(0, 100)}...`)) {
+      return;
+    }
+    
     await logAuditAction('broadcast_sent', {
       target: broadcastMessage.target,
       subject: broadcastMessage.subject,
-      recipientCount: broadcastMessage.target === 'all_riders' ? riders.length : 
-                       broadcastMessage.target === 'all_customers' ? customers.length : 
-                       riders.length + customers.length
+      message: broadcastMessage.message,
+      recipientCount: recipients.length
     });
     
-    alert(`Broadcast scheduled to ${broadcastMessage.target.replace('_', ' ')}!\n\nNote: In production, this would send via WhatsApp/SMS.`);
+    // Open WhatsApp for each recipient with a delay
+    let sentCount = 0;
+    for (const recipient of recipients) {
+      const personalMessage = `Hi ${recipient.name} 👋\n\n${fullMessage}`;
+      const url = generateWhatsAppLink(recipient.phone, personalMessage);
+      
+      setTimeout(() => {
+        window.open(url, '_blank');
+      }, sentCount * 1500); // 1.5 second delay between each
+      sentCount++;
+    }
+    
+    alert(`Broadcast sending to ${recipients.length} recipient(s) via WhatsApp!\n\nWhatsApp windows will open one by one. Please send each message.`);
     setBroadcastMessage({ target: 'all_riders', subject: '', message: '' });
     setShowBroadcast(false);
   };
@@ -9453,7 +9489,7 @@ Please be punctual and update once completed. Thanks!`;
         {/* Broadcast Modal */}
         {showBroadcast && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold">📢 Broadcast Message</h3>
                 <button onClick={() => setShowBroadcast(false)} className="p-2 hover:bg-gray-100 rounded-full">
@@ -9469,13 +9505,14 @@ Please be punctual and update once completed. Thanks!`;
                     onChange={(e) => setBroadcastMessage({...broadcastMessage, target: e.target.value})}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
-                    <option value="all_riders">All Riders ({riders.length})</option>
-                    <option value="all_customers">All Customers ({customers.length})</option>
-                    <option value="all">Everyone ({riders.length + customers.length})</option>
+                    <option value="all_riders">All Riders ({riders.filter((r: any) => r.phone).length})</option>
+                    <option value="online_riders">Online Riders Only ({riders.filter((r: any) => r.phone && r.is_online).length})</option>
+                    <option value="all_customers">All Customers ({customers.filter((c: any) => c.phone).length})</option>
+                    <option value="all">Everyone ({riders.filter((r: any) => r.phone).length + customers.filter((c: any) => c.phone).length})</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject (Optional)</label>
                   <input
                     type="text"
                     value={broadcastMessage.subject}
@@ -9494,12 +9531,34 @@ Please be punctual and update once completed. Thanks!`;
                     placeholder="Type your message here..."
                   />
                 </div>
+                
+                {/* Message Preview */}
+                {broadcastMessage.message && (
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-xs font-medium text-green-600 mb-1">Preview (WhatsApp):</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-line">
+                      Hi [Name] 👋{'\n\n'}📢 *MoveIt Logistics*{broadcastMessage.subject ? `\n*${broadcastMessage.subject}*` : ''}{'\n\n'}{broadcastMessage.message}
+                    </p>
+                  </div>
+                )}
+                
+                <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <p className="text-xs text-yellow-800">
+                    ⚠️ This will open a WhatsApp window for each recipient. You will need to click send in each window. For large numbers, messages will open with 1.5 second delays.
+                  </p>
+                </div>
+                
                 <button
                   onClick={sendBroadcast}
-                  className="w-full py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 flex items-center justify-center gap-2"
+                  disabled={!broadcastMessage.message}
+                  className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
+                    broadcastMessage.message 
+                      ? 'bg-orange-600 text-white hover:bg-orange-700' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
                 >
                   <Send size={18} />
-                  Send Broadcast
+                  Send via WhatsApp
                 </button>
               </div>
             </div>
