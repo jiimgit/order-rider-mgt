@@ -6937,54 +6937,135 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
-            {/* Multi-Job List - Feature 5 */}
-            {getActiveJobsForRider.length > 1 && (
-              <div className="bg-white rounded-lg shadow-lg p-4">
-                <h4 className="font-bold text-gray-800 mb-3">📋 Your Active Jobs ({getActiveJobsForRider.length})</h4>
-                <div className="space-y-2">
-                  {getActiveJobsForRider.map((job: any, idx: number) => (
-                    <div 
-                      key={job.id} 
-                      className={`p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                        selectedJobId === job.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
-                      }`}
-                      onClick={() => setSelectedJobId(job.id)}
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-semibold text-sm">Job #{idx + 1}: {job.pickup?.substring(0, 20) || 'N/A'}...</p>
-                          <p className="text-xs text-gray-500">{job.status?.toUpperCase() || 'UNKNOWN'}</p>
-                        </div>
-                        {(() => {
-                          const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
-                          return <span className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</span>;
-                        })()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Multi-Job Selector - Show when rider has multiple active jobs */}
-            {activeJobsList.length > 1 && (
+            {/* Active Jobs - Grouped by TODAY and UPCOMING */}
+            {activeJobsList.length > 0 && (
               <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
-                <h4 className="font-semibold text-gray-700 mb-3">📋 Your Active Jobs ({activeJobsList.length})</h4>
-                <div className="flex flex-wrap gap-2">
-                  {activeJobsList.map((job: any, idx: number) => (
-                    <button
-                      key={job.id}
-                      onClick={() => setSelectedJobId(job.id)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        (selectedJobId === job.id || (!selectedJobId && idx === 0))
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      Job {idx + 1}: {job.delivery?.substring(0, 15)}...
-                    </button>
-                  ))}
-                </div>
+                <h4 className="font-bold text-gray-800 mb-3">📋 Your Active Jobs ({activeJobsList.length})</h4>
+                {(() => {
+                  const todaySGT = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
+                  const todayDisplay = new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric' });
+                  
+                  const todayJobs = activeJobsList.filter((j: any) => j.delivery_date === todaySGT || !j.delivery_date);
+                  const upcomingJobs = activeJobsList.filter((j: any) => j.delivery_date && j.delivery_date > todaySGT);
+                  const pastJobs = activeJobsList.filter((j: any) => j.delivery_date && j.delivery_date < todaySGT);
+                  
+                  // Extract pickup time from remarks
+                  const getPickupTime = (remarks: string): string => {
+                    if (!remarks) return '';
+                    const match = remarks.match(/pick\s*up\s*(?:at\s*)?(\d{1,2}[.:]\d{0,2}\s*(?:am|pm|AM|PM)?|\d{1,2}\s*(?:am|pm|AM|PM))/i);
+                    return match ? `Pickup: ${match[1]}` : '';
+                  };
+                  
+                  return (
+                    <div className="space-y-4">
+                      {/* Today's Jobs */}
+                      {todayJobs.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-green-700 bg-green-100 px-3 py-1 rounded-full inline-block mb-2">
+                            📅 TODAY ({todayDisplay})
+                          </p>
+                          <div className="space-y-2">
+                            {todayJobs.map((job: any) => {
+                              const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
+                              const pickupTime = getPickupTime(job.remarks);
+                              return (
+                                <div 
+                                  key={job.id}
+                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                                    (selectedJobId === job.id || (!selectedJobId && activeJobsList[0]?.id === job.id))
+                                      ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
+                                  }`}
+                                  onClick={() => setSelectedJobId(job.id)}
+                                >
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <p className="font-semibold text-sm">{extractAreaName(job.pickup)} → {extractAreaName(job.delivery)}</p>
+                                      <p className="text-xs text-gray-500">
+                                        {job.timeframe || job.delivery_slot || ''}
+                                        {pickupTime && ` • ${pickupTime}`}
+                                      </p>
+                                      <p className="text-xs text-gray-400">{job.status?.toUpperCase()}</p>
+                                    </div>
+                                    <span className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Upcoming Jobs */}
+                      {upcomingJobs.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full inline-block mb-2">
+                            📆 UPCOMING
+                          </p>
+                          <div className="space-y-2">
+                            {upcomingJobs
+                              .sort((a: any, b: any) => (a.delivery_date || '').localeCompare(b.delivery_date || ''))
+                              .map((job: any) => {
+                              const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
+                              const pickupTime = getPickupTime(job.remarks);
+                              const dateDisplay = job.delivery_date ? new Date(job.delivery_date + 'T00:00:00+08:00').toLocaleDateString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short' }) : '';
+                              return (
+                                <div 
+                                  key={job.id}
+                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                                    selectedJobId === job.id
+                                      ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
+                                  }`}
+                                  onClick={() => setSelectedJobId(job.id)}
+                                >
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <p className="text-xs font-medium text-blue-600">{dateDisplay} ({job.timeframe || job.delivery_slot || ''})</p>
+                                      <p className="font-semibold text-sm">{extractAreaName(job.pickup)} → {extractAreaName(job.delivery)}</p>
+                                      {pickupTime && <p className="text-xs text-gray-500">{pickupTime}</p>}
+                                      <p className="text-xs text-gray-400">{job.status?.toUpperCase()}</p>
+                                    </div>
+                                    <span className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Past (overdue) Jobs */}
+                      {pastJobs.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-red-700 bg-red-100 px-3 py-1 rounded-full inline-block mb-2">
+                            ⚠️ OVERDUE
+                          </p>
+                          <div className="space-y-2">
+                            {pastJobs.map((job: any) => {
+                              const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
+                              const dateDisplay = job.delivery_date ? formatDeliveryDate(job.delivery_date) : '';
+                              return (
+                                <div 
+                                  key={job.id}
+                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-colors border-red-300 bg-red-50 hover:border-red-400`}
+                                  onClick={() => setSelectedJobId(job.id)}
+                                >
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <p className="text-xs font-medium text-red-600">{dateDisplay} ({job.timeframe || ''})</p>
+                                      <p className="font-semibold text-sm">{extractAreaName(job.pickup)} → {extractAreaName(job.delivery)}</p>
+                                      <p className="text-xs text-red-400">{job.status?.toUpperCase()}</p>
+                                    </div>
+                                    <span className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
