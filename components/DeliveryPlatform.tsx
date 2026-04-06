@@ -363,6 +363,7 @@ const DeliveryPlatform = () => {
   const [showRiderTnC, setShowRiderTnC] = useState(false);
   const [tncAccepted, setTncAccepted] = useState(false);
   const [pendingTnCAction, setPendingTnCAction] = useState<any>(null);
+  const [remindersSent, setRemindersSent] = useState<Record<string, boolean>>({});
 
   // Admin wallet viewer
   const [viewingWallet, setViewingWallet] = useState<any>(null);
@@ -3065,9 +3066,7 @@ Thank you for your order! 🙏` },
 
   // Generate WhatsApp Click-to-Chat URL
   const generateWhatsAppLink = (phone: string, message: string): string => {
-    // Remove any non-numeric characters and ensure proper format
     let cleanPhone = phone.replace(/\D/g, '');
-    // Add Singapore country code if not present
     if (cleanPhone.startsWith('8') || cleanPhone.startsWith('9')) {
       cleanPhone = '65' + cleanPhone;
     } else if (!cleanPhone.startsWith('65')) {
@@ -3075,6 +3074,84 @@ Thank you for your order! 🙏` },
     }
     const encodedMessage = encodeURIComponent(message);
     return `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+  };
+
+  // Generate reminder message for a job
+  const generateReminderMessage = (job: any): string => {
+    const stops = job.stops || [];
+    const pickupArea = extractAreaName(job.pickup);
+    const cachedDist = jobDistanceCache[job.id];
+    
+    let dropOffSection = '';
+    if (stops.length > 0) {
+      stops.forEach((stop: any, idx: number) => {
+        dropOffSection += `\n📍 Drop-off${stops.length > 1 ? ` ${idx + 1}` : ''}\n`;
+        dropOffSection += `${stop.recipientName || 'Recipient'} – ${stop.recipientPhone || 'N/A'}\n`;
+        dropOffSection += `${stop.address || ''} ${stop.unitNo || ''}\n`;
+      });
+    } else {
+      dropOffSection = `\n📍 Drop-off\n${job.recipient_name || 'Recipient'} – ${job.recipient_phone || 'N/A'}\n${job.delivery}\n`;
+    }
+
+    return `Hi 👋
+
+Reminder for your upcoming delivery:
+📦 Order ID: #${job.order_id || 'N/A'}
+📅 Date: ${job.delivery_date ? formatDeliveryDate(job.delivery_date) : 'Today'}
+🕐 Time Slot: ${job.timeframe || job.delivery_slot || 'N/A'}
+
+🟠 Pickup
+${job.pickup_contact || job.customer_name || 'Customer'} – ${job.pickup_phone || job.customer_phone || 'N/A'}
+${job.pickup}
+${dropOffSection}
+📦 Parcel: ${job.parcel_size ? job.parcel_size.charAt(0).toUpperCase() + job.parcel_size.slice(1) : 'N/A'}
+${cachedDist ? `📏 Distance: ${cachedDist.totalDistance} km\n` : ''}${job.remarks ? `📝 Remarks: ${job.remarks}\n` : ''}
+Please be punctual and update once completed. Thanks!`;
+  };
+
+  // Send reminder to rider via WhatsApp
+  const sendRiderReminder = (job: any) => {
+    if (!job.rider_phone) {
+      alert('No rider phone number available for this job.');
+      return;
+    }
+    const message = generateReminderMessage(job);
+    const url = generateWhatsAppLink(job.rider_phone, message);
+    window.open(url, '_blank');
+    setRemindersSent(prev => ({ ...prev, [job.id]: true }));
+  };
+
+  // Check for jobs approaching pickup time and send auto-reminders
+  const checkAutoReminders = () => {
+    if (auth.type !== 'admin') return;
+    
+    const now = new Date();
+    const activeJobs = jobs.filter((j: any) => 
+      j.status === 'accepted' && j.rider_id && j.rider_phone && !remindersSent[j.id]
+    );
+    
+    activeJobs.forEach((job: any) => {
+      if (!job.delivery_date || !job.timeframe) return;
+      
+      // Parse the delivery slot start time
+      let slotHour = 6; // default
+      if (job.timeframe?.includes('12pm') || job.timeframe?.includes('12PM')) slotHour = 12;
+      else if (job.timeframe?.includes('6pm') || job.timeframe?.includes('6PM')) slotHour = 18;
+      else if (job.timeframe?.includes('6am') || job.timeframe?.includes('6AM')) slotHour = 6;
+      
+      const pickupTime = new Date(job.delivery_date + 'T' + String(slotHour).padStart(2, '0') + ':00:00+08:00');
+      const diffMinutes = (pickupTime.getTime() - now.getTime()) / (1000 * 60);
+      
+      // Send reminder if within 30-60 minutes of pickup time
+      if (diffMinutes > 0 && diffMinutes <= 60) {
+        // Show browser notification to admin
+        showBrowserNotification(
+          '⏰ Delivery Reminder',
+          `${job.rider_name}'s pickup for ${job.order_id || 'order'} is in ${Math.round(diffMinutes)} minutes`
+        );
+        setRemindersSent(prev => ({ ...prev, [job.id]: true }));
+      }
+    });
   };
 
   // Replace placeholders in template message
@@ -3113,6 +3190,7 @@ Thank you for your order! 🙏` },
     if (auth.isAuth) {
       const interval = setInterval(() => {
         loadData();
+        checkAutoReminders();
       }, 120000); // 120 seconds (2 minutes)
       return () => clearInterval(interval);
     }
@@ -6876,6 +6954,33 @@ Thank you for your order! 🙏` },
 
             {activeJob && (
               <div className="bg-white rounded-lg shadow-xl p-4 border-2 border-blue-500">
+                {/* Pickup Time Reminder */}
+                {activeJob.delivery_date && activeJob.timeframe && (() => {
+                  const now = new Date();
+                  let slotHour = 6;
+                  if (activeJob.timeframe?.includes('12pm') || activeJob.timeframe?.includes('12PM')) slotHour = 12;
+                  else if (activeJob.timeframe?.includes('6pm') || activeJob.timeframe?.includes('6PM')) slotHour = 18;
+                  const pickupTime = new Date(activeJob.delivery_date + 'T' + String(slotHour).padStart(2, '0') + ':00:00+08:00');
+                  const diffMinutes = (pickupTime.getTime() - now.getTime()) / (1000 * 60);
+                  
+                  if (diffMinutes > 0 && diffMinutes <= 60) {
+                    return (
+                      <div className="mb-3 p-3 bg-red-50 border-2 border-red-300 rounded-lg animate-pulse">
+                        <p className="text-sm font-bold text-red-700">⏰ Pickup time is in {Math.round(diffMinutes)} minutes!</p>
+                        <p className="text-xs text-red-600">Please head to the pickup location now.</p>
+                      </div>
+                    );
+                  } else if (diffMinutes <= 0 && diffMinutes > -120) {
+                    return (
+                      <div className="mb-3 p-3 bg-orange-50 border-2 border-orange-300 rounded-lg">
+                        <p className="text-sm font-bold text-orange-700">⚠️ Pickup time has passed ({Math.abs(Math.round(diffMinutes))} min ago)</p>
+                        <p className="text-xs text-orange-600">Please update the status or contact the customer.</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                
                 <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
                   <Package className="text-blue-600" />
                   Active Delivery {activeJobsList.length > 1 && `(${activeJobsList.indexOf(activeJob) + 1}/${activeJobsList.length})`}
@@ -7714,6 +7819,25 @@ Thank you for your order! 🙏` },
                       <UserPlus size={16} /> Manual Key In Job
                     </button>
                     <button 
+                      onClick={() => {
+                        const acceptedJobs = jobs.filter((j: any) => 
+                          j.status === 'accepted' && j.rider_id && j.rider_phone && !remindersSent[j.id]
+                        );
+                        if (acceptedJobs.length === 0) {
+                          alert('No pending reminders to send. All accepted jobs have already been reminded or have no rider assigned.');
+                          return;
+                        }
+                        if (window.confirm(`Send reminders to ${acceptedJobs.length} rider(s) for accepted jobs?\n\nThis will open WhatsApp for each rider.`)) {
+                          acceptedJobs.forEach((j: any, idx: number) => {
+                            setTimeout(() => sendRiderReminder(j), idx * 1500);
+                          });
+                        }
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 bg-teal-100 text-teal-700 rounded-lg hover:bg-teal-200 text-sm font-medium"
+                    >
+                      <Clock size={16} /> Bulk Remind
+                    </button>
+                    <button 
                       onClick={() => setShowJobSummary(true)}
                       className="flex items-center gap-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm font-medium"
                     >
@@ -7848,6 +7972,20 @@ Thank you for your order! 🙏` },
                                 title="Edit Order"
                               >
                                 <Edit2 size={16} /> Edit
+                              </button>
+                            )}
+                            {/* Send Reminder Button - for accepted jobs with rider */}
+                            {j.rider_id && j.rider_phone && j.status !== 'completed' && j.status !== 'cancelled' && (
+                              <button 
+                                onClick={() => sendRiderReminder(j)}
+                                className={`p-2 rounded flex items-center gap-1 text-xs ${
+                                  remindersSent[j.id] 
+                                    ? 'bg-gray-100 text-gray-500' 
+                                    : 'bg-teal-100 hover:bg-teal-200 text-teal-700'
+                                }`}
+                                title={remindersSent[j.id] ? 'Reminder already sent' : 'Send Reminder via WhatsApp'}
+                              >
+                                <Clock size={16} /> {remindersSent[j.id] ? 'Sent' : 'Remind'}
                               </button>
                             )}
                             {/* Cancel Job Button - Refunds customer credits */}
