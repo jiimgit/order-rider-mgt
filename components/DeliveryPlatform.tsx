@@ -399,6 +399,7 @@ const DeliveryPlatform = () => {
   const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '' });
   const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
   const [jobDistanceCache, setJobDistanceCache] = useState<Record<string, {distances: number[], totalDistance: number}>>({});
+  const [formDistance, setFormDistance] = useState<number | null>(null);
 
   // GPS Enforcement state (Feature 11)
   const [gpsPermissionGranted, setGpsPermissionGranted] = useState<boolean | null>(null);
@@ -2182,7 +2183,8 @@ const DeliveryPlatform = () => {
         if (!stopCoords) { distances.push(0); continue; }
 
         const dist = haversineDistance(prevCoords.lat, prevCoords.lng, stopCoords.lat, stopCoords.lng);
-        const rounded = parseFloat(dist.toFixed(1));
+        const routeDist = dist * 1.35; // Route factor: Singapore roads are ~1.35x straight-line distance
+        const rounded = parseFloat(routeDist.toFixed(1));
         distances.push(rounded);
         totalDistance += rounded;
         prevCoords = stopCoords;
@@ -2194,6 +2196,21 @@ const DeliveryPlatform = () => {
       return null;
     }
   };
+
+  // Live distance calculation for customer job form
+  useEffect(() => {
+    const calcFormDist = async () => {
+      if (!jobForm.pickup || !jobForm.stops[0]?.address) { setFormDistance(null); return; }
+      const pickupPostal = extractPostalCode(jobForm.pickup);
+      if (!pickupPostal) { setFormDistance(null); return; }
+      const result = await calculateJobDistances(jobForm.pickup, jobForm.stops.filter((s: any) => s.address));
+      if (result) {
+        setFormDistance(result.totalDistance);
+      }
+    };
+    const timer = setTimeout(calcFormDist, 1000);
+    return () => clearTimeout(timer);
+  }, [jobForm.pickup, JSON.stringify(jobForm.stops.map((s: any) => s.address))]);
 
   // Handle postal code input for pickup
   const handlePickupPostalCode = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2377,10 +2394,10 @@ const DeliveryPlatform = () => {
           </div>
         )}
 
-        {/* Total Distance */}
+        {/* Total Route Distance */}
         {cachedDist && cachedDist.totalDistance > 0 && (
           <div className="bg-purple-50 p-2 rounded text-center">
-            <p className="text-xs font-medium text-purple-600 uppercase">Total Distance</p>
+            <p className="text-xs font-medium text-purple-600 uppercase">Route Distance (est.)</p>
             <p className="text-lg font-bold text-purple-700">{cachedDist.totalDistance} km</p>
           </div>
         )}
@@ -5477,22 +5494,67 @@ Please be punctual and update once completed. Thanks!`;
                 {/* Price */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Your Price (minimum $3{jobForm.stops.length > 1 ? ` + $2 per extra stop` : ''})
+                    Delivery Fee
                   </label>
+                  
+                  {/* Suggested Pricing Breakdown */}
+                  <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs font-semibold text-blue-800 mb-2">💡 Suggested Pricing</p>
+                    <div className="text-xs text-gray-700 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Base fee</span>
+                        <span className="font-medium">$3.00</span>
+                      </div>
+                      {formDistance !== null && (
+                        <div className="flex justify-between">
+                          <span>Distance: {formDistance} km × $0.95</span>
+                          <span className="font-medium">${(formDistance * 0.95).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span>Drop-off: {jobForm.stops.filter((s: any) => s.address).length || 1} × $2.50</span>
+                        <span className="font-medium">${((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
+                        <span>Suggested Price</span>
+                        <span>
+                          ${formDistance !== null 
+                            ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
+                            : (3 + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
+                          }
+                        </span>
+                      </div>
+                      {formDistance === null && (
+                        <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
+                      )}
+                    </div>
+                    {formDistance !== null && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const drops = jobForm.stops.filter((s: any) => s.address).length || 1;
+                          const suggested = 3 + (formDistance * 0.95) + (drops * 2.50);
+                          setJobForm({...jobForm, price: suggested.toFixed(2)});
+                        }}
+                        className="mt-2 w-full py-1.5 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700"
+                      >
+                        Use Suggested Price
+                      </button>
+                    )}
+                  </div>
+                  
                   <input 
                     type="number" 
                     value={jobForm.price} 
                     onChange={(e) => setJobForm({...jobForm, price: e.target.value})} 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500" 
-                    min={3 + (jobForm.stops.length - 1) * 2} 
+                    min="3" 
                     step="0.5"
                     placeholder="10.00"
                   />
-                  {jobForm.stops.length > 1 && (
-                    <p className="text-sm text-gray-500 mt-1">
-                      Suggested: ${3 + (jobForm.stops.length - 1) * 2} minimum for {jobForm.stops.length} stops
-                    </p>
-                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Minimum: $3.00. You may adjust the price above or below the suggestion.
+                  </p>
                 </div>
                 
                 {/* Parcel Size */}
