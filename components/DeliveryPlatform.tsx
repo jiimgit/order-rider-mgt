@@ -5104,7 +5104,7 @@ Please be punctual and update once completed. Thanks!`;
                     onChange={(e) => setAiInput(e.target.value)}
                     className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
                     rows={5}
-                    placeholder={"Example:\nPick up from 241 Bukit Panjang Ring Road #07-155 (Kalsom, 86294582)\nDeliver to:\n1) 66 Anchorvale Crescent #04-34 - Melissa 91899796\n2) 293B Compassvale Crescent #13-57 - Constance 91010052\nFrozen food, handle with care. Medium parcel. Pick up at 12.30pm today."}
+                    placeholder={"Example:\nPick up from 123 Tampines Street 45 #08-100 (John, 81234567)\nDeliver to:\n1) 456 Bedok North Ave 3 #05-200 - Sarah 92345678\n2) 789 Jurong West St 61 #12-300 - David 83456789\nDocuments, handle with care. Small parcel. Pick up at 2pm today."}
                   />
                   <div className="flex gap-2 mt-3">
                     <button
