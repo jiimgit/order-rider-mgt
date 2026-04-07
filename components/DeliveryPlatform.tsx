@@ -11978,7 +11978,7 @@ Please be punctual and update once completed. Thanks!`;
                     }
                   }
                   
-                  const uniqueDates = [...new Set(dates)].sort();
+                  const uniqueDates = Array.from(new Set(dates)).sort();
                   const totalCost = uniqueDates.length * (parseFloat(deliveryPlan.price) || 0);
                   
                   return uniqueDates.length > 0 ? (
@@ -12031,7 +12031,7 @@ Please be punctual and update once completed. Thanks!`;
                       }
                     }
                     
-                    const uniqueDates = [...new Set(dates)].sort();
+                    const uniqueDates = Array.from(new Set(dates)).sort();
                     if (uniqueDates.length === 0) {
                       alert('Please select at least one delivery day/date.');
                       return;
