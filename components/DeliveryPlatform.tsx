@@ -4938,13 +4938,13 @@ Please be punctual and update once completed. Thanks!`;
                     Top Up
                   </button>
                 </div>
-                <button 
-                  onClick={() => setShowDeliveryPlan(true)}
-                  className="mt-3 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-opacity-30 transition-colors border border-white border-opacity-30"
-                >
-                  📅 Delivery Plan (Weekly / Monthly)
-                </button>
               </div>
+              <button 
+                onClick={() => setShowDeliveryPlan(true)}
+                className="mt-3 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-opacity-30 transition-colors border border-white border-opacity-30"
+              >
+                📅 Delivery Plan (Weekly / Monthly)
+              </button>
             </div>
 
             {showTopUp && (
