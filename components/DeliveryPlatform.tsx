@@ -400,6 +400,7 @@ const DeliveryPlatform = () => {
   const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
   const [jobDistanceCache, setJobDistanceCache] = useState<Record<string, {distances: number[], totalDistance: number}>>({});
   const [formDistance, setFormDistance] = useState<number | null>(null);
+  const [isSubmittingJob, setIsSubmittingJob] = useState(false);
 
   // GPS Enforcement state (Feature 11)
   const [gpsPermissionGranted, setGpsPermissionGranted] = useState<boolean | null>(null);
@@ -1620,6 +1621,11 @@ const DeliveryPlatform = () => {
     }
     
     try {
+      // DEDUCT CREDITS FIRST before creating any jobs
+      await api(`customers?id=eq.${auth.id}`, 'PATCH', { 
+        credits: freshCredits - totalCost 
+      });
+      
       let successCount = 0;
       for (const job of customerImportedJobs) {
         const pickupAddr = job.pickup_unit_no ? `${job.pickup} ${job.pickup_unit_no}` : job.pickup;
@@ -1644,11 +1650,6 @@ const DeliveryPlatform = () => {
         });
         successCount++;
       }
-      
-      // Deduct credits using fresh value
-      await api(`customers?id=eq.${auth.id}`, 'PATCH', { 
-        credits: freshCredits - totalCost 
-      });
       
       alert(`Successfully imported ${successCount} jobs! $${totalCost.toFixed(2)} deducted from credits.`);
       setCustomerImportedJobs([]);
@@ -3590,6 +3591,10 @@ Please be punctual and update once completed. Thanks!`;
   };
 
   const createJob = async () => {
+    if (isSubmittingJob) return; // Prevent double-submission
+    setIsSubmittingJob(true);
+    
+    try {
     const originalPrice = parseFloat(jobForm.price);
     const minPrice = 3 + (jobForm.stops.length - 1) * 2; // $3 base + $2 per extra stop
     if (originalPrice < minPrice) return alert(`Minimum price is $${minPrice} for ${jobForm.stops.length} stop(s)`);
@@ -3614,6 +3619,9 @@ Please be punctual and update once completed. Thanks!`;
     
     const missingUnitNo = jobForm.stops.filter(s => !s.unitNo);
     if (missingUnitNo.length > 0) return alert('Please fill in Unit No for all drop-off locations (enter "N/A" if not applicable)');
+    
+    // DEDUCT CREDITS FIRST before creating job to prevent race condition
+    await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: freshCredits - price });
     
     // Determine pickup contact info based on useMyProfile checkbox
     const pickupContactName = useMyProfile ? curr.name : (jobForm.pickupContact || null);
@@ -3650,7 +3658,7 @@ Please be punctual and update once completed. Thanks!`;
         original_price: promoDiscount ? originalPrice : null,
         discount_amount: promoDiscount ? (originalPrice - price) : null
       });
-      await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: freshCredits - price });
+      // Credits already deducted before job creation
       
       // Update promo usage count if promo was applied
       if (promoDiscount) {
@@ -3701,7 +3709,20 @@ Please be punctual and update once completed. Thanks!`;
       });
       alert(`Job posted successfully!\nOrder ID: ${orderId}`);
       loadData();
-    } catch (e: any) { alert('Error posting job: ' + e.message); }
+    } catch (e: any) { 
+      // If job creation failed, refund the credits back
+      try {
+        const refundCust = await api(`customers?id=eq.${curr.id}`);
+        const refundCredits = refundCust && refundCust.length > 0 ? (refundCust[0].credits || 0) : 0;
+        await api(`customers?id=eq.${curr.id}`, 'PATCH', { credits: refundCredits + price });
+      } catch (refundError) {
+        console.error('Failed to refund credits:', refundError);
+      }
+      alert('Error posting job: ' + e.message); 
+    }
+    } finally {
+      setIsSubmittingJob(false);
+    }
   };
 
   const acceptJob = async (jobId: string) => {
@@ -5632,10 +5653,17 @@ Please be punctual and update once completed. Thanks!`;
 
                 <button 
                   onClick={createJob} 
-                  className="w-full bg-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors"
+                  disabled={isSubmittingJob}
+                  className={`w-full py-4 rounded-lg font-semibold text-lg transition-colors ${
+                    isSubmittingJob 
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
-                  Post Job - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
-                  {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}
+                  {isSubmittingJob ? '⏳ Submitting...' : (
+                    <>Post Job - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
+                    {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}</>
+                  )}
                 </button>
                 
                 {/* Bulk Import Option */}
