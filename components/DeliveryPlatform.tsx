@@ -401,6 +401,24 @@ const DeliveryPlatform = () => {
   const [jobDistanceCache, setJobDistanceCache] = useState<Record<string, {distances: number[], totalDistance: number}>>({});
   const [formDistance, setFormDistance] = useState<number | null>(null);
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
+  const [showDeliveryPlan, setShowDeliveryPlan] = useState(false);
+  const [deliveryPlan, setDeliveryPlan] = useState({
+    planType: 'weekly' as 'weekly' | 'monthly',
+    pickup: '',
+    pickupUnitNo: '',
+    delivery: '',
+    deliveryUnitNo: '',
+    recipientName: '',
+    recipientPhone: '',
+    parcelSize: 'small',
+    price: '10',
+    remarks: '',
+    weeklyDays: [] as string[],
+    monthlyDates: [] as number[],
+    timeSlot: '6am-11am',
+    startDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
+    weeksToGenerate: 4,
+  });
 
   // GPS Enforcement state (Feature 11)
   const [gpsPermissionGranted, setGpsPermissionGranted] = useState<boolean | null>(null);
@@ -4920,6 +4938,12 @@ Please be punctual and update once completed. Thanks!`;
                     Top Up
                   </button>
                 </div>
+                <button 
+                  onClick={() => setShowDeliveryPlan(true)}
+                  className="mt-3 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-opacity-30 transition-colors border border-white border-opacity-30"
+                >
+                  📅 Delivery Plan (Weekly / Monthly)
+                </button>
               </div>
             </div>
 
@@ -6041,12 +6065,38 @@ Please be punctual and update once completed. Thanks!`;
                       
                       {/* Boost/Urgent Button - for posted jobs waiting for a rider */}
                       {job.status === 'posted' && (
-                        <div className="mb-3">
+                        <div className="mb-3 space-y-2">
                           <button
                             onClick={() => setShowBoostModal(job)}
                             className="w-full py-2 px-3 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
                           >
                             ⚡ Boost Order — Get a Driver Faster
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (window.confirm(`Cancel this order?\n\nOrder: ${job.order_id || ''}\nAmount: $${parseFloat(job.price).toFixed(2)}\n\nThe amount will be refunded to your wallet.`)) {
+                                try {
+                                  await api(`jobs?id=eq.${job.id}`, 'PATCH', { status: 'cancelled', cancelled_at: new Date().toISOString() });
+                                  // Refund credits
+                                  const freshCust = await api(`customers?id=eq.${auth.id}`);
+                                  const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : 0;
+                                  await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits + parseFloat(job.price) });
+                                  await logAuditAction('customer_cancel_order', {
+                                    jobId: job.id,
+                                    orderId: job.order_id,
+                                    refundAmount: parseFloat(job.price),
+                                    customerId: auth.id
+                                  });
+                                  alert(`Order cancelled. $${parseFloat(job.price).toFixed(2)} refunded to your wallet.`);
+                                  loadData();
+                                } catch (e: any) {
+                                  alert('Error cancelling order: ' + e.message);
+                                }
+                              }
+                            }}
+                            className="w-full py-2 px-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-200 transition-colors"
+                          >
+                            ✕ Cancel Order
                           </button>
                         </div>
                       )}
@@ -8169,6 +8219,40 @@ Please be punctual and update once completed. Thanks!`;
                                 title="Reassign to another rider"
                               >
                                 <RefreshCw size={16} /> Reassign
+                              </button>
+                            )}
+                            {/* Rematch - Remove rider and push back to available pool */}
+                            {j.rider_id && j.status === 'accepted' && (
+                              <button 
+                                onClick={async () => {
+                                  if (window.confirm(`Rematch this order?\n\nThis will:\n• Remove ${j.rider_name || 'current rider'} from this job\n• Push the order back to the available pool\n• Notify all nearby riders\n\nProceed?`)) {
+                                    try {
+                                      await api(`jobs?id=eq.${j.id}`, 'PATCH', { 
+                                        status: 'posted', 
+                                        rider_id: null, 
+                                        rider_name: null, 
+                                        rider_phone: null, 
+                                        rider_vehicle_type: null,
+                                        accepted_at: null 
+                                      });
+                                      await logAuditAction('admin_rematch_order', {
+                                        jobId: j.id,
+                                        orderId: j.order_id,
+                                        previousRider: j.rider_name,
+                                        previousRiderPhone: j.rider_phone,
+                                        reason: 'Admin rematching'
+                                      });
+                                      alert(`Order ${j.order_id || ''} has been rematched.\n\n${j.rider_name} has been removed and the order is now available for other riders.`);
+                                      loadData();
+                                    } catch (e: any) {
+                                      alert('Error rematching: ' + e.message);
+                                    }
+                                  }
+                                }}
+                                className="p-2 bg-orange-100 rounded hover:bg-orange-200 flex items-center gap-1 text-xs text-orange-700" 
+                                title="Remove rider and push back to pool"
+                              >
+                                <RefreshCw size={16} /> Rematch
                               </button>
                             )}
                             {/* Edit Order Button */}
@@ -11705,6 +11789,307 @@ Please be punctual and update once completed. Thanks!`;
                 <p className="text-xs text-gray-500 text-center">
                   Clicking a message will open WhatsApp with the pre-filled text. You can edit it before sending.
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delivery Plan Modal (Customer) */}
+        {showDeliveryPlan && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">📅 Delivery Plan</h3>
+                <button onClick={() => setShowDeliveryPlan(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-4">Pre-set weekly or monthly recurring deliveries. Jobs will be created automatically for your selected dates.</p>
+              
+              <div className="space-y-4">
+                {/* Plan Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Plan Type</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDeliveryPlan({...deliveryPlan, planType: 'weekly'})}
+                      className={`flex-1 py-2 rounded-lg font-semibold text-sm ${deliveryPlan.planType === 'weekly' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                    >
+                      📆 Weekly
+                    </button>
+                    <button
+                      onClick={() => setDeliveryPlan({...deliveryPlan, planType: 'monthly'})}
+                      className={`flex-1 py-2 rounded-lg font-semibold text-sm ${deliveryPlan.planType === 'monthly' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                    >
+                      🗓️ Monthly
+                    </button>
+                  </div>
+                </div>
+
+                {/* Weekly Days Selection */}
+                {deliveryPlan.planType === 'weekly' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Days</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                        <button
+                          key={day}
+                          onClick={() => {
+                            const days = deliveryPlan.weeklyDays.includes(day)
+                              ? deliveryPlan.weeklyDays.filter(d => d !== day)
+                              : [...deliveryPlan.weeklyDays, day];
+                            setDeliveryPlan({...deliveryPlan, weeklyDays: days});
+                          }}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                            deliveryPlan.weeklyDays.includes(day) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2">
+                      <label className="block text-xs text-gray-500 mb-1">Generate for how many weeks?</label>
+                      <select 
+                        value={deliveryPlan.weeksToGenerate}
+                        onChange={(e) => setDeliveryPlan({...deliveryPlan, weeksToGenerate: parseInt(e.target.value)})}
+                        className="px-3 py-2 border rounded-lg text-sm"
+                      >
+                        {[1, 2, 3, 4, 6, 8].map(w => <option key={w} value={w}>{w} week{w > 1 ? 's' : ''}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Monthly Dates Selection */}
+                {deliveryPlan.planType === 'monthly' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Dates of Month</label>
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array.from({length: 31}, (_, i) => i + 1).map((date) => (
+                        <button
+                          key={date}
+                          onClick={() => {
+                            const dates = deliveryPlan.monthlyDates.includes(date)
+                              ? deliveryPlan.monthlyDates.filter(d => d !== date)
+                              : [...deliveryPlan.monthlyDates, date];
+                            setDeliveryPlan({...deliveryPlan, monthlyDates: dates});
+                          }}
+                          className={`p-1.5 rounded text-xs font-medium ${
+                            deliveryPlan.monthlyDates.includes(date) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {date}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Time Slot */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Slot</label>
+                  <select value={deliveryPlan.timeSlot} onChange={(e) => setDeliveryPlan({...deliveryPlan, timeSlot: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+                    <option value="6am-11am">6am – 11am</option>
+                    <option value="12pm-5pm">12pm – 5pm</option>
+                    <option value="6pm-11pm">6pm – 11pm</option>
+                  </select>
+                </div>
+
+                {/* Start Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start From</label>
+                  <input type="date" value={deliveryPlan.startDate} onChange={(e) => setDeliveryPlan({...deliveryPlan, startDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                </div>
+
+                {/* Addresses */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Address</label>
+                  <input type="text" value={deliveryPlan.pickup} onChange={(e) => setDeliveryPlan({...deliveryPlan, pickup: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Pickup address with postal code" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Unit No</label>
+                  <input type="text" value={deliveryPlan.pickupUnitNo} onChange={(e) => setDeliveryPlan({...deliveryPlan, pickupUnitNo: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="#01-01 or N/A" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Drop-off Address</label>
+                  <input type="text" value={deliveryPlan.delivery} onChange={(e) => setDeliveryPlan({...deliveryPlan, delivery: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Drop-off address with postal code" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Drop-off Unit No</label>
+                    <input type="text" value={deliveryPlan.deliveryUnitNo} onChange={(e) => setDeliveryPlan({...deliveryPlan, deliveryUnitNo: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="#05-10" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price per Job ($)</label>
+                    <input type="number" value={deliveryPlan.price} onChange={(e) => setDeliveryPlan({...deliveryPlan, price: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" min="3" step="0.5" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name</label>
+                    <input type="text" value={deliveryPlan.recipientName} onChange={(e) => setDeliveryPlan({...deliveryPlan, recipientName: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Phone</label>
+                    <input type="text" value={deliveryPlan.recipientPhone} onChange={(e) => setDeliveryPlan({...deliveryPlan, recipientPhone: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Parcel Size</label>
+                  <select value={deliveryPlan.parcelSize} onChange={(e) => setDeliveryPlan({...deliveryPlan, parcelSize: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm">
+                    <option value="small">Small</option>
+                    <option value="medium">Medium</option>
+                    <option value="large">Large</option>
+                    <option value="extra-large">Extra Large</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                  <input type="text" value={deliveryPlan.remarks} onChange={(e) => setDeliveryPlan({...deliveryPlan, remarks: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Any special instructions" />
+                </div>
+
+                {/* Preview */}
+                {(() => {
+                  // Calculate dates
+                  const dates: string[] = [];
+                  const start = new Date(deliveryPlan.startDate + 'T00:00:00+08:00');
+                  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+                  
+                  if (deliveryPlan.planType === 'weekly' && deliveryPlan.weeklyDays.length > 0) {
+                    for (let w = 0; w < deliveryPlan.weeksToGenerate; w++) {
+                      for (const day of deliveryPlan.weeklyDays) {
+                        const d = new Date(start);
+                        d.setDate(d.getDate() + (w * 7) + ((dayMap[day] - start.getDay() + 7) % 7));
+                        if (d >= start) dates.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }));
+                      }
+                    }
+                  } else if (deliveryPlan.planType === 'monthly' && deliveryPlan.monthlyDates.length > 0) {
+                    const currentMonth = start.getMonth();
+                    const currentYear = start.getFullYear();
+                    for (let m = 0; m < 2; m++) {
+                      for (const date of deliveryPlan.monthlyDates.sort((a, b) => a - b)) {
+                        const d = new Date(currentYear, currentMonth + m, date);
+                        if (d >= start && d.getDate() === date) {
+                          dates.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }));
+                        }
+                      }
+                    }
+                  }
+                  
+                  const uniqueDates = [...new Set(dates)].sort();
+                  const totalCost = uniqueDates.length * (parseFloat(deliveryPlan.price) || 0);
+                  
+                  return uniqueDates.length > 0 ? (
+                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm font-semibold text-green-800 mb-2">📋 Plan Preview — {uniqueDates.length} deliveries</p>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {uniqueDates.map((d, i) => (
+                          <p key={i} className="text-xs text-gray-600">• {formatDeliveryDate(d)} ({deliveryPlan.timeSlot})</p>
+                        ))}
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-green-300 flex justify-between">
+                        <span className="text-sm text-gray-700">Total Cost:</span>
+                        <span className="text-sm font-bold text-green-700">${totalCost.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Submit */}
+                <button
+                  onClick={async () => {
+                    if (!deliveryPlan.pickup || !deliveryPlan.delivery) {
+                      alert('Please fill in pickup and drop-off addresses.');
+                      return;
+                    }
+                    
+                    // Calculate dates
+                    const dates: string[] = [];
+                    const start = new Date(deliveryPlan.startDate + 'T00:00:00+08:00');
+                    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+                    
+                    if (deliveryPlan.planType === 'weekly' && deliveryPlan.weeklyDays.length > 0) {
+                      for (let w = 0; w < deliveryPlan.weeksToGenerate; w++) {
+                        for (const day of deliveryPlan.weeklyDays) {
+                          const d = new Date(start);
+                          d.setDate(d.getDate() + (w * 7) + ((dayMap[day] - start.getDay() + 7) % 7));
+                          if (d >= start) dates.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }));
+                        }
+                      }
+                    } else if (deliveryPlan.planType === 'monthly' && deliveryPlan.monthlyDates.length > 0) {
+                      const currentMonth = start.getMonth();
+                      const currentYear = start.getFullYear();
+                      for (let m = 0; m < 2; m++) {
+                        for (const date of deliveryPlan.monthlyDates.sort((a, b) => a - b)) {
+                          const d = new Date(currentYear, currentMonth + m, date);
+                          if (d >= start && d.getDate() === date) {
+                            dates.push(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }));
+                          }
+                        }
+                      }
+                    }
+                    
+                    const uniqueDates = [...new Set(dates)].sort();
+                    if (uniqueDates.length === 0) {
+                      alert('Please select at least one delivery day/date.');
+                      return;
+                    }
+                    
+                    const pricePerJob = parseFloat(deliveryPlan.price) || 10;
+                    const totalCost = uniqueDates.length * pricePerJob;
+                    
+                    // Check credits
+                    const freshCust = await api(`customers?id=eq.${auth.id}`);
+                    const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : 0;
+                    if (freshCredits < totalCost) {
+                      alert(`Insufficient credits.\n\nNeeded: $${totalCost.toFixed(2)} (${uniqueDates.length} jobs × $${pricePerJob.toFixed(2)})\nBalance: $${freshCredits.toFixed(2)}\n\nPlease top up first.`);
+                      return;
+                    }
+                    
+                    if (!window.confirm(`Create ${uniqueDates.length} delivery jobs?\n\nTotal: $${totalCost.toFixed(2)} will be deducted from your wallet.\nBalance after: $${(freshCredits - totalCost).toFixed(2)}`)) return;
+                    
+                    try {
+                      // Deduct all credits first
+                      await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits - totalCost });
+                      
+                      let created = 0;
+                      for (const date of uniqueDates) {
+                        const orderId = generateOrderId();
+                        await api('jobs', 'POST', {
+                          order_id: orderId,
+                          customer_id: auth.id,
+                          customer_name: curr?.name,
+                          customer_phone: curr?.phone,
+                          pickup: `${deliveryPlan.pickup} ${deliveryPlan.pickupUnitNo}`.trim(),
+                          delivery: `${deliveryPlan.delivery} ${deliveryPlan.deliveryUnitNo}`.trim(),
+                          stops: [{ address: deliveryPlan.delivery, unitNo: deliveryPlan.deliveryUnitNo, recipientName: deliveryPlan.recipientName, recipientPhone: deliveryPlan.recipientPhone }],
+                          total_stops: 1,
+                          timeframe: deliveryPlan.timeSlot,
+                          delivery_slot: deliveryPlan.timeSlot,
+                          delivery_date: date,
+                          price: pricePerJob,
+                          status: 'posted',
+                          recipient_name: deliveryPlan.recipientName || null,
+                          recipient_phone: deliveryPlan.recipientPhone || null,
+                          parcel_size: deliveryPlan.parcelSize,
+                          remarks: deliveryPlan.remarks || null
+                        });
+                        created++;
+                      }
+                      
+                      alert(`✅ Delivery plan created!\n\n${created} jobs scheduled.\n$${totalCost.toFixed(2)} deducted from wallet.`);
+                      setShowDeliveryPlan(false);
+                      loadData();
+                    } catch (e: any) {
+                      alert('Error creating delivery plan: ' + e.message);
+                    }
+                  }}
+                  className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                >
+                  📅 Create Delivery Plan
+                </button>
               </div>
             </div>
           </div>
