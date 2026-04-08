@@ -2518,7 +2518,7 @@ The MoveIt Logistics App is not responsible for: App errors, Payment processing 
 1. Rider Not an Employee
 The Rider acknowledges and agrees that he/she is not engaged strictly as an employee, partner, agent, or representative of the Company.
 The Rider further understands and agrees that:
-• The Company does not provide any form of employment benefits, including but not limited to: CPF contributions, Medical benefits, Insurance coverage, Paid leave
+• The Company does not provide any form of employment benefits, including but not limited to: CPF contributions, Medical benefits, Insurance coverage, Paid leave (annual, sick, or otherwise)
 • The Rider is solely responsible for: Personal taxes, Insurance coverage (including vehicle and personal accident insurance), Compliance with all applicable laws and regulations
 
 2. No Guarantee of Income or Jobs
@@ -2526,17 +2526,19 @@ The Company does not guarantee:
 • Any minimum number of jobs
 • Any level of income or earnings
 • Any incentives, bonuses, or rewards
+All earnings are dependent on: Customer demand, Rider performance, Availability of jobs, Market conditions
 
 3. MoveIt Logistics App Control and Discretion
 The Rider acknowledges that the Company retains full control over the MoveIt Logistics App and its operations.
 The Company reserves the absolute right to:
 • Modify pricing, fees, commission structures, and incentives at any time
 • Assign, reassign, or remove jobs at its sole discretion
-• Restrict or revoke access to the platform
+• Restrict or revoke access to the MoveIt Logistics App
 Use of the MoveIt Logistics App is granted as a revocable privilege, not a right.
 
 4. Payment and Wallet System
-All Rider earnings shall be processed exclusively through the platform's internal wallet system.
+All Rider earnings shall be processed exclusively through the MoveIt Logistics App's internal wallet system.
+The Rider agrees that:
 • Withdrawals are subject to a minimum payout threshold
 • The Company may delay, hold, or withhold payments in cases of: Disputes, Fraud investigations, System errors
 • The Company's calculation of earnings shall be final and binding
@@ -2547,31 +2549,35 @@ Failure to provide valid proof will result in non-payment.
 The Company reserves the sole right to determine whether proof is sufficient.
 
 6. Cancellation Policy
+In the event of cancellation:
 • If cancellation occurs after pickup, the Rider must return the item and provide proof
 • Failure to provide proof will result in no payment
-• Excessive cancellations may lead to: Account suspension, Permanent termination
+Excessive cancellations may lead to: Account suspension, Permanent termination
 Example: If a Rider cancels after picking up a parcel and does not return it with proper proof, the Rider will not be paid and may face further penalties.
 
 7. Fraud and Abuse Prevention
-The Rider is strictly prohibited from: Creating fake jobs, GPS spoofing or location manipulation, Self-referral or collusion.
+The Rider is strictly prohibited from engaging in fraudulent or abusive activities, including but not limited to: Creating fake jobs, GPS spoofing or location manipulation, Self-referral or collusion.
 Any violation will result in: Immediate suspension or permanent ban, Forfeiture of earnings, Recovery (clawback) of any amounts paid.
 
 8. Clawback Rights
-The Company reserves the right to recover or deduct any payments made to the Rider if issues are identified after payment.
+The Company reserves the right to recover or deduct any payments made to the Rider if issues are identified after payment, including: Fraudulent activity, System errors, Overpayments, Abuse of the platform.
 Example: If a Rider was mistakenly paid $200 due to a system error, the Company has the right to deduct the amount from future earnings or recover it directly.
 
 9. Limitation of Liability
 The Company shall not be liable for: Loss or damage of items, Delivery delays, Actions or negligence of the Rider.
-The Rider assumes full responsibility for all deliveries, any damages or losses, and any legal claims arising from their actions.
+The Rider assumes full responsibility for: All deliveries, Any damages or losses, Any legal claims arising from their actions.
 Example: If a parcel is damaged during delivery, the Rider is solely responsible for compensation.
 
 10. Tier, Commission, and Performance System
+The Company may implement a tier or commission system based on Rider performance.
+The Rider agrees that:
 • Tier requirements may be changed at any time
 • There is no guarantee of maintaining any tier level
 • All tiers are strictly performance-based
 
 11. Suspension and Termination Rights
-The Company reserves the right to: Suspend or terminate the Rider's account at any time, without prior notice, with no compensation.
+The Company reserves the right to: Suspend or terminate the Rider's account at any time, Do so without prior notice, Provide no compensation.
+Reasons may include, but are not limited to: Policy violations, Poor performance, Fraud or misconduct.
 
 12. Customer Ownership and Non-Circumvention
 All customers introduced through the MoveIt Logistics App remain the exclusive property of the Company.
@@ -2583,11 +2589,12 @@ All records maintained by the Company's system shall be deemed accurate and fina
 The Company is not liable for: System errors, GPS inaccuracies, Network failures, App downtime.
 
 14. Minimum Activity Requirement
-The Rider may be required to meet minimum activity levels.
+The Rider may be required to meet minimum activity levels (e.g., number of jobs per week).
 Failure to meet requirements may result in: Tier downgrade, Reduced job allocation, Account removal.
 
 15. Dispute Resolution
 All operational decisions made by the Company are final and binding.
+The Rider agrees: Not to challenge or dispute such decisions, To accept all outcomes determined by the Company.
 
 16. Force Majeure
 The Company shall not be held liable for any failure or delay caused by events beyond its control, including but not limited to: Natural disasters, Government actions, Network or system outages, Pandemics.`;
