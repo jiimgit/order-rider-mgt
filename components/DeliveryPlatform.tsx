@@ -2443,9 +2443,9 @@ const DeliveryPlatform = () => {
   const CUSTOMER_TNC = `Terms and Conditions
 
 1. Wallet / Credit System
-All payments on the platform must be made through the in-app wallet system.
+All payments on the MoveIt Logistics App must be made through the in-app wallet system.
 • Customers are required to top up credits into the wallet first before placing any order
-• Direct payment to riders (cash, PayNow, bank transfer, etc.) is strictly not allowed, unless explicitly stated by the platform
+• Direct payment to riders (cash, PayNow, bank transfer, etc.) is strictly not allowed, unless explicitly stated by the MoveIt Logistics App
 • Wallet credits are non-transferable: Cannot be transferred to another user, Cannot be exchanged for cash
 
 2. Strict No Refund Policy
@@ -2457,7 +2457,7 @@ Example: If you top up $200 but decide not to use the service, the $200 will rem
 3. Expiry of Credits
 All wallet credits are valid for 6 months from the date of top-up.
 • After 6 months: Credits will automatically expire, Expired credits will be forfeited permanently
-• Extensions are not guaranteed and may only be granted at the platform's sole discretion
+• Extensions are not guaranteed and may only be granted at the MoveIt Logistics App's sole discretion
 Example: If you top up on 1 January, your credits will expire on 30 June.
 
 4. Failed or Cancelled Delivery
@@ -2471,7 +2471,7 @@ If a delivery cannot be completed:
 • Once confirmed, the price cannot be disputed
 
 6. No Guarantee of Service
-The platform does not guarantee:
+The MoveIt Logistics App does not guarantee:
 • Immediate job acceptance by riders
 • Delivery within a specific time
 • Availability of riders at all times
@@ -2489,11 +2489,11 @@ All additional charges will be deducted directly from your wallet.
 • No refund of credits will be given
 
 10. Limitation of Liability
-The platform is not liable for: Lost items, Damaged items, Delivery delays.
+The MoveIt Logistics App is not liable for: Lost items, Damaged items, Delivery delays.
 
 11. Rider Conduct
-• Riders are not employees of the platform
-• The platform is not responsible for rider behavior or actions
+• Riders are not employees of the MoveIt Logistics App
+• The MoveIt Logistics App is not responsible for rider behavior or actions
 
 12. Proof of Delivery
 • Photo proof is considered valid completion of delivery
@@ -2501,17 +2501,17 @@ The platform is not liable for: Lost items, Damaged items, Delivery delays.
 
 13. Abuse / Misuse
 Customers must not: Create fake bookings, Abuse the system, Exploit pricing or promotions.
-If detected, the platform may: Suspend or terminate the account, Forfeit all wallet credits.
+If detected, the MoveIt Logistics App may: Suspend or terminate the account, Forfeit all wallet credits.
 
-14. Platform Control
-The platform reserves full rights to: Suspend or terminate accounts, Reject or cancel orders, Modify system features, pricing, or policies at any time.
+14. MoveIt Logistics App Control
+The MoveIt Logistics App reserves full rights to: Suspend or terminate accounts, Reject or cancel orders, Modify system features, pricing, or policies at any time.
 
 15. Disputes
-• All decisions made by the platform are final and binding
+• All decisions made by the MoveIt Logistics App are final and binding
 • Customers agree not to file chargebacks or disputes after service is completed
 
 16. System / Technical Issues
-The platform is not responsible for: App errors, Payment processing delays, Network or connectivity issues.`;
+The MoveIt Logistics App is not responsible for: App errors, Payment processing delays, Network or connectivity issues.`;
 
   const RIDER_TNC = `Terms and Conditions
 
@@ -2519,7 +2519,7 @@ The platform is not responsible for: App errors, Payment processing delays, Netw
 The Rider acknowledges and agrees that he/she is not engaged strictly as an employee, partner, agent, or representative of the Company.
 The Rider further understands and agrees that:
 • The Company does not provide any form of employment benefits, including but not limited to: CPF contributions, Medical benefits, Insurance coverage, Paid leave
-• The Rider is solely responsible for: Personal taxes, Insurance coverage, Compliance with all applicable laws and regulations
+• The Rider is solely responsible for: Personal taxes, Insurance coverage (including vehicle and personal accident insurance), Compliance with all applicable laws and regulations
 
 2. No Guarantee of Income or Jobs
 The Company does not guarantee:
@@ -2527,12 +2527,13 @@ The Company does not guarantee:
 • Any level of income or earnings
 • Any incentives, bonuses, or rewards
 
-3. Platform Control and Discretion
+3. MoveIt Logistics App Control and Discretion
+The Rider acknowledges that the Company retains full control over the MoveIt Logistics App and its operations.
 The Company reserves the absolute right to:
 • Modify pricing, fees, commission structures, and incentives at any time
 • Assign, reassign, or remove jobs at its sole discretion
 • Restrict or revoke access to the platform
-Use of the platform is granted as a revocable privilege, not a right.
+Use of the MoveIt Logistics App is granted as a revocable privilege, not a right.
 
 4. Payment and Wallet System
 All Rider earnings shall be processed exclusively through the platform's internal wallet system.
@@ -2543,11 +2544,13 @@ All Rider earnings shall be processed exclusively through the platform's interna
 5. Proof of Delivery Requirements
 The Rider must provide complete and accurate proof of delivery for every job, including: Clear photo evidence, GPS location data, Timestamp verification.
 Failure to provide valid proof will result in non-payment.
+The Company reserves the sole right to determine whether proof is sufficient.
 
 6. Cancellation Policy
 • If cancellation occurs after pickup, the Rider must return the item and provide proof
 • Failure to provide proof will result in no payment
 • Excessive cancellations may lead to: Account suspension, Permanent termination
+Example: If a Rider cancels after picking up a parcel and does not return it with proper proof, the Rider will not be paid and may face further penalties.
 
 7. Fraud and Abuse Prevention
 The Rider is strictly prohibited from: Creating fake jobs, GPS spoofing or location manipulation, Self-referral or collusion.
@@ -2555,10 +2558,12 @@ Any violation will result in: Immediate suspension or permanent ban, Forfeiture 
 
 8. Clawback Rights
 The Company reserves the right to recover or deduct any payments made to the Rider if issues are identified after payment.
+Example: If a Rider was mistakenly paid $200 due to a system error, the Company has the right to deduct the amount from future earnings or recover it directly.
 
 9. Limitation of Liability
 The Company shall not be liable for: Loss or damage of items, Delivery delays, Actions or negligence of the Rider.
-The Rider assumes full responsibility for all deliveries.
+The Rider assumes full responsibility for all deliveries, any damages or losses, and any legal claims arising from their actions.
+Example: If a parcel is damaged during delivery, the Rider is solely responsible for compensation.
 
 10. Tier, Commission, and Performance System
 • Tier requirements may be changed at any time
@@ -2569,11 +2574,13 @@ The Rider assumes full responsibility for all deliveries.
 The Company reserves the right to: Suspend or terminate the Rider's account at any time, without prior notice, with no compensation.
 
 12. Customer Ownership and Non-Circumvention
-All customers introduced through the platform remain the exclusive property of the Company.
+All customers introduced through the MoveIt Logistics App remain the exclusive property of the Company.
 The Rider is strictly prohibited from: Soliciting customers outside the platform, Conducting offline transactions, Sharing personal contact details for business purposes.
+Example: A Rider cannot contact a customer directly to arrange future deliveries outside the app.
 
 13. Data and System Authority
 All records maintained by the Company's system shall be deemed accurate and final.
+The Company is not liable for: System errors, GPS inaccuracies, Network failures, App downtime.
 
 14. Minimum Activity Requirement
 The Rider may be required to meet minimum activity levels.
@@ -2583,7 +2590,7 @@ Failure to meet requirements may result in: Tier downgrade, Reduced job allocati
 All operational decisions made by the Company are final and binding.
 
 16. Force Majeure
-The Company shall not be held liable for any failure or delay caused by events beyond its control.`;
+The Company shall not be held liable for any failure or delay caused by events beyond its control, including but not limited to: Natural disasters, Government actions, Network or system outages, Pandemics.`;
 
   // Generate random reference number for PayNow top-up
   const generateTopUpReference = (): string => {
