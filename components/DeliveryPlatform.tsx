@@ -2597,7 +2597,57 @@ All operational decisions made by the Company are final and binding.
 The Rider agrees: Not to challenge or dispute such decisions, To accept all outcomes determined by the Company.
 
 16. Force Majeure
-The Company shall not be held liable for any failure or delay caused by events beyond its control, including but not limited to: Natural disasters, Government actions, Network or system outages, Pandemics.`;
+The Company shall not be held liable for any failure or delay caused by events beyond its control, including but not limited to: Natural disasters, Government actions, Network or system outages, Pandemics.
+
+17. Activity Policy (Stay Active)
+Riders must remain active to maintain their account:
+• 7 days without any completed delivery → Reminder will be issued
+• 14 days without any completed delivery → Account will be temporarily frozen
+• 30 days without any completed delivery → Account will be permanently removed
+Example: Stop working on 1 June → 8 June: Reminder → 15 June: Account frozen → 1 July: Account removed
+Eligibility Requirement: Minimum 1 completed delivery every 14 days
+
+18. Commission Unlock Policy
+To earn downline commission:
+• Riders must complete 10 deliveries within 30 days of joining
+• Commission will only be activated after the 10th completed job
+Example: Join on 1 May → Complete 10 jobs by 20 May → Commission unlocked. Complete only 7 jobs by 30 May → Not eligible.
+Eligibility Requirement: 10 completed deliveries within 30 days
+
+19. Upline Eligibility (Monthly Evaluation)
+To qualify and remain as an upline:
+• Must complete at least 10 deliveries per week
+• Performance is evaluated at the end of each month
+If requirements are not met:
+• The downline who meets 10 jobs per week AND achieves the highest total deliveries for the month will replace the current upline
+• Previous upline will become downline
+• Network structure will be reassigned accordingly
+Example (June Evaluation): Upline: Avg 8 jobs/week (fails requirement). Downline A: Avg 12 jobs/week + highest total (meets requirement) → Downline A becomes new upline in July.
+Eligibility Requirement: Consistently meet 10 jobs/week. Must not be outperformed by downline.
+
+20. Cash Out Policy
+• Minimum withdrawal amount: $50
+• Earnings must be withdrawn within 30 days
+• Unclaimed earnings after 30 days will be forfeited
+• If account is frozen, remaining balance may be forfeited
+Example: Earn $100 but do not withdraw → After 30 days → balance forfeited.
+Eligibility Requirement: Withdraw within 30 days. Maintain active account status.
+
+21. Upgrade / Replacement Eligibility
+To replace your upline:
+• Must consistently achieve minimum 10 deliveries per week
+• Must have higher total monthly deliveries than current upline
+• Only top-performing riders will be eligible for upgrade
+Example: Upline: 40 jobs/month (fails weekly consistency). You: 60 jobs/month + meet weekly requirement → You will take over as upline.
+Eligibility Requirement: Weekly consistency (10 jobs/week). Highest monthly performance.
+
+22. Dispute Resolution
+All disputes will be reviewed and the final decision will be made by management.
+
+23. System & Adjustment Rights
+MoveIt Logistics reserves the right to:
+• Adjust, modify, or reverse any transaction affected by system errors
+• Update policies, commission structures, and system rules at any time without prior notice`;
 
   // Generate random reference number for PayNow top-up
   const generateTopUpReference = (): string => {
