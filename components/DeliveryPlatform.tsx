@@ -10767,81 +10767,105 @@ Please be punctual and update once completed. Thanks!`;
               </div>
               
               <div className="space-y-4">
+                {/* Pickup */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Address</label>
-                  <input
-                    type="text"
-                    value={editJob.pickup || ''}
-                    onChange={(e) => setEditJob({...editJob, pickup: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Address</label>
-                  <input
-                    type="text"
-                    value={editJob.delivery || ''}
-                    onChange={(e) => setEditJob({...editJob, delivery: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  <input type="text" value={editJob.pickup || ''} onChange={(e) => setEditJob({...editJob, pickup: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact</label>
-                    <input
-                      type="text"
-                      value={editJob.pickup_contact || ''}
-                      onChange={(e) => setEditJob({...editJob, pickup_contact: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="text" value={editJob.pickup_contact || ''} onChange={(e) => setEditJob({...editJob, pickup_contact: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Phone</label>
-                    <input
-                      type="text"
-                      value={editJob.pickup_phone || ''}
-                      onChange={(e) => setEditJob({...editJob, pickup_phone: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="text" value={editJob.pickup_phone || ''} onChange={(e) => setEditJob({...editJob, pickup_phone: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name</label>
-                    <input
-                      type="text"
-                      value={editJob.recipient_name || ''}
-                      onChange={(e) => setEditJob({...editJob, recipient_name: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Phone</label>
-                    <input
-                      type="text"
-                      value={editJob.recipient_phone || ''}
-                      onChange={(e) => setEditJob({...editJob, recipient_phone: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+
+                {/* Drop-offs - All stops */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">📍 Drop-off Location(s)</label>
+                  {(editJob.stops && editJob.stops.length > 0 ? editJob.stops : [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }]).map((stop: any, idx: number) => (
+                    <div key={idx} className="mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-xs font-bold text-green-700 mb-2">Drop-off {idx + 1}</p>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Address</label>
+                          <input
+                            type="text"
+                            value={stop.address || ''}
+                            onChange={(e) => {
+                              const newStops = [...(editJob.stops || [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }])];
+                              newStops[idx] = {...newStops[idx], address: e.target.value};
+                              const deliveryStr = newStops.map((s: any) => `${s.address} ${s.unitNo || ''}`).join(' → ');
+                              setEditJob({...editJob, stops: newStops, delivery: deliveryStr});
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Unit No</label>
+                          <input
+                            type="text"
+                            value={stop.unitNo || ''}
+                            onChange={(e) => {
+                              const newStops = [...(editJob.stops || [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }])];
+                              newStops[idx] = {...newStops[idx], unitNo: e.target.value};
+                              setEditJob({...editJob, stops: newStops});
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            placeholder="#01-01 or N/A"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Recipient Name</label>
+                            <input
+                              type="text"
+                              value={stop.recipientName || ''}
+                              onChange={(e) => {
+                                const newStops = [...(editJob.stops || [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }])];
+                                newStops[idx] = {...newStops[idx], recipientName: e.target.value};
+                                // Also update legacy field for first stop
+                                const updates: any = { stops: newStops };
+                                if (idx === 0) updates.recipient_name = e.target.value;
+                                setEditJob({...editJob, ...updates});
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                              placeholder="Recipient name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Recipient Phone</label>
+                            <input
+                              type="text"
+                              value={stop.recipientPhone || ''}
+                              onChange={(e) => {
+                                const newStops = [...(editJob.stops || [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }])];
+                                newStops[idx] = {...newStops[idx], recipientPhone: e.target.value};
+                                const updates: any = { stops: newStops };
+                                if (idx === 0) updates.recipient_phone = e.target.value;
+                                setEditJob({...editJob, ...updates});
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                              placeholder="Phone number"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Date</label>
-                    <input
-                      type="date"
-                      value={editJob.delivery_date || ''}
-                      onChange={(e) => setEditJob({...editJob, delivery_date: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="date" value={editJob.delivery_date || ''} onChange={(e) => setEditJob({...editJob, delivery_date: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Slot</label>
-                    <select
-                      value={editJob.timeframe || editJob.delivery_slot || ''}
-                      onChange={(e) => setEditJob({...editJob, timeframe: e.target.value, delivery_slot: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
+                    <select value={editJob.timeframe || editJob.delivery_slot || ''} onChange={(e) => setEditJob({...editJob, timeframe: e.target.value, delivery_slot: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                       <option value="">Select slot</option>
                       <option value="6am-11am">6am – 11am</option>
                       <option value="12pm-5pm">12pm – 5pm</option>
@@ -10852,22 +10876,11 @@ Please be punctual and update once completed. Thanks!`;
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
-                    <input
-                      type="number"
-                      value={editJob.price || ''}
-                      onChange={(e) => setEditJob({...editJob, price: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      step="0.5"
-                      min="0"
-                    />
+                    <input type="number" value={editJob.price || ''} onChange={(e) => setEditJob({...editJob, price: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" step="0.5" min="0" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Parcel Size</label>
-                    <select
-                      value={editJob.parcel_size || 'small'}
-                      onChange={(e) => setEditJob({...editJob, parcel_size: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
+                    <select value={editJob.parcel_size || 'small'} onChange={(e) => setEditJob({...editJob, parcel_size: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                       <option value="small">Small</option>
                       <option value="medium">Medium</option>
                       <option value="large">Large</option>
@@ -10877,31 +10890,29 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
-                  <textarea
-                    value={editJob.remarks || ''}
-                    onChange={(e) => setEditJob({...editJob, remarks: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    rows={2}
-                  />
+                  <textarea value={editJob.remarks || ''} onChange={(e) => setEditJob({...editJob, remarks: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" rows={2} />
                 </div>
                 
                 <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={() => setEditJob(null)}
-                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-                  >
+                  <button onClick={() => setEditJob(null)} className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors">
                     Cancel
                   </button>
                   <button
                     onClick={async () => {
                       try {
+                        const stops = editJob.stops || [];
+                        const deliveryStr = stops.length > 0 
+                          ? stops.map((s: any) => `${s.address || ''} ${s.unitNo || ''}`).join(' → ')
+                          : editJob.delivery;
+                        
                         await api(`jobs?id=eq.${editJob.id}`, 'PATCH', {
                           pickup: editJob.pickup,
-                          delivery: editJob.delivery,
+                          delivery: deliveryStr,
                           pickup_contact: editJob.pickup_contact,
                           pickup_phone: editJob.pickup_phone,
-                          recipient_name: editJob.recipient_name,
-                          recipient_phone: editJob.recipient_phone,
+                          recipient_name: stops[0]?.recipientName || editJob.recipient_name,
+                          recipient_phone: stops[0]?.recipientPhone || editJob.recipient_phone,
+                          stops: stops,
                           delivery_date: editJob.delivery_date,
                           timeframe: editJob.timeframe,
                           delivery_slot: editJob.delivery_slot,
