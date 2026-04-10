@@ -2459,7 +2459,7 @@ Example: If you top up $200 but decide not to use the service, the $200 will rem
 All wallet credits are valid for 6 months from the date of top-up.
 • After 6 months: Credits will automatically expire, Expired credits will be forfeited permanently
 • Extensions are not guaranteed and may only be granted at the MoveIt Logistics App's sole discretion
-Example: If you top up on 1 January, your credits will expire on 30 June.
+Example: If you top up on 1 January 2026, your credits will expire on 30 June 2026.
 
 4. Failed or Cancelled Delivery
 If a delivery cannot be completed:
