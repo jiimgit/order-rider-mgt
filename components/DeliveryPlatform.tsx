@@ -7900,7 +7900,8 @@ Please be punctual and update once completed. Thanks!`;
             )} {/* End of available jobs sub-tab */}
               </div>
             )} {/* End of jobs tab */}
-          </div> {/* End of rider space-y-6 */}
+          </div> {/* closes jobs tab space-y-4 */}
+        </div> {/* closes rider space-y-6 */}
         )}
 
         {auth.type === 'admin' && (
