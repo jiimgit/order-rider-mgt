@@ -470,6 +470,7 @@ const DeliveryPlatform = () => {
   // Rider Profile & Delivery History states
   const [showRiderProfile, setShowRiderProfile] = useState(false);
   const [showDeliveryHistory, setShowDeliveryHistory] = useState(false);
+  const [riderJobsTab, setRiderJobsTab] = useState<string>('available');
 
   // Customer Order History Page state
   const [showOrderHistory, setShowOrderHistory] = useState(false);
@@ -6263,7 +6264,7 @@ Please be punctual and update once completed. Thanks!`;
         )}
 
         {auth.type === 'rider' && curr && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Online/Offline Status Bar */}
             <div className={`p-4 rounded-lg ${riderIsOnline ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
               <div className="flex items-center justify-between">
@@ -6407,76 +6408,125 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Back Button - Feature 1 */}
-            {riderViewHistory.length > 1 && (
+
+            {/* Back Button - shown on sub-pages */}
+            {currentRiderView !== 'home' && (
               <button 
                 onClick={goBackRider}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-2"
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
               >
                 <ChevronLeft size={20} />
                 Back
               </button>
             )}
 
-            {/* Quick Actions Bar */}
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setShowRiderProfile(!showRiderProfile)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                  showRiderProfile ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-300'
-                }`}
-              >
-                <User size={18} />
-                My Profile
-              </button>
-              <button
-                onClick={() => setShowDeliveryHistory(!showDeliveryHistory)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                  showDeliveryHistory ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
-                }`}
-              >
-                <FileText size={18} />
-                Delivery History
-              </button>
-              <button
-                onClick={() => setShowRiderPerformance(!showRiderPerformance)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                  showRiderPerformance ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300'
-                }`}
-              >
-                <BarChart3 size={18} />
-                My Performance
-              </button>
-              {getActiveJobsForRider.length > 1 && (
-                <button
-                  onClick={() => setShowRouteOptimization(!showRouteOptimization)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                    showRouteOptimization ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
-                  }`}
-                >
-                  <Navigation size={18} />
-                  Optimize Route
-                </button>
+            {/* ===== HOME VIEW ===== */}
+            {currentRiderView === 'home' && (
+              <>
+            {/* Rider Stats Header */}
+            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <p className="text-green-100 text-sm">Total Earnings</p>
+                  <p className="text-5xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-green-100 text-sm">Completed Jobs</p>
+                  <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
+                </div>
+              </div>
+              
+              {/* Multi-job indicator - Feature 5 */}
+              {getActiveJobsForRider.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-green-400">
+                  <p className="text-green-100 text-sm">Active Jobs</p>
+                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
+                </div>
               )}
-              {gpsPermissionGranted !== true && (
-                <button
-                  onClick={() => {
-                    navigator.geolocation.getCurrentPosition(
-                      () => { setGpsPermissionGranted(true); alert('GPS is working!'); },
-                      () => setShowGpsWarning(true),
-                      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-                    );
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg font-medium"
-                >
-                  <AlertCircle size={18} />
-                  Enable GPS
-                </button>
-              )}
+              
+              <div className="mt-4 pt-4 border-t border-green-400">
+                <p className="text-green-100 text-sm">Your Referral Code</p>
+                <p className="text-2xl font-bold">{curr.referral_code}</p>
+                <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
+              </div>
             </div>
 
-            {/* Rider Profile Page */}
-            {showRiderProfile && curr && (
+
+                {/* Navigation Buttons */}
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => navigateRiderView('profile')}
+                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-purple-400 hover:shadow-md transition-all"
+                  >
+                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                      <User size={24} className="text-purple-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700">My Profile</span>
+                  </button>
+                  <button
+                    onClick={() => { navigateRiderView('jobs'); setRiderJobsTab('available'); }}
+                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all relative"
+                  >
+                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                      <Package size={24} className="text-orange-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700">Jobs</span>
+                    {(activeJobsList.length > 0 || filteredAvailableJobs.length > 0) && (
+                      <span className="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {activeJobsList.length + filteredAvailableJobs.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => navigateRiderView('history')}
+                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all"
+                  >
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                      <FileText size={24} className="text-blue-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700">Delivery History</span>
+                  </button>
+                  <button
+                    onClick={() => navigateRiderView('performance')}
+                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-green-400 hover:shadow-md transition-all"
+                  >
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                      <BarChart3 size={24} className="text-green-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700">My Performance</span>
+                  </button>
+                  <button
+                    onClick={() => navigateRiderView('withdrawal')}
+                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-yellow-400 hover:shadow-md transition-all"
+                  >
+                    <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <CreditCard size={24} className="text-yellow-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700">Withdrawal</span>
+                  </button>
+                  {gpsPermissionGranted !== true && (
+                    <button
+                      onClick={() => {
+                        navigator.geolocation.getCurrentPosition(
+                          () => { setGpsPermissionGranted(true); alert('GPS is working!'); },
+                          () => setShowGpsWarning(true),
+                          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+                        );
+                      }}
+                      className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-yellow-300 hover:shadow-md transition-all"
+                    >
+                      <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                        <AlertCircle size={24} className="text-yellow-600" />
+                      </div>
+                      <span className="text-sm font-semibold text-yellow-700">Enable GPS</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ===== PROFILE VIEW ===== */}
+            {currentRiderView === 'profile' && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <User className="text-purple-600" />
@@ -6578,8 +6628,8 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Rider Delivery History Page */}
-            {showDeliveryHistory && (
+            {/* ===== DELIVERY HISTORY VIEW ===== */}
+            {currentRiderView === 'history' && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <FileText className="text-blue-600" />
@@ -6658,8 +6708,8 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Rider Performance Page - Feature 9 */}
-            {showRiderPerformance && riderPerformanceStats && (
+            {/* ===== PERFORMANCE VIEW ===== */}
+            {currentRiderView === 'performance' && riderPerformanceStats && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <BarChart3 className="text-green-600" />
@@ -6718,101 +6768,9 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Route Optimization - Feature 8 */}
-            {showRouteOptimization && getActiveJobsForRider.length > 1 && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                  <Navigation className="text-blue-600" />
-                  Route Optimization
-                </h3>
-                
-                <p className="text-gray-600 mb-4">
-                  You have {getActiveJobsForRider.length} active jobs. Optimize your route for efficiency.
-                </p>
-
-                {/* Current Jobs List */}
-                <div className="mb-4">
-                  <h4 className="font-semibold text-gray-800 mb-2">Current Order:</h4>
-                  <div className="space-y-2">
-                    {(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider).map((job: any, idx: number) => (
-                      <div key={job.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
-                          {idx + 1}
-                        </span>
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{job.pickup?.substring(0, 30)}...</p>
-                          <p className="text-xs text-gray-500">→ {job.delivery?.substring(0, 30)}...</p>
-                        </div>
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          job.status === 'picked-up' ? 'bg-yellow-100 text-yellow-700' :
-                          job.status === 'on-the-way' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {job.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-3">
-                  <button
-                    onClick={() => optimizeRoute(getActiveJobsForRider)}
-                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 flex items-center justify-center gap-2"
-                  >
-                    🔄 Auto-Optimize Route
-                  </button>
-                  
-                  <a
-                    href={generateOptimizedRouteUrl(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center gap-2 text-center"
-                  >
-                    <MapPin size={18} />
-                    Open in Google Maps
-                  </a>
-                </div>
-
-                {/* Tips */}
-                <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
-                  <p className="text-xs text-yellow-800">
-                    💡 <strong>Tip:</strong> The optimizer groups nearby pickups together for efficiency. 
-                    For best results, pick up all packages before starting deliveries.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Rider Stats Header */}
-            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-green-100 text-sm">Total Earnings</p>
-                  <p className="text-5xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-green-100 text-sm">Completed Jobs</p>
-                  <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
-                </div>
-              </div>
-              
-              {/* Multi-job indicator - Feature 5 */}
-              {getActiveJobsForRider.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-green-400">
-                  <p className="text-green-100 text-sm">Active Jobs</p>
-                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
-                </div>
-              )}
-              
-              <div className="mt-4 pt-4 border-t border-green-400">
-                <p className="text-green-100 text-sm">Your Referral Code</p>
-                <p className="text-2xl font-bold">{curr.referral_code}</p>
-                <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
-              </div>
-            </div>
-
+            {/* ===== WITHDRAWAL VIEW ===== */}
+            {currentRiderView === 'withdrawal' && (
+              <div className="space-y-4">
             {/* Withdrawal Notifications - Show status of rider's withdrawal requests */}
             {(() => {
               const myWithdrawals = auditLogs.filter((log: any) => 
@@ -7141,6 +7099,125 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
+              </div>
+            )}
+
+            {/* ===== JOBS VIEW ===== */}
+            {currentRiderView === 'jobs' && (
+              <div className="space-y-4">
+                {/* Job Tabs */}
+                <div className="bg-white rounded-lg shadow p-1 flex">
+                  <button
+                    onClick={() => setRiderJobsTab('active')}
+                    className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-colors ${
+                      riderJobsTab === 'active' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Active Jobs {activeJobsList.length > 0 && `(${activeJobsList.length})`}
+                  </button>
+                  <button
+                    onClick={() => setRiderJobsTab('today')}
+                    className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-colors ${
+                      riderJobsTab === 'today' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {"Today's Deliveries"}
+                  </button>
+                  <button
+                    onClick={() => setRiderJobsTab('available')}
+                    className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-colors ${
+                      riderJobsTab === 'available' 
+                        ? 'bg-orange-500 text-white' 
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Available {filteredAvailableJobs.length > 0 && `(${filteredAvailableJobs.length})`}
+                  </button>
+                </div>
+
+                {/* Active Jobs Tab */}
+                {riderJobsTab === 'active' && (
+                  <div className="space-y-4">
+                    {getActiveJobsForRider.length > 1 && (
+                      <button
+                        onClick={() => setShowRouteOptimization(!showRouteOptimization)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                          showRouteOptimization ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
+                        }`}
+                      >
+                        <Navigation size={18} />
+                        Optimize Route
+                      </button>
+                    )}
+                    {showRouteOptimization && getActiveJobsForRider.length > 1 && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <Navigation className="text-blue-600" />
+                  Route Optimization
+                </h3>
+                
+                <p className="text-gray-600 mb-4">
+                  You have {getActiveJobsForRider.length} active jobs. Optimize your route for efficiency.
+                </p>
+
+                {/* Current Jobs List */}
+                <div className="mb-4">
+                  <h4 className="font-semibold text-gray-800 mb-2">Current Order:</h4>
+                  <div className="space-y-2">
+                    {(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider).map((job: any, idx: number) => (
+                      <div key={job.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{job.pickup?.substring(0, 30)}...</p>
+                          <p className="text-xs text-gray-500">→ {job.delivery?.substring(0, 30)}...</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          job.status === 'picked-up' ? 'bg-yellow-100 text-yellow-700' :
+                          job.status === 'on-the-way' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {job.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => optimizeRoute(getActiveJobsForRider)}
+                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 flex items-center justify-center gap-2"
+                  >
+                    🔄 Auto-Optimize Route
+                  </button>
+                  
+                  <a
+                    href={generateOptimizedRouteUrl(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center gap-2 text-center"
+                  >
+                    <MapPin size={18} />
+                    Open in Google Maps
+                  </a>
+                </div>
+
+                {/* Tips */}
+                <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+                  <p className="text-xs text-yellow-800">
+                    💡 <strong>Tip:</strong> The optimizer groups nearby pickups together for efficiency. 
+                    For best results, pick up all packages before starting deliveries.
+                  </p>
+                </div>
+              </div>
+                    )}
             {/* Active Jobs - Grouped by TODAY and UPCOMING */}
             {activeJobsList.length > 0 && (
               <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
@@ -7659,160 +7736,67 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Available Jobs - Only show when rider is online */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
-              
-              {!riderIsOnline ? (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">🔴</div>
-                  <p className="text-xl font-semibold text-gray-700 mb-2">You are currently offline</p>
-                  <p className="text-gray-500 mb-4">Go online to see available jobs and receive notifications</p>
-                  <button
-                    onClick={riderGoOnline}
-                    className="bg-green-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-600"
-                  >
-                    🟢 Go Online Now
-                  </button>
-                </div>
-              ) : (
-                <>
-                {/* Job Filter - Feature 10 */}
-                <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Search size={18} className="text-gray-500" />
-                    <span className="font-medium text-gray-700">Filter Jobs</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <input
-                      type="text"
-                      placeholder="Pickup location..."
-                      value={riderJobFilter.pickup}
-                      onChange={(e) => setRiderJobFilter({...riderJobFilter, pickup: e.target.value})}
-                      className="px-3 py-2 border rounded-lg text-sm"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Drop-off location..."
-                      value={riderJobFilter.dropoff}
-                      onChange={(e) => setRiderJobFilter({...riderJobFilter, dropoff: e.target.value})}
-                      className="px-3 py-2 border rounded-lg text-sm"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Customer name..."
-                      value={riderJobFilter.customer}
-                      onChange={(e) => setRiderJobFilter({...riderJobFilter, customer: e.target.value})}
-                      className="px-3 py-2 border rounded-lg text-sm"
-                    />
-                  </div>
-                  {(riderJobFilter.pickup || riderJobFilter.dropoff || riderJobFilter.customer) && (
-                    <button
-                      onClick={() => setRiderJobFilter({ pickup: '', dropoff: '', customer: '' })}
-                      className="mt-2 text-sm text-blue-600 hover:underline"
-                    >
-                      Clear filters
-                    </button>
-                  )}
-                </div>
-
-                {filteredAvailableJobs.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <Package size={48} className="mx-auto mb-4 opacity-50" />
-                    <p>No jobs available right now</p>
-                    <p className="text-sm">Check back soon!</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
-                      {selectedJobsForAccept.length > 0 && (
-                        <span className="text-sm font-medium text-green-600">
-                          {selectedJobsForAccept.length} selected
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Select All / Clear All */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setSelectedJobsForAccept(filteredAvailableJobs.map((j: any) => j.id))}
-                        className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                      >
-                        Select All
-                      </button>
-                      <button
-                        onClick={() => setSelectedJobsForAccept([])}
-                        className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                      >
-                        Clear All
-                      </button>
-                    </div>
-                    
-                    {filteredAvailableJobs.map((job: any) => {
-                      const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
-                      const isSelected = selectedJobsForAccept.includes(job.id);
-                      return (
-                        <div 
-                          key={job.id} 
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedJobsForAccept(selectedJobsForAccept.filter(id => id !== job.id));
-                            } else {
-                              setSelectedJobsForAccept([...selectedJobsForAccept, job.id]);
-                            }
-                          }}
-                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
-                            isSelected 
-                              ? 'border-green-500 bg-green-50 shadow-md' 
-                              : 'border-gray-200 hover:border-green-400 hover:shadow-md'
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            {/* Checkbox */}
-                            <div className="pt-1">
-                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                                isSelected 
-                                  ? 'bg-green-500 border-green-500' 
-                                  : 'border-gray-300 bg-white'
-                              }`}>
-                                {isSelected && <Check size={14} className="text-white" />}
-                              </div>
-                            </div>
-                            
-                            {/* Job Details - Improved */}
-                            <div className="flex-1">
-                              {renderJobDetailCard(job, false)}
-                            </div>
-                            
-                            {/* Earnings */}
-                            <div className="text-right">
-                              <p className="text-xs text-gray-500">Earn:</p>
-                              <p className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    
-                    {/* Accept Selected Jobs Button */}
-                    {selectedJobsForAccept.length > 0 && (
-                      <div className="sticky bottom-0 bg-white pt-3 pb-2 border-t">
-                        <button 
-                          onClick={() => { setPendingTnCAction({ type: 'bulk_accept', jobIds: [...selectedJobsForAccept] }); setShowRiderTnC(true); setTncAccepted(false); }} 
-                          className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors"
-                        >
-                          {`Accept ${selectedJobsForAccept.length} Job${selectedJobsForAccept.length > 1 ? 's' : ''}`}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
-                </>
-              )}
-            </div>
+
+                {/* Today's Deliveries Tab */}
+                {riderJobsTab === 'today' && (
+                  <div className="bg-white rounded-lg shadow-lg p-4">
+                    <h4 className="font-bold text-gray-800 mb-3">{"📋 Today's Deliveries"}</h4>
+                    {(() => {
+                      const todaySGT = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
+                      const todayJobs = activeJobsList.filter((j: any) => j.delivery_date === todaySGT || !j.delivery_date);
+                      
+                      if (todayJobs.length === 0) return (
+                        <div className="text-center py-8 text-gray-500">
+                          <Clock size={48} className="mx-auto mb-3 text-gray-300" />
+                          <p className="font-medium">No deliveries scheduled for today</p>
+                          <p className="text-sm mt-1">Check the Available Jobs tab for new orders</p>
+                        </div>
+                      );
+                      
+                      return (
+                        <div className="space-y-3">
+                          {todayJobs.map((job: any) => (
+                            <div 
+                              key={job.id}
+                              onClick={() => { setSelectedJobId(job.id); setRiderJobsTab('active'); }}
+                              className="p-3 rounded-lg border border-blue-200 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  {job.order_id && <p className="text-xs font-bold text-purple-600">#{job.order_id}</p>}
+                                  <p className="font-semibold text-sm">{job.pickup} → {job.delivery}</p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    💰 ${job.price} | 📦 {job.parcel_size || 'N/A'} | 🕐 {job.timeframe || 'ASAP'}
+                                  </p>
+                                </div>
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                  job.status === 'accepted' ? 'bg-blue-200 text-blue-800' :
+                                  job.status === 'picked-up' ? 'bg-yellow-200 text-yellow-800' :
+                                  'bg-green-200 text-green-800'
+                                }`}>
+                                  {job.status.replace('-', ' ').toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Available Jobs Tab */}
+                {riderJobsTab === 'available' && (
+                  <>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
+
 
         {auth.type === 'admin' && (
           <div className="space-y-6">
