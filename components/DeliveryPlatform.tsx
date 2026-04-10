@@ -4640,7 +4640,6 @@ Please be punctual and update once completed. Thanks!`;
                 Powered by The Food Thinker Pte Ltd
               </p>
             </div>
-            </div>
           ) : null}
 
           {/* Fullscreen POD Image Viewer for Public Tracking */}
