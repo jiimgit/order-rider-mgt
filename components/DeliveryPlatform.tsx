@@ -4669,6 +4669,7 @@ Please be punctual and update once completed. Thanks!`;
           )}
         </div>
       </div>
+      </div>
     );
   }
 
@@ -7675,6 +7676,9 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
+                  </div>
+                )} {/* End of active jobs sub-tab */}
+
             {/* Today's Deliveries Sub-tab */}
             {riderTab === 'jobs' && jobsTab === 'today' && (
               <div className="bg-white rounded-lg shadow-lg p-4">
@@ -7897,6 +7901,7 @@ Please be punctual and update once completed. Thanks!`;
             )} {/* End of available jobs sub-tab */}
               </div>
             )} {/* End of jobs tab */}
+          </div> {/* End of rider space-y-6 */}
           </div>
         )}
 
@@ -9179,6 +9184,8 @@ Please be punctual and update once completed. Thanks!`;
                       </div>
                     </div>
                   </div>
+                  </div>
+                  </div>
                 )}
 
                 {/* Rider Performance Report */}
@@ -9889,6 +9896,7 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
           </div>
+          </div> {/* End of admin space-y-6 */}
         )}
 
         {/* Broadcast Modal */}
