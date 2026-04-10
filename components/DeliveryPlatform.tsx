@@ -6445,13 +6445,9 @@ Please be punctual and update once completed. Thanks!`;
             {/* HOME TAB - Earnings + Performance */}
             {riderTab === 'home' && (
               <div className="space-y-4">
-                {/* Earnings Card */}
-                      () => setShowGpsWarning(true),
-                      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-                    );
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg font-medium"
-                >
+              </div>
+            )}
+
             {/* My Performance button on home tab */}
             {riderTab === 'home' && (
               <button
