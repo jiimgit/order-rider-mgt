@@ -4640,6 +4640,7 @@ Please be punctual and update once completed. Thanks!`;
                 Powered by The Food Thinker Pte Ltd
               </p>
             </div>
+            </div>
           ) : null}
 
           {/* Fullscreen POD Image Viewer for Public Tracking */}
@@ -7901,7 +7902,6 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )} {/* End of jobs tab */}
           </div> {/* End of rider space-y-6 */}
-          </div>
         )}
 
         {auth.type === 'admin' && (
@@ -9894,8 +9894,8 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
             </div>
-          </div>
-          </div> {/* End of admin space-y-6 */}
+          </div> {/* closes admin settings modal */}
+        </div> {/* End of admin space-y-6 */}
         )}
 
         {/* Broadcast Modal */}
