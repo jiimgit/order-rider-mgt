@@ -376,6 +376,8 @@ const DeliveryPlatform = () => {
   // Rider navigation history for back button
   const [riderViewHistory, setRiderViewHistory] = useState<string[]>(['home']);
   const [currentRiderView, setCurrentRiderView] = useState('home');
+  const [riderTab, setRiderTab] = useState('home');
+  const [jobsTab, setJobsTab] = useState('available');
 
   // Admin dashboard stats
   const [dashboardStats, setDashboardStats] = useState({
@@ -6333,7 +6335,7 @@ Please be punctual and update once completed. Thanks!`;
             </div>
 
             {/* New Job Notifications */}
-            {riderIsOnline && newJobNotifications.length > 0 && (
+            {riderIsOnline && newJobNotifications.length > 0 && (riderTab === 'home' || riderTab === 'jobs') && (
               <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-2xl">🔔</span>
@@ -6418,65 +6420,49 @@ Please be punctual and update once completed. Thanks!`;
               </button>
             )}
 
-            {/* Quick Actions Bar */}
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setShowRiderProfile(!showRiderProfile)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                  showRiderProfile ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-300'
-                }`}
-              >
-                <User size={18} />
-                My Profile
-              </button>
-              <button
-                onClick={() => setShowDeliveryHistory(!showDeliveryHistory)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                  showDeliveryHistory ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
-                }`}
-              >
-                <FileText size={18} />
-                Delivery History
-              </button>
+            {/* Navigation Tabs */}
+            <div className="grid grid-cols-5 gap-1 bg-white rounded-lg shadow p-1">
+              {[
+                { id: 'home', icon: '🏠', label: 'Home' },
+                { id: 'jobs', icon: '📋', label: 'Jobs' },
+                { id: 'profile', icon: '👤', label: 'Profile' },
+                { id: 'history', icon: '📜', label: 'History' },
+                { id: 'wallet', icon: '💰', label: 'Wallet' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setRiderTab(tab.id); setShowRiderProfile(tab.id === 'profile'); setShowDeliveryHistory(tab.id === 'history'); setShowRiderPerformance(false); }}
+                  className={`flex flex-col items-center py-2 px-1 rounded-lg text-xs font-medium transition-colors ${
+                    riderTab === tab.id ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="text-lg">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* HOME TAB - Earnings + Performance */}
+            {riderTab === 'home' && (
+              <div className="space-y-4">
+              </div>
+            )}
+
+            {/* My Performance button on home tab */}
+            {riderTab === 'home' && (
               <button
                 onClick={() => setShowRiderPerformance(!showRiderPerformance)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium ${
                   showRiderPerformance ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300'
                 }`}
               >
                 <BarChart3 size={18} />
-                My Performance
+                {showRiderPerformance ? 'Hide Performance' : 'View My Performance'}
               </button>
-              {getActiveJobsForRider.length > 1 && (
-                <button
-                  onClick={() => setShowRouteOptimization(!showRouteOptimization)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                    showRouteOptimization ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
-                  }`}
-                >
-                  <Navigation size={18} />
-                  Optimize Route
-                </button>
-              )}
-              {gpsPermissionGranted !== true && (
-                <button
-                  onClick={() => {
-                    navigator.geolocation.getCurrentPosition(
-                      () => { setGpsPermissionGranted(true); alert('GPS is working!'); },
-                      () => setShowGpsWarning(true),
-                      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-                    );
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg font-medium"
-                >
-                  <AlertCircle size={18} />
-                  Enable GPS
-                </button>
-              )}
-            </div>
+            )}
 
             {/* Rider Profile Page */}
-            {showRiderProfile && curr && (
+            {riderTab === 'profile' && curr && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <User className="text-purple-600" />
@@ -6579,7 +6565,7 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             {/* Rider Delivery History Page */}
-            {showDeliveryHistory && (
+            {riderTab === 'history' && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <FileText className="text-blue-600" />
@@ -6659,7 +6645,7 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             {/* Rider Performance Page - Feature 9 */}
-            {showRiderPerformance && riderPerformanceStats && (
+            {riderTab === 'home' && showRiderPerformance && riderPerformanceStats && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <BarChart3 className="text-green-600" />
@@ -6785,7 +6771,8 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Rider Stats Header */}
+            {/* Rider Stats Header - HOME TAB */}
+            {riderTab === 'home' && (
             <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
               <div className="grid grid-cols-2 gap-6">
                 <div>
@@ -6812,9 +6799,10 @@ Please be punctual and update once completed. Thanks!`;
                 <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
               </div>
             </div>
+            )} {/* End of home tab earnings card */}
 
-            {/* Withdrawal Notifications - Show status of rider's withdrawal requests */}
-            {(() => {
+            {/* Withdrawal Notifications - Show on home and wallet tabs */}
+            {(riderTab === 'home' || riderTab === 'wallet') && (() => {
               const myWithdrawals = auditLogs.filter((log: any) => 
                 log.action === 'withdrawal_request' && log.user_id === auth.id
               ).slice(0, 3);
@@ -6867,7 +6855,8 @@ Please be punctual and update once completed. Thanks!`;
               );
             })()}
 
-            {/* Withdrawal Section */}
+            {/* Withdrawal Section - WALLET TAB */}
+            {riderTab === 'wallet' && (
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 💰 Withdrawal
@@ -7140,6 +7129,33 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
             </div>
+            )} {/* End of wallet tab */}
+
+            {/* JOBS TAB */}
+            {riderTab === 'jobs' && (
+              <div className="space-y-4">
+                {/* Jobs Sub-tabs */}
+                <div className="bg-white rounded-lg shadow p-1 flex">
+                  {[
+                    { id: 'active', label: 'Active Jobs', count: activeJobsList.length },
+                    { id: 'today', label: "Today's Deliveries", count: (() => { const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }); return activeJobsList.filter((j: any) => j.delivery_date === today || !j.delivery_date).length; })() },
+                    { id: 'available', label: 'Available Jobs', count: filteredAvailableJobs.length },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setJobsTab(tab.id)}
+                      className={`flex-1 py-2 px-2 rounded-lg text-xs font-semibold transition-colors ${
+                        jobsTab === tab.id ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {tab.label} ({tab.count})
+                    </button>
+                  ))}
+                </div>
+
+                {/* Active Jobs Sub-tab */}
+                {jobsTab === 'active' && (
+                  <div>
 
             {/* Active Jobs - Grouped by TODAY and UPCOMING */}
             {activeJobsList.length > 0 && (
@@ -7273,7 +7289,7 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {activeJob && (
+            {activeJob && riderTab === 'jobs' && jobsTab === 'active' && (
               <div className="bg-white rounded-lg shadow-xl p-4 border-2 border-blue-500">
                 {/* Pickup Time Reminder */}
                 {activeJob.delivery_date && activeJob.timeframe && (() => {
@@ -7659,7 +7675,77 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Available Jobs - Only show when rider is online */}
+                  </div>
+                )} {/* End of active jobs sub-tab */}
+
+            {/* Today's Deliveries Sub-tab */}
+            {riderTab === 'jobs' && jobsTab === 'today' && (
+              <div className="bg-white rounded-lg shadow-lg p-4">
+                <h3 className="text-xl font-bold mb-4">📅 Today's Deliveries</h3>
+                {(() => {
+                  const todaySGT = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
+                  const todayDisplay = new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric' });
+                  const todayJobs = activeJobsList.filter((j: any) => j.delivery_date === todaySGT || !j.delivery_date);
+                  
+                  if (todayJobs.length === 0) {
+                    return (
+                      <div className="text-center py-8">
+                        <p className="text-4xl mb-3">📭</p>
+                        <p className="text-gray-500">No deliveries scheduled for today ({todayDisplay})</p>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-500 mb-2">{todayDisplay} — {todayJobs.length} delivery(ies)</p>
+                      {todayJobs.map((job: any) => {
+                        const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
+                        const pickupMatch = job.remarks?.match(/pick\s*up\s*(?:at\s*)?(\d{1,2}[.:]\d{0,2}\s*(?:am|pm|AM|PM)?|\d{1,2}\s*(?:am|pm|AM|PM))/i);
+                        return (
+                          <div 
+                            key={job.id} 
+                            className="p-3 rounded-lg border-2 border-blue-200 bg-blue-50 cursor-pointer hover:border-blue-400"
+                            onClick={() => { setSelectedJobId(job.id); setJobsTab('active'); }}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-semibold text-sm">{extractAreaName(job.pickup)} → {extractAreaName(job.delivery)}</p>
+                                <p className="text-xs text-gray-600">
+                                  🕐 {job.timeframe || job.delivery_slot || 'N/A'}
+                                  {pickupMatch ? ` • Pickup: ${pickupMatch[1]}` : ''}
+                                </p>
+                                <p className="text-xs text-gray-500">👤 {job.customer_name} • 📦 {job.parcel_size || 'N/A'}</p>
+                                <p className="text-xs mt-1"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  job.status === 'accepted' ? 'bg-yellow-100 text-yellow-700' : 
+                                  job.status === 'picked-up' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                                }`}>{job.status?.toUpperCase()}</span></p>
+                              </div>
+                              <span className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+                  {/* Close active jobs sub-tab */}
+                  {riderTab === 'jobs' && jobsTab === 'active' && activeJobsList.length === 0 && (
+                    <div className="bg-white rounded-lg shadow-lg p-6 text-center">
+                      <p className="text-4xl mb-3">📭</p>
+                      <p className="text-gray-500 mb-2">No active jobs</p>
+                      <p className="text-sm text-gray-400">Accept jobs from the Available Jobs tab</p>
+                      <button onClick={() => setJobsTab('available')} className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                        View Available Jobs
+                      </button>
+                    </div>
+                  )}
+
+            {/* Available Jobs Sub-tab */}
+            {riderTab === 'jobs' && jobsTab === 'available' && (
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
               
@@ -7811,7 +7897,11 @@ Please be punctual and update once completed. Thanks!`;
                 </>
               )}
             </div>
-          </div>
+            )} {/* End of available jobs sub-tab */}
+              </div>
+            )} {/* End of jobs tab */}
+          </div> {/* closes jobs tab space-y-4 */}
+        </div> {/* closes rider space-y-6 */}
         )}
 
         {auth.type === 'admin' && (
@@ -9093,6 +9183,8 @@ Please be punctual and update once completed. Thanks!`;
                       </div>
                     </div>
                   </div>
+                  </div>
+                  </div>
                 )}
 
                 {/* Rider Performance Report */}
@@ -9802,7 +9894,8 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
             </div>
-          </div>
+          </div> {/* closes admin settings modal */}
+        </div> {/* End of admin space-y-6 */}
         )}
 
         {/* Broadcast Modal */}
@@ -12030,7 +12123,7 @@ Please be punctual and update once completed. Thanks!`;
                   // Calculate dates
                   const dates: string[] = [];
                   const start = new Date(deliveryPlan.startDate + 'T00:00:00+08:00');
-                  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+                  const dayMap: {[key: string]: number} = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
                   
                   if (deliveryPlan.planType === 'weekly' && deliveryPlan.weeklyDays.length > 0) {
                     for (let w = 0; w < deliveryPlan.weeksToGenerate; w++) {
@@ -12083,7 +12176,7 @@ Please be punctual and update once completed. Thanks!`;
                     // Calculate dates
                     const dates: string[] = [];
                     const start = new Date(deliveryPlan.startDate + 'T00:00:00+08:00');
-                    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+                    const dayMap: {[key: string]: number} = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
                     
                     if (deliveryPlan.planType === 'weekly' && deliveryPlan.weeklyDays.length > 0) {
                       for (let w = 0; w < deliveryPlan.weeksToGenerate; w++) {
