@@ -7789,8 +7789,157 @@ Please be punctual and update once completed. Thanks!`;
 
                 {/* Available Jobs Tab */}
                 {riderJobsTab === 'available' && (
-                  <>
-                  </>
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
+              
+              {!riderIsOnline ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">🔴</div>
+                  <p className="text-xl font-semibold text-gray-700 mb-2">You are currently offline</p>
+                  <p className="text-gray-500 mb-4">Go online to see available jobs and receive notifications</p>
+                  <button
+                    onClick={riderGoOnline}
+                    className="bg-green-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-600"
+                  >
+                    🟢 Go Online Now
+                  </button>
+                </div>
+              ) : (
+                <>
+                {/* Job Filter - Feature 10 */}
+                <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Search size={18} className="text-gray-500" />
+                    <span className="font-medium text-gray-700">Filter Jobs</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Pickup location..."
+                      value={riderJobFilter.pickup}
+                      onChange={(e) => setRiderJobFilter({...riderJobFilter, pickup: e.target.value})}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Drop-off location..."
+                      value={riderJobFilter.dropoff}
+                      onChange={(e) => setRiderJobFilter({...riderJobFilter, dropoff: e.target.value})}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Customer name..."
+                      value={riderJobFilter.customer}
+                      onChange={(e) => setRiderJobFilter({...riderJobFilter, customer: e.target.value})}
+                      className="px-3 py-2 border rounded-lg text-sm"
+                    />
+                  </div>
+                  {(riderJobFilter.pickup || riderJobFilter.dropoff || riderJobFilter.customer) && (
+                    <button
+                      onClick={() => setRiderJobFilter({ pickup: '', dropoff: '', customer: '' })}
+                      className="mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+
+                {filteredAvailableJobs.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <Package size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>No jobs available right now</p>
+                    <p className="text-sm">Check back soon!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
+                      {selectedJobsForAccept.length > 0 && (
+                        <span className="text-sm font-medium text-green-600">
+                          {selectedJobsForAccept.length} selected
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Select All / Clear All */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedJobsForAccept(filteredAvailableJobs.map((j: any) => j.id))}
+                        className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => setSelectedJobsForAccept([])}
+                        className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    
+                    {filteredAvailableJobs.map((job: any) => {
+                      const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
+                      const isSelected = selectedJobsForAccept.includes(job.id);
+                      return (
+                        <div 
+                          key={job.id} 
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedJobsForAccept(selectedJobsForAccept.filter(id => id !== job.id));
+                            } else {
+                              setSelectedJobsForAccept([...selectedJobsForAccept, job.id]);
+                            }
+                          }}
+                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-green-500 bg-green-50 shadow-md' 
+                              : 'border-gray-200 hover:border-green-400 hover:shadow-md'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* Checkbox */}
+                            <div className="pt-1">
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                isSelected 
+                                  ? 'bg-green-500 border-green-500' 
+                                  : 'border-gray-300 bg-white'
+                              }`}>
+                                {isSelected && <Check size={14} className="text-white" />}
+                              </div>
+                            </div>
+                            
+                            {/* Job Details - Improved */}
+                            <div className="flex-1">
+                              {renderJobDetailCard(job, false)}
+                            </div>
+                            
+                            {/* Earnings */}
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Earn:</p>
+                              <p className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Accept Selected Jobs Button */}
+                    {selectedJobsForAccept.length > 0 && (
+                      <div className="sticky bottom-0 bg-white pt-3 pb-2 border-t">
+                        <button 
+                          onClick={() => { setPendingTnCAction({ type: 'bulk_accept', jobIds: [...selectedJobsForAccept] }); setShowRiderTnC(true); setTncAccepted(false); }} 
+                          className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors"
+                        >
+                          {`Accept ${selectedJobsForAccept.length} Job${selectedJobsForAccept.length > 1 ? 's' : ''}`}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                </>
+              )}
+            </div>
                 )}
               </div>
             )}
