@@ -40,7 +40,7 @@ const api = async (endpoint: string, method = 'GET', body: any = null, retries =
       let data;
       try {
         data = JSON.parse(text);
-      } catch (e) {
+      } catch (e: any) {
         throw new Error(`Invalid JSON response: ${text}`);
       }
       
@@ -125,7 +125,7 @@ const extractAreaName = (address: string): string => {
   if (bracketMatch) {
     const name = bracketMatch[1].trim();
     if (name.length > 3 && name.length < 30) {
-      return name.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      return name.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
     }
   }
   
@@ -134,7 +134,7 @@ const extractAreaName = (address: string): string => {
   if (roadMatch) {
     const road = roadMatch[1].trim();
     if (road.length > 3) {
-      return road.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      return road.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
     }
   }
   
@@ -225,7 +225,7 @@ const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChai
     
     if (uplinePool >= totalMaxUpline) {
       // Enough for $2 each - give $2 to each upline, rest to rider
-      uplineChain.forEach((upline) => {
+      uplineChain.forEach((upline: any) => {
         commissions.uplines.push({ 
           riderId: upline.id, 
           riderName: upline.name, 
@@ -238,7 +238,7 @@ const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChai
     } else {
       // Not enough for $2 each - split equally among uplines
       const perUpline = uplinePool / uplineChain.length;
-      uplineChain.forEach((upline) => {
+      uplineChain.forEach((upline: any) => {
         commissions.uplines.push({ 
           riderId: upline.id, 
           riderName: upline.name, 
@@ -247,7 +247,7 @@ const calculateCommissions = (deliveryFee: number, riderTier: number, uplineChai
         });
       });
       // Handle rounding - any remainder goes to company
-      const totalUplinePaid = commissions.uplines.reduce((sum, u) => sum + u.amount, 0);
+      const totalUplinePaid = commissions.uplines.reduce((sum: number, u: any) => sum + u.amount, 0);
       commissions.companyExtra = parseFloat((uplinePool - totalUplinePaid).toFixed(2));
     }
   }
@@ -646,7 +646,7 @@ const DeliveryPlatform = () => {
   }, [auth.type]);
 
   // Load public tracking data (no auth required)
-  const loadPublicTracking = async (jobId) => {
+  const loadPublicTracking = async (jobId: string) => {
     setPublicTrackingMode(true);
     setLoading(true);
     try {
@@ -666,7 +666,7 @@ const DeliveryPlatform = () => {
       } else {
         setPublicTrackingError('Order not found');
       }
-    } catch (e) {
+    } catch (e: any) {
       setPublicTrackingError('Error loading tracking data');
       console.error(e);
     }
@@ -674,13 +674,13 @@ const DeliveryPlatform = () => {
   };
 
   // Refresh public rider location
-  const refreshPublicLocation = async (jobId) => {
+  const refreshPublicLocation = async (jobId: string) => {
     try {
       const locations = await api(`rider_locations?job_id=eq.${jobId}&order=updated_at.desc&limit=1`);
       if (locations && locations.length > 0) {
         setPublicRiderLocation(locations[0]);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error fetching location:', e);
     }
   };
@@ -721,7 +721,7 @@ const DeliveryPlatform = () => {
             updated_at: new Date().toISOString()
           });
           console.log('Location updated:', latitude, longitude);
-        } catch (e) {
+        } catch (e: any) {
           console.error('Error saving location:', e);
         }
       },
@@ -806,10 +806,10 @@ const DeliveryPlatform = () => {
       const existingPodImages = (freshJob && freshJob[0]?.pod_images) || [];
       
       // Replace or add this stop's photo
-      const updatedPodImages = [...existingPodImages.filter((p) => p.stopIndex !== podStopIndex), newPod]
-        .sort((a, b) => a.stopIndex - b.stopIndex);
+      const updatedPodImages = [...existingPodImages.filter((p: any) => p.stopIndex !== podStopIndex), newPod]
+        .sort((a: any, b: any) => a.stopIndex - b.stopIndex);
       
-      const updatedPodStops = updatedPodImages.map((p) => ({ 
+      const updatedPodStops = updatedPodImages.map((p: any) => ({ 
         stopIndex: p.stopIndex, timestamp: p.timestamp, address: p.address, hasImage: true 
       }));
       
@@ -835,12 +835,12 @@ const DeliveryPlatform = () => {
       }
       
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error submitting photo: ' + e.message);
     }
   };
 
-  const submitPodAndComplete = async (jobId) => {
+  const submitPodAndComplete = async (jobId: string) => {
     const totalStops = activeJob?.stops?.length || 1;
     
     if (totalStops > 1) {
@@ -886,9 +886,9 @@ const DeliveryPlatform = () => {
       }
       
       // Update rider earnings
-      const job = jobs.find((j) => j.id === jobId);
+      const job = jobs.find((j: any) => j.id === jobId);
       if (job && auth.id) {
-        const riderData = riders.find((r) => r.id === auth.id);
+        const riderData = riders.find((r: any) => r.id === auth.id);
         if (riderData) {
           const comm = calculateCommissions(job.price, riderData.tier, riderData.upline_chain || [], job.total_stops || 1);
           
@@ -898,7 +898,7 @@ const DeliveryPlatform = () => {
           });
           
           for (const up of comm.uplines) {
-            const upRider = riders.find((r) => r.id === up.riderId);
+            const upRider = riders.find((r: any) => r.id === up.riderId);
             if (upRider) {
               await api(`riders?id=eq.${up.riderId}`, 'PATCH', { 
                 earnings: (upRider.earnings || 0) + up.amount 
@@ -917,13 +917,13 @@ const DeliveryPlatform = () => {
       stopGPSTracking();
       alert('Delivery completed with proof of delivery!');
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error completing delivery: ' + e.message);
     }
   };
 
   // Rider navigation - Back button (Feature 1)
-  const navigateRiderView = (newView) => {
+  const navigateRiderView = (newView: string) => {
     setRiderViewHistory(prev => [...prev, currentRiderView]);
     setCurrentRiderView(newView);
   };
@@ -940,7 +940,7 @@ const DeliveryPlatform = () => {
   // Multi-job support - Get active jobs for rider (Feature 5)
   const getActiveJobsForRider = useMemo(() => {
     if (auth.type !== 'rider' || !auth.id) return [];
-    return jobs.filter((j) => 
+    return jobs.filter((j: any) => 
       j.rider_id === auth.id && 
       ['accepted', 'picked-up', 'on-the-way'].includes(j.status)
     );
@@ -951,22 +951,22 @@ const DeliveryPlatform = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const todayJobs = jobs.filter((j) => j.created_at && new Date(j.created_at) >= today);
+    const todayJobs = jobs.filter((j: any) => j.created_at && new Date(j.created_at) >= today);
     
-    const pendingOrders = todayJobs.filter((j) => j.status === 'posted').length;
-    const assignedOrders = todayJobs.filter((j) => j.status === 'accepted').length;
-    const outForDelivery = todayJobs.filter((j) => ['picked-up', 'on-the-way'].includes(j.status)).length;
-    const deliveredToday = todayJobs.filter((j) => j.status === 'completed').length;
+    const pendingOrders = todayJobs.filter((j: any) => j.status === 'posted').length;
+    const assignedOrders = todayJobs.filter((j: any) => j.status === 'accepted').length;
+    const outForDelivery = todayJobs.filter((j: any) => ['picked-up', 'on-the-way'].includes(j.status)).length;
+    const deliveredToday = todayJobs.filter((j: any) => j.status === 'completed').length;
     
     const totalRevenueToday = todayJobs
-      .filter((j) => j.status === 'completed')
-      .reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0);
+      .filter((j: any) => j.status === 'completed')
+      .reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
     
     const adminEarningsToday = deliveredToday * 1; // $1 per completed delivery
     const riderEarningsToday = totalRevenueToday - adminEarningsToday;
     
-    const activeRiders = riders.filter((r) => {
-      const riderJobs = jobs.filter((j) => 
+    const activeRiders = riders.filter((r: any) => {
+      const riderJobs = jobs.filter((j: any) => 
         j.rider_id === r.id && 
         ['accepted', 'picked-up', 'on-the-way'].includes(j.status)
       );
@@ -983,8 +983,8 @@ const DeliveryPlatform = () => {
       totalRevenueToday,
       adminEarningsToday,
       riderEarningsToday,
-      totalStripeReceived: customers.reduce((sum, c) => sum + (c.credits || 0), 0) + jobs.filter((j) => j.status !== 'cancelled').reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0),
-      totalCustomerWallets: customers.reduce((sum, c) => sum + (c.credits || 0), 0)
+      totalStripeReceived: customers.reduce((sum: any, c: any) => sum + (c.credits || 0), 0) + jobs.filter((j: any) => j.status !== 'cancelled').reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0),
+      totalCustomerWallets: customers.reduce((sum: any, c: any) => sum + (c.credits || 0), 0)
     };
   }, [jobs, riders]);
 
@@ -992,19 +992,19 @@ const DeliveryPlatform = () => {
   const riderPerformanceStats = useMemo(() => {
     if (auth.type !== 'rider' || !auth.id) return null;
     
-    const riderJobs = jobs.filter((j) => j.rider_id === auth.id);
-    const completedJobs = riderJobs.filter((j) => j.status === 'completed');
-    const cancelledJobs = riderJobs.filter((j) => j.status === 'cancelled');
-    const acceptedJobs = riderJobs.filter((j) => j.status !== 'posted');
+    const riderJobs = jobs.filter((j: any) => j.rider_id === auth.id);
+    const completedJobs = riderJobs.filter((j: any) => j.status === 'completed');
+    const cancelledJobs = riderJobs.filter((j: any) => j.status === 'cancelled');
+    const acceptedJobs = riderJobs.filter((j: any) => j.status !== 'posted');
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayJobs = completedJobs.filter((j) => {
+    const todayJobs = completedJobs.filter((j: any) => {
       const dateStr = j.completed_at || j.created_at;
       return dateStr && new Date(dateStr) >= today;
     });
-    const todayEarnings = todayJobs.reduce((sum, j) => {
-      const rider = riders.find((r) => r.id === auth.id);
+    const todayEarnings = todayJobs.reduce((sum: number, j: any) => {
+      const rider = riders.find((r: any) => r.id === auth.id);
       if (rider) {
         const comm = calculateCommissions(j.price, rider.tier, rider.upline_chain || [], j.total_stops || 1);
         return sum + comm.activeRider;
@@ -1014,12 +1014,12 @@ const DeliveryPlatform = () => {
     
     const thisWeek = new Date();
     thisWeek.setDate(thisWeek.getDate() - 7);
-    const weekJobs = completedJobs.filter((j) => {
+    const weekJobs = completedJobs.filter((j: any) => {
       const dateStr = j.completed_at || j.created_at;
       return dateStr && new Date(dateStr) >= thisWeek;
     });
-    const weekEarnings = weekJobs.reduce((sum, j) => {
-      const rider = riders.find((r) => r.id === auth.id);
+    const weekEarnings = weekJobs.reduce((sum: number, j: any) => {
+      const rider = riders.find((r: any) => r.id === auth.id);
       if (rider) {
         const comm = calculateCommissions(j.price, rider.tier, rider.upline_chain || [], j.total_stops || 1);
         return sum + comm.activeRider;
@@ -1043,26 +1043,26 @@ const DeliveryPlatform = () => {
 
   // Filtered available jobs for rider (Feature 10)
   const filteredAvailableJobs = useMemo(() => {
-    let availableJobs = jobs.filter((j) => j.status === 'posted');
+    let availableJobs = jobs.filter((j: any) => j.status === 'posted');
     
     if (riderJobFilter.pickup) {
-      availableJobs = availableJobs.filter((j) => 
+      availableJobs = availableJobs.filter((j: any) => 
         j.pickup?.toLowerCase().includes(riderJobFilter.pickup.toLowerCase())
       );
     }
     if (riderJobFilter.dropoff) {
-      availableJobs = availableJobs.filter((j) => 
+      availableJobs = availableJobs.filter((j: any) => 
         j.delivery?.toLowerCase().includes(riderJobFilter.dropoff.toLowerCase())
       );
     }
     if (riderJobFilter.customer) {
-      availableJobs = availableJobs.filter((j) => 
+      availableJobs = availableJobs.filter((j: any) => 
         j.customer_name?.toLowerCase().includes(riderJobFilter.customer.toLowerCase())
       );
     }
     
     // Sort: urgent/boosted jobs first, then by creation date (newest first)
-    availableJobs.sort((a, b) => {
+    availableJobs.sort((a: any, b: any) => {
       if (a.is_urgent && !b.is_urgent) return -1;
       if (!a.is_urgent && b.is_urgent) return 1;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -1075,13 +1075,13 @@ const DeliveryPlatform = () => {
   const customerOrderHistory = useMemo(() => {
     if (auth.type !== 'customer' || !auth.id) return { all: [], completed: [], pending: [], cancelled: [] };
     
-    const customerJobs = jobs.filter((j) => j.customer_id === auth.id);
-    const completed = customerJobs.filter((j) => j.status === 'completed');
-    const pending = customerJobs.filter((j) => j.status !== 'completed' && j.status !== 'cancelled');
-    const cancelled = customerJobs.filter((j) => j.status === 'cancelled');
+    const customerJobs = jobs.filter((j: any) => j.customer_id === auth.id);
+    const completed = customerJobs.filter((j: any) => j.status === 'completed');
+    const pending = customerJobs.filter((j: any) => j.status !== 'completed' && j.status !== 'cancelled');
+    const cancelled = customerJobs.filter((j: any) => j.status === 'cancelled');
     
     // Sort by date (newest first)
-    const sortedAll = [...customerJobs].sort((a, b) => 
+    const sortedAll = [...customerJobs].sort((a: any, b: any) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
     
@@ -1092,22 +1092,22 @@ const DeliveryPlatform = () => {
   const riderDeliveryHistory = useMemo(() => {
     if (auth.type !== 'rider' || !auth.id) return { all: [], completed: [], active: [], totalEarnings: 0 };
     
-    const riderJobs = jobs.filter((j) => j.rider_id === auth.id);
-    const completed = riderJobs.filter((j) => j.status === 'completed');
-    const active = riderJobs.filter((j) => ['accepted', 'picked-up', 'on-the-way'].includes(j.status));
+    const riderJobs = jobs.filter((j: any) => j.rider_id === auth.id);
+    const completed = riderJobs.filter((j: any) => j.status === 'completed');
+    const active = riderJobs.filter((j: any) => ['accepted', 'picked-up', 'on-the-way'].includes(j.status));
     
     // Calculate total earnings from completed jobs
-    const rider = riders.find((r) => r.id === auth.id);
+    const rider = riders.find((r: any) => r.id === auth.id);
     let totalEarnings = 0;
     if (rider) {
-      completed.forEach((job) => {
+      completed.forEach((job: any) => {
         const comm = calculateCommissions(job.price, rider.tier, rider.upline_chain || [], job.total_stops || 1);
         totalEarnings += comm.activeRider;
       });
     }
     
     // Sort by date (newest first)
-    const sortedAll = [...riderJobs].sort((a, b) => 
+    const sortedAll = [...riderJobs].sort((a: any, b: any) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
     
@@ -1118,25 +1118,25 @@ const DeliveryPlatform = () => {
   const riderDownlineData = useMemo(() => {
     if (auth.type !== 'rider' || !auth.id) return { downlineRiders: [], totalDownlineEarnings: 0, overrideEarnings: 0 };
     
-    const currentRider = riders.find((r) => r.id === auth.id);
+    const currentRider = riders.find((r: any) => r.id === auth.id);
     if (!currentRider) return { downlineRiders: [], totalDownlineEarnings: 0, overrideEarnings: 0 };
     
     // Find all riders who have this rider in their upline chain
-    const downlineRiders = riders.filter((r) => 
-      r.upline_chain && r.upline_chain.some((u) => u.id === auth.id)
+    const downlineRiders = riders.filter((r: any) => 
+      r.upline_chain && r.upline_chain.some((u: any) => u.id === auth.id)
     );
     
     // Calculate total earnings from downline
     let totalDownlineEarnings = 0;
     let overrideEarnings = 0;
     
-    downlineRiders.forEach((downline) => {
+    downlineRiders.forEach((downline: any) => {
       totalDownlineEarnings += (downline.earnings || 0);
     });
     
     // Calculate override earnings from completed jobs where this rider is in upline
-    jobs.filter((j) => j.status === 'completed' && j.commissions?.uplines).forEach((job) => {
-      const uplineEntry = job.commissions.uplines.find((u) => u.riderId === auth.id);
+    jobs.filter((j: any) => j.status === 'completed' && j.commissions?.uplines).forEach((job: any) => {
+      const uplineEntry = job.commissions.uplines.find((u: any) => u.riderId === auth.id);
       if (uplineEntry) {
         overrideEarnings += uplineEntry.amount || 0;
       }
@@ -1147,9 +1147,9 @@ const DeliveryPlatform = () => {
 
   // Admin POD Management - Jobs with/without POD (Feature 13)
   const podManagementData = useMemo(() => {
-    const completedJobs = jobs.filter((j) => j.status === 'completed');
-    const withPod = completedJobs.filter((j) => j.pod_image);
-    const withoutPod = completedJobs.filter((j) => !j.pod_image);
+    const completedJobs = jobs.filter((j: any) => j.status === 'completed');
+    const withPod = completedJobs.filter((j: any) => j.pod_image);
+    const withoutPod = completedJobs.filter((j: any) => !j.pod_image);
     
     return { completedJobs, withPod, withoutPod };
   }, [jobs]);
@@ -1157,11 +1157,11 @@ const DeliveryPlatform = () => {
   // Referral Tree Data (Feature 12) - Build hierarchical tree structure
   const referralTreeData = useMemo(() => {
     // Find all tier 1 riders (root nodes)
-    const tier1Riders = riders.filter((r) => r.tier === 1);
+    const tier1Riders = riders.filter((r: any) => r.tier === 1);
     
     // Build tree recursively
     const buildTree = (rider: any): any => {
-      const children = riders.filter((r) => 
+      const children = riders.filter((r: any) => 
         r.upline_chain && r.upline_chain.length > 0 && r.upline_chain[0]?.id === rider.id
       );
       return {
@@ -1174,10 +1174,10 @@ const DeliveryPlatform = () => {
     
     // Count all downline riders
     const countDownline = (rider: any): number => {
-      const directDownline = riders.filter((r) => 
+      const directDownline = riders.filter((r: any) => 
         r.upline_chain && r.upline_chain.length > 0 && r.upline_chain[0]?.id === rider.id
       );
-      return directDownline.length + directDownline.reduce((sum, r) => sum + countDownline(r), 0);
+      return directDownline.length + directDownline.reduce((sum: number, r: any) => sum + countDownline(r), 0);
     };
     
     return tier1Riders.map(buildTree);
@@ -1189,39 +1189,39 @@ const DeliveryPlatform = () => {
     
     // Apply date filters
     if (reportDateFrom) {
-      filteredJobs = filteredJobs.filter((j) => new Date(j.created_at) >= new Date(reportDateFrom));
+      filteredJobs = filteredJobs.filter((j: any) => new Date(j.created_at) >= new Date(reportDateFrom));
     }
     if (reportDateTo) {
       const toDate = new Date(reportDateTo);
       toDate.setHours(23, 59, 59, 999);
-      filteredJobs = filteredJobs.filter((j) => new Date(j.created_at) <= toDate);
+      filteredJobs = filteredJobs.filter((j: any) => new Date(j.created_at) <= toDate);
     }
     
     // Financial Report
-    const totalRevenue = filteredJobs.reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0);
-    const completedRevenue = filteredJobs.filter((j) => j.status === 'completed')
-      .reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0);
-    const adminEarnings = filteredJobs.filter((j) => j.status === 'completed').length * 1; // $1 per job
+    const totalRevenue = filteredJobs.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+    const completedRevenue = filteredJobs.filter((j: any) => j.status === 'completed')
+      .reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+    const adminEarnings = filteredJobs.filter((j: any) => j.status === 'completed').length * 1; // $1 per job
     const riderEarnings = completedRevenue - adminEarnings;
     
     // Calculate override commissions
     let overrideCommissions = 0;
-    filteredJobs.filter((j) => j.status === 'completed').forEach((job) => {
+    filteredJobs.filter((j: any) => j.status === 'completed').forEach((job: any) => {
       if (job.commissions?.uplines) {
-        overrideCommissions += job.commissions.uplines.reduce((sum, u) => sum + (u.amount || 0), 0);
+        overrideCommissions += job.commissions.uplines.reduce((sum: number, u: any) => sum + (u.amount || 0), 0);
       }
     });
     
     // Operational Report
     const totalOrders = filteredJobs.length;
-    const completedOrders = filteredJobs.filter((j) => j.status === 'completed').length;
-    const cancelledOrders = filteredJobs.filter((j) => j.status === 'cancelled').length;
-    const pendingOrders = filteredJobs.filter((j) => ['posted', 'accepted', 'picked-up', 'on-the-way'].includes(j.status)).length;
+    const completedOrders = filteredJobs.filter((j: any) => j.status === 'completed').length;
+    const cancelledOrders = filteredJobs.filter((j: any) => j.status === 'cancelled').length;
+    const pendingOrders = filteredJobs.filter((j: any) => ['posted', 'accepted', 'picked-up', 'on-the-way'].includes(j.status)).length;
     const completionRate = totalOrders > 0 ? ((completedOrders / totalOrders) * 100).toFixed(1) : '0';
     
     // Average delivery time (for completed jobs with timestamps)
     const deliveryTimes: number[] = [];
-    filteredJobs.filter((j) => j.status === 'completed' && j.accepted_at && j.completed_at).forEach((job) => {
+    filteredJobs.filter((j: any) => j.status === 'completed' && j.accepted_at && j.completed_at).forEach((job: any) => {
       const start = new Date(job.accepted_at).getTime();
       const end = new Date(job.completed_at).getTime();
       deliveryTimes.push((end - start) / (1000 * 60)); // minutes
@@ -1231,12 +1231,12 @@ const DeliveryPlatform = () => {
       : 'N/A';
     
     // Rider Performance Report
-    const riderPerformance = riders.map((rider) => {
-      const riderJobs = filteredJobs.filter((j) => j.rider_id === rider.id);
-      const completed = riderJobs.filter((j) => j.status === 'completed').length;
+    const riderPerformance = riders.map((rider: any) => {
+      const riderJobs = filteredJobs.filter((j: any) => j.rider_id === rider.id);
+      const completed = riderJobs.filter((j: any) => j.status === 'completed').length;
       const total = riderJobs.length;
-      const revenue = riderJobs.filter((j) => j.status === 'completed')
-        .reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0);
+      const revenue = riderJobs.filter((j: any) => j.status === 'completed')
+        .reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
       
       return {
         id: rider.id,
@@ -1248,11 +1248,11 @@ const DeliveryPlatform = () => {
         revenue,
         earnings: rider.earnings || 0
       };
-    }).filter((r) => r.totalJobs > 0).sort((a, b) => b.completedJobs - a.completedJobs);
+    }).filter((r: any) => r.totalJobs > 0).sort((a: any, b: any) => b.completedJobs - a.completedJobs);
     
     // Daily breakdown
     const dailyData: any = {};
-    filteredJobs.forEach((job) => {
+    filteredJobs.forEach((job: any) => {
       const date = formatSGTDate(job.created_at);
       if (!dailyData[date]) {
         dailyData[date] = { date, orders: 0, completed: 0, revenue: 0 };
@@ -1281,7 +1281,7 @@ const DeliveryPlatform = () => {
         avgDeliveryTime
       },
       riderPerformance,
-      dailyData: Object.values(dailyData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      dailyData: Object.values(dailyData).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
     };
   }, [jobs, riders, reportDateFrom, reportDateTo]);
 
@@ -1323,7 +1323,7 @@ const DeliveryPlatform = () => {
     try {
       const logs = await api('audit_logs?action=eq.withdrawal_request&order=timestamp.desc');
       // Parse details if it's a string
-      const parsed = (Array.isArray(logs) ? logs : []).map((log) => ({
+      const parsed = (Array.isArray(logs) ? logs : []).map((log: any) => ({
         ...log,
         details: typeof log.details === 'string' ? JSON.parse(log.details) : log.details
       }));
@@ -1383,14 +1383,14 @@ const DeliveryPlatform = () => {
       
       loadWithdrawalRequests();
       loadData(); // Refresh rider data
-    } catch (e) {
+    } catch (e: any) {
       alert('Error processing request: ' + e.message);
     }
   };
 
   // Export withdrawal report
   const exportWithdrawalReport = (format: 'csv' | 'pdf') => {
-    const filteredRequests = withdrawalRequests.filter((req) => {
+    const filteredRequests = withdrawalRequests.filter((req: any) => {
       if (withdrawalFilter.status !== 'all') {
         const status = req.details?.status || 'pending';
         if (status !== withdrawalFilter.status) return false;
@@ -1403,7 +1403,7 @@ const DeliveryPlatform = () => {
 
     if (format === 'csv') {
       const headers = ['Date', 'Full Name', 'Mobile', 'Amount', 'Method', 'Bank', 'PayNow/Account No', 'Status'];
-      const rows = filteredRequests.map((req) => [
+      const rows = filteredRequests.map((req: any) => [
         formatSGTDate(req.timestamp),
         req.details?.fullName || req.details?.riderName || 'N/A',
         req.details?.mobileNumber || req.details?.riderPhone || 'N/A',
@@ -1424,10 +1424,10 @@ const DeliveryPlatform = () => {
 
     if (format === 'pdf') {
       // Calculate totals
-      const totalAmount = filteredRequests.reduce((sum, req) => sum + (req.details?.amount || 0), 0);
-      const pendingCount = filteredRequests.filter((r) => r.details?.status === 'pending').length;
-      const approvedCount = filteredRequests.filter((r) => r.details?.status === 'approved').length;
-      const rejectedCount = filteredRequests.filter((r) => r.details?.status === 'rejected').length;
+      const totalAmount = filteredRequests.reduce((sum: number, req: any) => sum + (req.details?.amount || 0), 0);
+      const pendingCount = filteredRequests.filter((r: any) => r.details?.status === 'pending').length;
+      const approvedCount = filteredRequests.filter((r: any) => r.details?.status === 'approved').length;
+      const rejectedCount = filteredRequests.filter((r: any) => r.details?.status === 'rejected').length;
 
       // Generate HTML for PDF
       const html = `
@@ -1499,7 +1499,7 @@ const DeliveryPlatform = () => {
               </tr>
             </thead>
             <tbody>
-              ${filteredRequests.map((req) => `
+              ${filteredRequests.map((req: any) => `
                 <tr>
                   <td>${formatSGTDate(req.timestamp)}</td>
                   <td>${req.details?.riderName || 'N/A'}</td>
@@ -1567,11 +1567,11 @@ const DeliveryPlatform = () => {
 
   // Calculate projected earnings for a job (Rider Preview)
   const calculateProjectedEarnings = (jobPrice: number, totalStops: number = 1) => {
-    const rider = riders.find((r) => r.id === auth.id);
+    const rider = riders.find((r: any) => r.id === auth.id);
     if (!rider) return { riderEarns: 0, platformFee: 1, uplineShare: 0 };
     
     const comm = calculateCommissions(jobPrice, rider.tier, rider.upline_chain || [], totalStops);
-    const uplineTotal = comm.uplines.reduce((sum, u) => sum + u.amount, 0);
+    const uplineTotal = comm.uplines.reduce((sum: number, u: any) => sum + u.amount, 0);
     
     return {
       riderEarns: comm.activeRider,
@@ -1675,19 +1675,19 @@ const DeliveryPlatform = () => {
       setCustomerImportedJobs([]);
       setShowCustomerBulkImport(false);
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error importing jobs: ' + e.message);
     }
   };
 
   // Admin - Update rider tier/level
-  const updateRiderTier = async (riderId, newTier) => {
+  const updateRiderTier = async (riderId: string, newTier: number) => {
     try {
       await api(`riders?id=eq.${riderId}`, 'PATCH', { tier: newTier });
       await logAuditAction('update_rider_tier', { riderId, newTier });
       alert('Rider tier updated successfully!');
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error updating tier: ' + e.message);
     }
   };
@@ -1695,7 +1695,7 @@ const DeliveryPlatform = () => {
   // Admin - Assign new upline to a rider
   const assignUpline = async (riderId: string, newUplineId: string | null) => {
     try {
-      const rider = riders.find((r) => r.id === riderId);
+      const rider = riders.find((r: any) => r.id === riderId);
       if (!rider) { alert('Rider not found'); return; }
       
       if (newUplineId === null) {
@@ -1714,7 +1714,7 @@ const DeliveryPlatform = () => {
         await loadData();
         alert(`${rider.name} is now Top Level (Tier 1) with no upline.`);
       } else {
-        const newUpline = riders.find((r) => r.id === newUplineId);
+        const newUpline = riders.find((r: any) => r.id === newUplineId);
         if (!newUpline) { alert('Upline rider not found'); return; }
         
         // Prevent circular reference — can't set someone as upline if they are in this rider's downline
@@ -1746,7 +1746,7 @@ const DeliveryPlatform = () => {
         for (const r of riders) {
           if (r.id === riderId || r.id === newUplineId) continue;
           const chain = r.upline_chain || [];
-          const riderIdx = chain.findIndex((u) => u.id === riderId);
+          const riderIdx = chain.findIndex((u: any) => u.id === riderId);
           if (riderIdx >= 0) {
             // This rider has the moved rider in their upline — update the chain from that point
             const updatedChain = [
@@ -1771,7 +1771,7 @@ const DeliveryPlatform = () => {
         await loadData();
         alert(`${rider.name} is now under ${newUpline.name} (Tier ${newTier}).\nAll downline references updated.`);
       }
-    } catch (e) {
+    } catch (e: any) {
       alert('Error assigning upline: ' + e.message);
     }
   };
@@ -1817,7 +1817,7 @@ const DeliveryPlatform = () => {
       });
       setShowAdminCreateOrder(false);
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error creating order: ' + e.message);
     }
   };
@@ -1828,7 +1828,7 @@ const DeliveryPlatform = () => {
       const locations = await api('rider_locations?order=updated_at.desc');
       // Group by rider, keep only latest
       const latestByRider: any = {};
-      locations.forEach((loc) => {
+      locations.forEach((loc: any) => {
         if (!latestByRider[loc.rider_id] || new Date(loc.updated_at) > new Date(latestByRider[loc.rider_id].updated_at)) {
           latestByRider[loc.rider_id] = loc;
         }
@@ -1846,7 +1846,7 @@ const DeliveryPlatform = () => {
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
     
-    return jobs.filter((job) => {
+    return jobs.filter((job: any) => {
       if (job.status === 'completed' || job.status === 'cancelled') return false;
       
       // Job accepted but not picked up for 1+ hour
@@ -1888,7 +1888,7 @@ const DeliveryPlatform = () => {
       alert('Promotion created!');
       setNewPromotion({ code: '', discountType: 'fixed', discountValue: 5, minOrder: 0, maxUses: 100, expiryDate: '' });
       loadPromotions();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error creating promotion: ' + e.message);
     }
   };
@@ -1942,7 +1942,7 @@ const DeliveryPlatform = () => {
       // Valid promo!
       setPromoDiscount(promo);
       setPromoError('');
-    } catch (e) {
+    } catch (e: any) {
       setPromoError("Sorry, the code you've entered is fully redeemed or invalid.");
     }
   };
@@ -1973,19 +1973,19 @@ const DeliveryPlatform = () => {
       alert('Promotion updated!');
       setEditingPromo(null);
       loadPromotions();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error updating promotion: ' + e.message);
     }
   };
 
   // Admin - Delete promotion
-  const deletePromotion = async (promoId) => {
+  const deletePromotion = async (promoId: string) => {
     if (!window.confirm('Delete this promotion? This cannot be undone.')) return;
     try {
       await api(`promotions?id=eq.${promoId}`, 'DELETE');
       alert('Promotion deleted!');
       loadPromotions();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error deleting promotion: ' + e.message);
     }
   };
@@ -2000,15 +2000,15 @@ const DeliveryPlatform = () => {
     // Determine recipients
     let recipients: any[] = [];
     if (broadcastMessage.target === 'all_riders') {
-      recipients = riders.filter((r) => r.phone).map((r) => ({ name: r.name, phone: r.phone, type: 'rider' }));
+      recipients = riders.filter((r: any) => r.phone).map((r: any) => ({ name: r.name, phone: r.phone, type: 'rider' }));
     } else if (broadcastMessage.target === 'online_riders') {
-      recipients = riders.filter((r) => r.phone && r.is_online).map((r) => ({ name: r.name, phone: r.phone, type: 'rider' }));
+      recipients = riders.filter((r: any) => r.phone && r.is_online).map((r: any) => ({ name: r.name, phone: r.phone, type: 'rider' }));
     } else if (broadcastMessage.target === 'all_customers') {
-      recipients = customers.filter((c) => c.phone).map((c) => ({ name: c.name, phone: c.phone, type: 'customer' }));
+      recipients = customers.filter((c: any) => c.phone).map((c: any) => ({ name: c.name, phone: c.phone, type: 'customer' }));
     } else {
       recipients = [
-        ...riders.filter((r) => r.phone).map((r) => ({ name: r.name, phone: r.phone, type: 'rider' })),
-        ...customers.filter((c) => c.phone).map((c) => ({ name: c.name, phone: c.phone, type: 'customer' }))
+        ...riders.filter((r: any) => r.phone).map((r: any) => ({ name: r.name, phone: r.phone, type: 'rider' })),
+        ...customers.filter((c: any) => c.phone).map((c: any) => ({ name: c.name, phone: c.phone, type: 'customer' }))
       ];
     }
     
@@ -2059,15 +2059,15 @@ const DeliveryPlatform = () => {
       setEditingProfile(false);
       alert('Profile updated successfully!');
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error saving profile: ' + e.message);
     }
   };
 
   // Add saved address
-  const addSavedAddress = async (address) => {
+  const addSavedAddress = async (address: string) => {
     if (!auth.id || !address) return;
-    const curr = customers.find((c) => c.id === auth.id);
+    const curr = customers.find((c: any) => c.id === auth.id);
     const existingAddresses = curr?.saved_addresses || [];
     if (existingAddresses.includes(address)) {
       alert('Address already saved');
@@ -2079,13 +2079,13 @@ const DeliveryPlatform = () => {
       });
       alert('Address saved!');
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error saving address: ' + e.message);
     }
   };
 
   // Flag POD as invalid (Admin)
-  const flagPodInvalid = async (jobId) => {
+  const flagPodInvalid = async (jobId: string) => {
     try {
       await api(`jobs?id=eq.${jobId}`, 'PATCH', {
         pod_flagged: true,
@@ -2093,13 +2093,13 @@ const DeliveryPlatform = () => {
       });
       alert('POD flagged as invalid. Rider will be notified.');
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error flagging POD: ' + e.message);
     }
   };
 
   // Fetch rider's current location for admin/customer view
-  const fetchRiderLocation = async (jobId) => {
+  const fetchRiderLocation = async (jobId: string) => {
     try {
       const locations = await api(`rider_locations?job_id=eq.${jobId}&order=updated_at.desc&limit=1`);
       if (locations && locations.length > 0) {
@@ -2107,7 +2107,7 @@ const DeliveryPlatform = () => {
         return locations[0];
       }
       return null;
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error fetching rider location:', e);
       return null;
     }
@@ -2224,14 +2224,14 @@ const DeliveryPlatform = () => {
       if (!jobForm.pickup || !jobForm.stops[0]?.address) { setFormDistance(null); return; }
       const pickupPostal = extractPostalCode(jobForm.pickup);
       if (!pickupPostal) { setFormDistance(null); return; }
-      const result = await calculateJobDistances(jobForm.pickup, jobForm.stops.filter((s) => s.address));
+      const result = await calculateJobDistances(jobForm.pickup, jobForm.stops.filter((s: any) => s.address));
       if (result) {
         setFormDistance(result.totalDistance);
       }
     };
     const timer = setTimeout(calcFormDist, 1000);
     return () => clearTimeout(timer);
-  }, [jobForm.pickup, JSON.stringify(jobForm.stops.map((s) => s.address))]);
+  }, [jobForm.pickup, JSON.stringify(jobForm.stops.map((s: any) => s.address))]);
 
   // Handle postal code input for pickup
   const handlePickupPostalCode = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2296,7 +2296,7 @@ const DeliveryPlatform = () => {
   useEffect(() => {
     if (jobs.length === 0 || distanceProcessingRef.current) return;
     
-    const uncachedJobs = jobs.filter((job) => {
+    const uncachedJobs = jobs.filter((job: any) => {
       const stops = job.stops || [];
       return !jobDistanceCache[job.id] && stops.length > 0 && job.pickup && extractPostalCode(job.pickup);
     });
@@ -2382,7 +2382,7 @@ const DeliveryPlatform = () => {
           <div className="bg-blue-50 p-2 rounded text-center">
             <p className="text-xs font-medium text-blue-600 uppercase mb-1">Route Overview</p>
             <p className="text-sm font-medium text-blue-800">
-              Pickup{stops.map((_, i) => ` → Drop-off ${i + 1}`).join('')}
+              Pickup{stops.map((_: any, i: number) => ` → Drop-off ${i + 1}`).join('')}
             </p>
           </div>
         )}
@@ -2390,7 +2390,7 @@ const DeliveryPlatform = () => {
         {/* Drop-off Locations */}
         {stops.length > 0 ? (
           <div className="space-y-2">
-            {stops.map((stop, index) => (
+            {stops.map((stop: any, index: number) => (
               <div key={index} className="bg-green-50 p-3 rounded-lg border-l-4 border-green-400">
                 <p className="text-xs font-medium text-green-600 uppercase mb-1">
                   Drop-off {index + 1}
@@ -2662,9 +2662,9 @@ MoveIt Logistics reserves the right to:
   };
 
   // Copy live tracking link
-  const copyLiveTrackingLink = (job) => {
+  const copyLiveTrackingLink = (job: any) => {
     const url = generateLiveTrackingUrl(job);
-    const riderData = riders.find((r) => r.id === job.rider_id);
+    const riderData = riders.find((r: any) => r.id === job.rider_id);
     const message = `🚚 Live Delivery Tracking
 
 Hi! You can track your delivery in real-time:
@@ -2705,7 +2705,7 @@ Thank you for your order! 🙏`;
     ];
     
     // Properly escape CSV values
-    const escapeCSV = (val) => {
+    const escapeCSV = (val: string) => {
       if (val.includes(',') || val.includes('"') || val.includes('\n')) {
         return `"${val.replace(/"/g, '""')}"`;
       }
@@ -2820,7 +2820,7 @@ Thank you for your order! 🙏`;
       setImportedJobs([]);
       setShowJobImport(false);
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error importing jobs: ' + e.message);
     }
   };
@@ -2828,7 +2828,7 @@ Thank you for your order! 🙏`;
   // Assign rider to job
   const assignRiderToJob = async (jobId: string, riderId: string, riderName: string, riderPhone: string) => {
     try {
-      const riderData = riders.find((r) => r.id === riderId);
+      const riderData = riders.find((r: any) => r.id === riderId);
       await api(`jobs?id=eq.${jobId}`, 'PATCH', {
         rider_id: riderId,
         rider_name: riderName,
@@ -2840,7 +2840,7 @@ Thank you for your order! 🙏`;
       alert('Rider assigned successfully!');
       setShowAssignRider(null);
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error assigning rider: ' + e.message);
     }
   };
@@ -2873,7 +2873,7 @@ Thank you for using our delivery service!`;
   };
 
   // Copy tracking link to clipboard
-  const copyTrackingLink = (job) => {
+  const copyTrackingLink = (job: any) => {
     const message = generateFullTrackingMessage(job);
     navigator.clipboard.writeText(message).then(() => {
       alert('Tracking information copied to clipboard!');
@@ -2904,7 +2904,7 @@ Thank you for using our delivery service!`;
   // Generate WhatsApp with LIVE tracking URL
   const generateLiveTrackingWhatsApp = (job: any, customerPhone: string): string => {
     const liveTrackingUrl = generateLiveTrackingUrl(job);
-    const riderData = riders.find((r) => r.id === job.rider_id);
+    const riderData = riders.find((r: any) => r.id === job.rider_id);
     
     const message = `🚚 Live Delivery Tracking
 
@@ -2933,24 +2933,24 @@ Thank you for your order! 🙏`;
     let filtered = jobs;
     
     if (summaryDateFrom) {
-      filtered = filtered.filter((j) => new Date(j.created_at) >= new Date(summaryDateFrom));
+      filtered = filtered.filter((j: any) => new Date(j.created_at) >= new Date(summaryDateFrom));
     }
     if (summaryDateTo) {
       const toDate = new Date(summaryDateTo);
       toDate.setHours(23, 59, 59, 999);
-      filtered = filtered.filter((j) => new Date(j.created_at) <= toDate);
+      filtered = filtered.filter((j: any) => new Date(j.created_at) <= toDate);
     }
     
     const totalJobs = filtered.length;
-    const completedJobs = filtered.filter((j) => j.status === 'completed').length;
-    const pendingJobs = filtered.filter((j) => ['posted', 'accepted', 'picked-up', 'on-the-way'].includes(j.status)).length;
-    const cancelledJobs = filtered.filter((j) => j.status === 'cancelled').length;
-    const totalRevenue = filtered.reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0);
-    const completedRevenue = filtered.filter((j) => j.status === 'completed').reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0);
+    const completedJobs = filtered.filter((j: any) => j.status === 'completed').length;
+    const pendingJobs = filtered.filter((j: any) => ['posted', 'accepted', 'picked-up', 'on-the-way'].includes(j.status)).length;
+    const cancelledJobs = filtered.filter((j: any) => j.status === 'cancelled').length;
+    const totalRevenue = filtered.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+    const completedRevenue = filtered.filter((j: any) => j.status === 'completed').reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
     
     // Group by rider
     const riderStats: any = {};
-    filtered.forEach((j) => {
+    filtered.forEach((j: any) => {
       if (j.rider_name) {
         if (!riderStats[j.rider_name]) {
           riderStats[j.rider_name] = { name: j.rider_name, jobs: 0, completed: 0, revenue: 0 };
@@ -2965,7 +2965,7 @@ Thank you for your order! 🙏`;
     
     // Group by date
     const dailyStats: any = {};
-    filtered.forEach((j) => {
+    filtered.forEach((j: any) => {
       const date = formatSGTDate(j.created_at);
       if (!dailyStats[date]) {
         dailyStats[date] = { date, jobs: 0, revenue: 0 };
@@ -3069,7 +3069,7 @@ Thank you for your order! 🙏`;
 
   // Filter and paginate customers
   const filteredCustomers = useMemo(() => {
-    return customers.filter((c) => 
+    return customers.filter((c: any) => 
       c.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
       c.email?.toLowerCase().includes(customerSearch.toLowerCase()) ||
       c.phone?.includes(customerSearch)
@@ -3085,7 +3085,7 @@ Thank you for your order! 🙏`;
 
   // Filter and paginate riders
   const filteredRiders = useMemo(() => {
-    return riders.filter((r) => 
+    return riders.filter((r: any) => 
       r.name?.toLowerCase().includes(riderSearch.toLowerCase()) ||
       r.email?.toLowerCase().includes(riderSearch.toLowerCase()) ||
       r.phone?.includes(riderSearch) ||
@@ -3102,7 +3102,7 @@ Thank you for your order! 🙏`;
 
   // Filter and paginate jobs
   const filteredJobs = useMemo(() => {
-    return jobs.filter((j) => {
+    return jobs.filter((j: any) => {
       const matchesSearch = 
         j.customer_name?.toLowerCase().includes(jobSearch.toLowerCase()) ||
         j.rider_name?.toLowerCase().includes(jobSearch.toLowerCase()) ||
@@ -3222,7 +3222,7 @@ Thank you for your order! 🙏` },
     
     let dropOffSection = '';
     if (stops.length > 0) {
-      stops.forEach((stop, idx) => {
+      stops.forEach((stop: any, idx: number) => {
         dropOffSection += `\n📍 Drop-off${stops.length > 1 ? ` ${idx + 1}` : ''}\n`;
         dropOffSection += `${stop.recipientName || 'Recipient'} – ${stop.recipientPhone || 'N/A'}\n`;
         dropOffSection += `${stop.address || ''} ${stop.unitNo || ''}\n`;
@@ -3248,7 +3248,7 @@ Please be punctual and update once completed. Thanks!`;
   };
 
   // Send reminder to rider via WhatsApp
-  const sendRiderReminder = (job) => {
+  const sendRiderReminder = (job: any) => {
     if (!job.rider_phone) {
       alert('No rider phone number available for this job.');
       return;
@@ -3264,11 +3264,11 @@ Please be punctual and update once completed. Thanks!`;
     if (auth.type !== 'admin') return;
     
     const now = new Date();
-    const activeJobs = jobs.filter((j) => 
+    const activeJobs = jobs.filter((j: any) => 
       j.status === 'accepted' && j.rider_id && j.rider_phone && !remindersSent[j.id]
     );
     
-    activeJobs.forEach((job) => {
+    activeJobs.forEach((job: any) => {
       if (!job.delivery_date || !job.timeframe) return;
       
       // Parse the delivery slot start time
@@ -3358,7 +3358,7 @@ Please be punctual and update once completed. Thanks!`;
       console.log('[LoadData] Rider locations loaded:', riderLocs?.length || 0);
       
       // Parse details if it's a string
-      const parsedLogs = (Array.isArray(logs) ? logs : []).map((log) => ({
+      const parsedLogs = (Array.isArray(logs) ? logs : []).map((log: any) => ({
         ...log,
         details: typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return log.details; } })() : log.details
       }));
@@ -3371,10 +3371,10 @@ Please be punctual and update once completed. Thanks!`;
       
       // Customer notifications — check for job status changes
       if (auth.type === 'customer' && auth.id && Array.isArray(j)) {
-        const myJobs = j.filter((job) => job.customer_id === auth.id);
+        const myJobs = j.filter((job: any) => job.customer_id === auth.id);
         const newNotifs: any[] = [];
         
-        myJobs.forEach((job) => {
+        myJobs.forEach((job: any) => {
           const prevStatus = prevJobStatuses[job.id];
           if (prevStatus && prevStatus !== job.status) {
             if (job.status === 'accepted' && prevStatus === 'posted') {
@@ -3432,16 +3432,16 @@ Please be punctual and update once completed. Thanks!`;
         
         // Save current statuses for next comparison
         const statusMap: any = {};
-        myJobs.forEach((job) => { statusMap[job.id] = job.status; });
+        myJobs.forEach((job: any) => { statusMap[job.id] = job.status; });
         setPrevJobStatuses(statusMap);
       }
       
       // Also set withdrawal requests from audit logs
-      const withdrawals = (Array.isArray(logs) ? logs : []).filter((log) => log.action === 'withdrawal_request');
+      const withdrawals = (Array.isArray(logs) ? logs : []).filter((log: any) => log.action === 'withdrawal_request');
       setWithdrawalRequests(withdrawals);
       
       console.log('[LoadData] All data loaded successfully!');
-    } catch (e) { 
+    } catch (e: any) { 
       const errorMessage = e.message || 'Unknown error';
       console.error('[LoadData] Error:', e);
       
@@ -3462,7 +3462,7 @@ Please be punctual and update once completed. Thanks!`;
     setLoading(false);
   };
 
-  const handleLogin = async (type) => {
+  const handleLogin = async (type: string) => {
     try {
       if (type === 'admin' && loginForm.email === 'admin@delivery.com' && loginForm.password === 'admin123') {
         const authData = { isAuth: true, type: 'admin', id: 'admin1' };
@@ -3490,7 +3490,7 @@ Please be punctual and update once completed. Thanks!`;
       } else {
         alert('Invalid credentials. Please check:\n- Email is correct\n- Password is correct\n- You have registered an account');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Login error:', e);
       alert('Login error: ' + e.message + '\n\nPlease check:\n1. Database tables exist\n2. RLS policies allow access\n3. Credentials are correct');
     }
@@ -3512,7 +3512,7 @@ Please be punctual and update once completed. Thanks!`;
       setIsReg(false);
       setRegForm({ name: '', email: '', password: '', phone: '', referralCode: '' });
       loadData();
-    } catch (e) { 
+    } catch (e: any) { 
       console.error('Registration error:', e);
       alert('Registration error: ' + e.message + '\n\nPossible issues:\n1. Email already exists\n2. Database connection problem\n3. RLS policy blocking insert'); 
     }
@@ -3527,7 +3527,7 @@ Please be punctual and update once completed. Thanks!`;
         if (!ref || ref.length === 0) return alert('Invalid referral code');
         tier = ref[0].tier + 1;
         uplineChain = [{ id: ref[0].id, name: ref[0].name, tier: ref[0].tier }, ...(ref[0].upline_chain || [])];
-      } catch (e) {
+      } catch (e: any) {
         return alert('Error checking referral code: ' + e.message);
       }
     }
@@ -3548,14 +3548,14 @@ Please be punctual and update once completed. Thanks!`;
       setIsReg(false);
       setRegForm({ name: '', email: '', password: '', phone: '', referralCode: '' });
       loadData();
-    } catch (e) { 
+    } catch (e: any) { 
       console.error('Registration error:', e);
       alert('Registration error: ' + e.message + '\n\nPossible issues:\n1. Email already exists\n2. Database connection problem\n3. RLS policy blocking insert'); 
     }
   };
 
   // Customer - Boost/Urgent order to attract drivers faster
-  const boostOrder = async (jobId, extraAmount) => {
+  const boostOrder = async (jobId: string, extraAmount: number) => {
     if (!extraAmount || extraAmount <= 0) {
       alert('Please enter a valid boost amount');
       return;
@@ -3568,7 +3568,7 @@ Please be punctual and update once completed. Thanks!`;
         return;
       }
       
-      const job = jobs.find((j) => j.id === jobId);
+      const job = jobs.find((j: any) => j.id === jobId);
       if (!job) return;
       
       const newPrice = parseFloat(job.price) + extraAmount;
@@ -3593,7 +3593,7 @@ Please be punctual and update once completed. Thanks!`;
       setBoostAmount('');
       alert(`Order boosted! Price increased to $${newPrice.toFixed(2)}.\n$${extraAmount.toFixed(2)} deducted from credits.\n\nYour order will be shown as URGENT to nearby drivers.`);
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error boosting order: ' + e.message);
     }
   };
@@ -3621,7 +3621,7 @@ Please be punctual and update once completed. Thanks!`;
       } else {
         setAiResult(data);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('AI analysis error:', e);
       alert('AI analysis failed. Please try again or enter details manually.');
     }
@@ -3638,7 +3638,7 @@ Please be punctual and update once completed. Thanks!`;
       pickupUnitNo: aiResult.pickupUnitNo || 'N/A',
       pickupContact: aiResult.pickupContact || '',
       pickupPhone: aiResult.pickupPhone || '',
-      stops: aiResult.stops?.length > 0 ? aiResult.stops.map((s) => ({
+      stops: aiResult.stops?.length > 0 ? aiResult.stops.map((s: any) => ({
         address: s.address || '',
         unitNo: s.unitNo || 'N/A',
         recipientName: s.recipientName || '',
@@ -3793,7 +3793,7 @@ Please be punctual and update once completed. Thanks!`;
       });
       alert(`Job posted successfully!\nOrder ID: ${orderId}`);
       loadData();
-    } catch (e) { 
+    } catch (e: any) { 
       // If job creation failed, refund the credits back
       try {
         const refundCust = await api(`customers?id=eq.${curr.id}`);
@@ -3809,7 +3809,7 @@ Please be punctual and update once completed. Thanks!`;
     }
   };
 
-  const acceptJob = async (jobId) => {
+  const acceptJob = async (jobId: string) => {
     // Check if GPS is available
     if (!navigator.geolocation) {
       alert('GPS is not supported by your browser. Please use a device with GPS capability.');
@@ -3887,7 +3887,7 @@ Please be punctual and update once completed. Thanks!`;
             setNewJobNotifications(prev => prev.filter(n => n.id !== jobId));
             alert('Job accepted! Please enable GPS as soon as possible for tracking.');
             loadData();
-          } catch (e) {
+          } catch (e: any) {
             alert('Error accepting job: ' + e.message);
           }
         }
@@ -3969,7 +3969,7 @@ Please be punctual and update once completed. Thanks!`;
             checkForNewJobs();
             alert('🟢 You are now ONLINE!\n\nGPS location will update when available.');
             loadData();
-          } catch (e) {
+          } catch (e: any) {
             alert('Error going online: ' + e.message);
           }
         }
@@ -3985,7 +3985,7 @@ Please be punctual and update once completed. Thanks!`;
       setNewJobNotifications([]);
       alert('🔴 You are now OFFLINE.\n\nYou will not receive new job notifications.');
       loadData();
-    } catch (e) {
+    } catch (e: any) {
       alert('Error going offline: ' + e.message);
     }
   };
@@ -3996,18 +3996,18 @@ Please be punctual and update once completed. Thanks!`;
     
     try {
       // Get all posted jobs (not assigned to any rider)
-      const postedJobs = jobs.filter((j) => j.status === 'posted' && !j.rider_id);
+      const postedJobs = jobs.filter((j: any) => j.status === 'posted' && !j.rider_id);
       
       // Find jobs that are new since last check
       const newJobs = lastJobCheck 
-        ? postedJobs.filter((j) => new Date(j.created_at) > new Date(lastJobCheck))
+        ? postedJobs.filter((j: any) => new Date(j.created_at) > new Date(lastJobCheck))
         : postedJobs;
       
       if (newJobs.length > 0) {
         // Add to notifications (avoid duplicates)
         setNewJobNotifications(prev => {
           const existingIds = prev.map(n => n.id);
-          const uniqueNewJobs = newJobs.filter((j) => !existingIds.includes(j.id));
+          const uniqueNewJobs = newJobs.filter((j: any) => !existingIds.includes(j.id));
           
           if (uniqueNewJobs.length > 0) {
             playNotificationSound();
@@ -4176,14 +4176,14 @@ Please be punctual and update once completed. Thanks!`;
   // Check rider online status on login
   useEffect(() => {
     if (auth.type === 'rider' && auth.id && riders.length > 0) {
-      const currentRider = riders.find((r) => r.id === auth.id);
+      const currentRider = riders.find((r: any) => r.id === auth.id);
       if (currentRider) {
         setRiderIsOnline(currentRider.is_online === true);
       }
     }
   }, [auth.type, auth.id, riders]);
 
-  const updateStatus = async (status) => {
+  const updateStatus = async (status: string) => {
     // Try to update GPS location in background, but don't block the status update
     if (status !== 'completed' && status !== 'cancelled') {
       try {
@@ -4220,7 +4220,7 @@ Please be punctual and update once completed. Thanks!`;
       await api(`jobs?id=eq.${activeJob.id}`, 'PATCH', updateData);
       alert(`Status updated: ${status}`);
       loadData();
-    } catch (e) { alert('Error updating status: ' + e.message); }
+    } catch (e: any) { alert('Error updating status: ' + e.message); }
   };
 
   const completeJob = async () => {
@@ -4234,7 +4234,7 @@ Please be punctual and update once completed. Thanks!`;
       }
       alert(`Delivery completed! You earned $${comm.activeRider.toFixed(2)}`);
       loadData();
-    } catch (e) { alert('Error completing job: ' + e.message); }
+    } catch (e: any) { alert('Error completing job: ' + e.message); }
   };
 
   // CRC16-CCITT calculation for PayNow QR
@@ -4340,7 +4340,7 @@ Please be punctual and update once completed. Thanks!`;
       setPayNowQR('');
       setShowTopUp(false);
       loadData();
-    } catch (e) { alert('Error adding credits: ' + e.message); }
+    } catch (e: any) { alert('Error adding credits: ' + e.message); }
   };
 
   if (loading) return (
@@ -4906,9 +4906,9 @@ Please be punctual and update once completed. Thanks!`;
                 >
                   💰 Withdrawals
                   {/* Pending withdrawals badge */}
-                  {withdrawalRequests.filter((r) => r.details?.status === 'pending').length > 0 && (
+                  {withdrawalRequests.filter((r: any) => r.details?.status === 'pending').length > 0 && (
                     <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                      {withdrawalRequests.filter((r) => r.details?.status === 'pending').length}
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'pending').length}
                     </span>
                   )}
                 </button>
@@ -5141,7 +5141,7 @@ Please be punctual and update once completed. Thanks!`;
                           // Use direct navigation - most reliable across all platforms including iOS WebViews
                           window.location.href = data.url;
                         }
-                      } catch (error) {
+                      } catch (error: any) {
                         alert('Payment error: ' + error.message);
                         const btn = document.getElementById('stripe-checkout-btn');
                         if (btn) {
@@ -5168,7 +5168,7 @@ Please be punctual and update once completed. Thanks!`;
             {/* Customer Notifications Banner */}
             {customerNotifications.length > 0 && (
               <div className="mb-4 space-y-2">
-                {customerNotifications.slice(0, 5).map((notif) => (
+                {customerNotifications.slice(0, 5).map((notif: any) => (
                   <div key={notif.id} className={`p-3 rounded-lg flex justify-between items-center ${
                     notif.type === 'completed' ? 'bg-green-50 border border-green-200' :
                     notif.type === 'accepted' ? 'bg-blue-50 border border-blue-200' :
@@ -5266,7 +5266,7 @@ Please be punctual and update once completed. Thanks!`;
                           {aiResult.pickupContact && <p className="text-xs text-gray-500">Contact: {aiResult.pickupContact} {aiResult.pickupPhone}</p>}
                         </div>
                         
-                        {aiResult.stops?.map((stop, idx) => (
+                        {aiResult.stops?.map((stop: any, idx: number) => (
                           <div key={idx} className="bg-green-50 p-2 rounded">
                             <p className="text-xs font-medium text-green-600">DROP-OFF {idx + 1}</p>
                             <p className="text-gray-800">{stop.address} {stop.unitNo !== 'N/A' ? stop.unitNo : ''}</p>
@@ -5623,15 +5623,15 @@ Please be punctual and update once completed. Thanks!`;
                         </div>
                       )}
                       <div className="flex justify-between">
-                        <span>Drop-off: {jobForm.stops.filter((s) => s.address).length || 1} × $2.50</span>
-                        <span className="font-medium">${((jobForm.stops.filter((s) => s.address).length || 1) * 2.50).toFixed(2)}</span>
+                        <span>Drop-off: {jobForm.stops.filter((s: any) => s.address).length || 1} × $2.50</span>
+                        <span className="font-medium">${((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
                         <span>Suggested Price</span>
                         <span>
                           ${formDistance !== null 
-                            ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s) => s.address).length || 1) * 2.50)).toFixed(2)
-                            : (3 + ((jobForm.stops.filter((s) => s.address).length || 1) * 2.50)).toFixed(2)
+                            ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
+                            : (3 + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
                           }
                         </span>
                       </div>
@@ -5643,7 +5643,7 @@ Please be punctual and update once completed. Thanks!`;
                       <button
                         type="button"
                         onClick={() => {
-                          const drops = jobForm.stops.filter((s) => s.address).length || 1;
+                          const drops = jobForm.stops.filter((s: any) => s.address).length || 1;
                           const suggested = 3 + (formDistance * 0.95) + (drops * 2.50);
                           setJobForm({...jobForm, price: suggested.toFixed(2)});
                         }}
@@ -5929,7 +5929,7 @@ Please be punctual and update once completed. Thanks!`;
                     {customerOrderHistory.all.length === 0 ? (
                       <p className="text-center text-gray-500 py-4">No orders yet</p>
                     ) : (
-                      customerOrderHistory.all.map((order) => (
+                      customerOrderHistory.all.map((order: any) => (
                         <div key={order.id} className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
@@ -6045,7 +6045,7 @@ Please be punctual and update once completed. Thanks!`;
                     <div className="mt-4 pt-4 border-t">
                       <h5 className="font-medium mb-2">📍 Saved Addresses</h5>
                       <div className="space-y-1">
-                        {curr.saved_addresses.map((addr, idx) => (
+                        {curr.saved_addresses.map((addr: string, idx: number) => (
                           <div key={idx} className="text-sm text-gray-600 flex items-center gap-2">
                             <MapPin size={14} /> {addr}
                           </div>
@@ -6155,7 +6155,7 @@ Please be punctual and update once completed. Thanks!`;
                                   });
                                   alert(`Order cancelled. $${parseFloat(job.price).toFixed(2)} refunded to your wallet.`);
                                   loadData();
-                                } catch (e) {
+                                } catch (e: any) {
                                   alert('Error cancelling order: ' + e.message);
                                 }
                               }
@@ -6201,7 +6201,7 @@ Please be punctual and update once completed. Thanks!`;
                             <div>
                               <p className="text-xs text-gray-600 mb-2">Proof of Delivery ({job.pod_images.length} photo{job.pod_images.length > 1 ? 's' : ''}):</p>
                               <div className="grid grid-cols-2 gap-2">
-                                {job.pod_images.map((pod, idx) => (
+                                {job.pod_images.map((pod: any, idx: number) => (
                                   <div key={idx} className="border rounded-lg overflow-hidden">
                                     <img 
                                       src={pod.image} 
@@ -6344,7 +6344,7 @@ Please be punctual and update once completed. Thanks!`;
                   </h3>
                 </div>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {newJobNotifications.map((job) => (
+                  {newJobNotifications.map((job: any) => (
                     <div key={job.id} className="bg-white p-3 rounded-lg border border-yellow-300 flex justify-between items-center">
                       <div>
                         {job.order_id && <p className="text-xs font-bold text-purple-600">{job.order_id}</p>}
@@ -6520,7 +6520,7 @@ Please be punctual and update once completed. Thanks!`;
                   <div className="mt-6">
                     <h4 className="font-semibold text-gray-800 mb-3">👥 My Team ({riderDownlineData.downlineRiders.length})</h4>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {riderDownlineData.downlineRiders.map((downline) => (
+                      {riderDownlineData.downlineRiders.map((downline: any) => (
                         <div key={downline.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                           <div>
                             <p className="font-medium">{downline.name}</p>
@@ -6597,7 +6597,7 @@ Please be punctual and update once completed. Thanks!`;
                   {riderDeliveryHistory.all.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">No deliveries yet. Accept your first job!</p>
                   ) : (
-                    riderDeliveryHistory.all.map((delivery) => (
+                    riderDeliveryHistory.all.map((delivery: any) => (
                       <div key={delivery.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -6720,7 +6720,7 @@ Please be punctual and update once completed. Thanks!`;
                 <div className="mb-4">
                   <h4 className="font-semibold text-gray-800 mb-2">Current Order:</h4>
                   <div className="space-y-2">
-                    {(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider).map((job, idx) => (
+                    {(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider).map((job: any, idx: number) => (
                       <div key={job.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                         <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
                           {idx + 1}
@@ -6803,7 +6803,7 @@ Please be punctual and update once completed. Thanks!`;
 
             {/* Withdrawal Notifications - Show on home and wallet tabs */}
             {(riderTab === 'home' || riderTab === 'wallet') && (() => {
-              const myWithdrawals = auditLogs.filter((log) => 
+              const myWithdrawals = auditLogs.filter((log: any) => 
                 log.action === 'withdrawal_request' && log.user_id === auth.id
               ).slice(0, 3);
               
@@ -6813,7 +6813,7 @@ Please be punctual and update once completed. Thanks!`;
                 <div className="bg-white rounded-lg shadow-lg p-4">
                   <h4 className="font-bold text-gray-800 mb-3">📋 Your Withdrawal Requests</h4>
                   <div className="space-y-2">
-                    {myWithdrawals.map((req) => (
+                    {myWithdrawals.map((req: any) => (
                       <div 
                         key={req.id} 
                         className={`p-3 rounded-lg border-l-4 ${
@@ -7059,7 +7059,7 @@ Please be punctual and update once completed. Thanks!`;
                           bankAccountNo: ''
                         });
                         loadData();
-                      } catch (e) {
+                      } catch (e: any) {
                         alert('Error submitting withdrawal request: ' + e.message);
                       }
                     }}
@@ -7138,7 +7138,7 @@ Please be punctual and update once completed. Thanks!`;
                 <div className="bg-white rounded-lg shadow p-1 flex">
                   {[
                     { id: 'active', label: 'Active Jobs', count: activeJobsList.length },
-                    { id: 'today', label: "Today's Deliveries", count: (() => { const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }); return activeJobsList.filter((j) => j.delivery_date === today || !j.delivery_date).length; })() },
+                    { id: 'today', label: "Today's Deliveries", count: (() => { const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }); return activeJobsList.filter((j: any) => j.delivery_date === today || !j.delivery_date).length; })() },
                     { id: 'available', label: 'Available Jobs', count: filteredAvailableJobs.length },
                   ].map((tab) => (
                     <button
@@ -7165,9 +7165,9 @@ Please be punctual and update once completed. Thanks!`;
                   const todaySGT = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
                   const todayDisplay = new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric' });
                   
-                  const todayJobs = activeJobsList.filter((j) => j.delivery_date === todaySGT || !j.delivery_date);
-                  const upcomingJobs = activeJobsList.filter((j) => j.delivery_date && j.delivery_date > todaySGT);
-                  const pastJobs = activeJobsList.filter((j) => j.delivery_date && j.delivery_date < todaySGT);
+                  const todayJobs = activeJobsList.filter((j: any) => j.delivery_date === todaySGT || !j.delivery_date);
+                  const upcomingJobs = activeJobsList.filter((j: any) => j.delivery_date && j.delivery_date > todaySGT);
+                  const pastJobs = activeJobsList.filter((j: any) => j.delivery_date && j.delivery_date < todaySGT);
                   
                   // Extract pickup time from remarks
                   const getPickupTime = (remarks: string): string => {
@@ -7185,7 +7185,7 @@ Please be punctual and update once completed. Thanks!`;
                             📅 TODAY ({todayDisplay})
                           </p>
                           <div className="space-y-2">
-                            {todayJobs.map((job) => {
+                            {todayJobs.map((job: any) => {
                               const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
                               const pickupTime = getPickupTime(job.remarks);
                               return (
@@ -7223,8 +7223,8 @@ Please be punctual and update once completed. Thanks!`;
                           </p>
                           <div className="space-y-2">
                             {upcomingJobs
-                              .sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''))
-                              .map((job) => {
+                              .sort((a: any, b: any) => (a.delivery_date || '').localeCompare(b.delivery_date || ''))
+                              .map((job: any) => {
                               const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
                               const pickupTime = getPickupTime(job.remarks);
                               const dateDisplay = job.delivery_date ? new Date(job.delivery_date + 'T00:00:00+08:00').toLocaleDateString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short' }) : '';
@@ -7260,7 +7260,7 @@ Please be punctual and update once completed. Thanks!`;
                             ⚠️ OVERDUE
                           </p>
                           <div className="space-y-2">
-                            {pastJobs.map((job) => {
+                            {pastJobs.map((job: any) => {
                               const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
                               const dateDisplay = job.delivery_date ? formatDeliveryDate(job.delivery_date) : '';
                               return (
@@ -7366,7 +7366,7 @@ Please be punctual and update once completed. Thanks!`;
                           <p className="text-xs text-gray-500">Contact: {activeJob.pickup_contact} {activeJob.pickup_phone && `(${activeJob.pickup_phone})`}</p>
                         )}
                       </div>
-                      {(activeJob.stops || []).map((stop, idx) => (
+                      {(activeJob.stops || []).map((stop: any, idx: number) => (
                         <div key={idx} className="bg-green-50 p-2 rounded border-l-4 border-green-400">
                           <p className="text-xs font-medium text-green-600">DROP-OFF {idx + 1}</p>
                           <p className="text-gray-800">{stop.address} {stop.unitNo || ''}</p>
@@ -7458,7 +7458,7 @@ Please be punctual and update once completed. Thanks!`;
                           // Set to first unsubmitted stop
                           const totalStops = activeJob.stops?.length || 1;
                           const nextUnsubmitted = Array.from({length: totalStops}, (_, i) => i)
-                            .find(i => !existingPods.find((p) => p.stopIndex === i));
+                            .find(i => !existingPods.find((p: any) => p.stopIndex === i));
                           setPodStopIndex(nextUnsubmitted !== undefined ? nextUnsubmitted : 0);
                           setPodImage(null);
                           setShowPodModal(true);
@@ -7497,8 +7497,8 @@ Please be punctual and update once completed. Thanks!`;
                           {activeJob.stops?.[podStopIndex]?.address || `Stop ${podStopIndex + 1}`}
                         </p>
                         <div className="flex gap-1 mt-2">
-                          {(activeJob.stops || []).map((_, idx) => {
-                            const isSubmitted = submittedPods.find((p) => p.stopIndex === idx);
+                          {(activeJob.stops || []).map((_: any, idx: number) => {
+                            const isSubmitted = submittedPods.find((p: any) => p.stopIndex === idx);
                             return (
                               <div key={idx} className={`h-2 flex-1 rounded ${
                                 isSubmitted ? 'bg-green-500' : 
@@ -7519,7 +7519,7 @@ Please be punctual and update once completed. Thanks!`;
                       <div className="mb-4">
                         <p className="text-sm font-medium text-gray-700 mb-2">✅ Submitted Photos:</p>
                         <div className="grid grid-cols-3 gap-2">
-                          {submittedPods.map((pod, idx) => (
+                          {submittedPods.map((pod: any, idx: number) => (
                             <div key={idx} className="relative">
                               <img src={pod.image} alt={`Stop ${pod.stopIndex + 1}`} className="w-full h-16 object-cover rounded-lg border-2 border-green-500" />
                               <span className="absolute top-0 left-0 bg-green-600 text-white text-xs px-1 rounded-br">#{pod.stopIndex + 1}</span>
@@ -7534,7 +7534,7 @@ Please be punctual and update once completed. Thanks!`;
                   {/* Check if current stop already has a submitted photo */}
                   {(() => {
                     const submittedPods = activeJob.pod_images || stopPods || [];
-                    const currentStopSubmitted = submittedPods.find((p) => p.stopIndex === podStopIndex);
+                    const currentStopSubmitted = submittedPods.find((p: any) => p.stopIndex === podStopIndex);
                     const totalStops = activeJob.stops?.length || 1;
                     const allStopsSubmitted = submittedPods.length >= totalStops;
                     
@@ -7623,9 +7623,9 @@ Please be punctual and update once completed. Thanks!`;
                     {/* Stop navigation for multi-stop */}
                     {(activeJob.stops?.length || 1) > 1 && (
                       <div className="flex gap-2">
-                        {(activeJob.stops || []).map((_, idx) => {
+                        {(activeJob.stops || []).map((_: any, idx: number) => {
                           const submittedPods = activeJob.pod_images || stopPods || [];
-                          const isSubmitted = submittedPods.find((p) => p.stopIndex === idx);
+                          const isSubmitted = submittedPods.find((p: any) => p.stopIndex === idx);
                           return (
                             <button
                               key={idx}
@@ -7685,7 +7685,7 @@ Please be punctual and update once completed. Thanks!`;
                 {(() => {
                   const todaySGT = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
                   const todayDisplay = new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: 'short', year: 'numeric' });
-                  const todayJobs = activeJobsList.filter((j) => j.delivery_date === todaySGT || !j.delivery_date);
+                  const todayJobs = activeJobsList.filter((j: any) => j.delivery_date === todaySGT || !j.delivery_date);
                   
                   if (todayJobs.length === 0) {
                     return (
@@ -7699,7 +7699,7 @@ Please be punctual and update once completed. Thanks!`;
                   return (
                     <div className="space-y-3">
                       <p className="text-sm text-gray-500 mb-2">{todayDisplay} — {todayJobs.length} delivery(ies)</p>
-                      {todayJobs.map((job) => {
+                      {todayJobs.map((job: any) => {
                         const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
                         const pickupMatch = job.remarks?.match(/pick\s*up\s*(?:at\s*)?(\d{1,2}[.:]\d{0,2}\s*(?:am|pm|AM|PM)?|\d{1,2}\s*(?:am|pm|AM|PM))/i);
                         return (
@@ -7822,7 +7822,7 @@ Please be punctual and update once completed. Thanks!`;
                     {/* Select All / Clear All */}
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setSelectedJobsForAccept(filteredAvailableJobs.map((j) => j.id))}
+                        onClick={() => setSelectedJobsForAccept(filteredAvailableJobs.map((j: any) => j.id))}
                         className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                       >
                         Select All
@@ -7835,7 +7835,7 @@ Please be punctual and update once completed. Thanks!`;
                       </button>
                     </div>
                     
-                    {filteredAvailableJobs.map((job) => {
+                    {filteredAvailableJobs.map((job: any) => {
                       const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
                       const isSelected = selectedJobsForAccept.includes(job.id);
                       return (
@@ -7909,11 +7909,11 @@ Please be punctual and update once completed. Thanks!`;
             {/* Admin Notifications Alert */}
             {(() => {
               // Only count withdrawals that are truly pending (not rejected, approved, or completed)
-              const pendingWithdrawals = withdrawalRequests.filter((r) => {
+              const pendingWithdrawals = withdrawalRequests.filter((r: any) => {
                 const status = r.details?.status;
                 return status === 'pending';
               }).length;
-              const pendingJobs = jobs.filter((j) => j.status === 'posted').length;
+              const pendingJobs = jobs.filter((j: any) => j.status === 'posted').length;
               
               if (pendingWithdrawals > 0 || pendingJobs > 0) {
                 return (
@@ -8046,7 +8046,7 @@ Please be punctual and update once completed. Thanks!`;
                   {paginatedCustomers.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">No customers found</p>
                   ) : (
-                    paginatedCustomers.map((c) => (
+                    paginatedCustomers.map((c: any) => (
                       <div key={c.id} className="border rounded-lg p-4 hover:border-purple-300 transition-colors">
                         <div className="flex justify-between items-center">
                           <div>
@@ -8147,7 +8147,7 @@ Please be punctual and update once completed. Thanks!`;
                   {paginatedRiders.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">No riders found</p>
                   ) : (
-                    paginatedRiders.map((r) => (
+                    paginatedRiders.map((r: any) => (
                       <div key={r.id} className="border rounded-lg p-4 hover:border-green-300 transition-colors">
                         <div className="flex justify-between items-center">
                           <div>
@@ -8231,7 +8231,7 @@ Please be punctual and update once completed. Thanks!`;
                     </button>
                     <button 
                       onClick={() => {
-                        const acceptedJobs = jobs.filter((j) => 
+                        const acceptedJobs = jobs.filter((j: any) => 
                           j.status === 'accepted' && j.rider_id && j.rider_phone && !remindersSent[j.id]
                         );
                         if (acceptedJobs.length === 0) {
@@ -8239,7 +8239,7 @@ Please be punctual and update once completed. Thanks!`;
                           return;
                         }
                         if (window.confirm(`Send reminders to ${acceptedJobs.length} rider(s) for accepted jobs?\n\nThis will open WhatsApp for each rider.`)) {
-                          acceptedJobs.forEach((j, idx) => {
+                          acceptedJobs.forEach((j: any, idx: number) => {
                             setTimeout(() => sendRiderReminder(j), idx * 1500);
                           });
                         }
@@ -8323,7 +8323,7 @@ Please be punctual and update once completed. Thanks!`;
                   {paginatedJobs.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">No jobs found</p>
                   ) : (
-                    paginatedJobs.map((j) => (
+                    paginatedJobs.map((j: any) => (
                       <div key={j.id} className="border rounded-lg p-4 hover:border-blue-300 transition-colors">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -8398,7 +8398,7 @@ Please be punctual and update once completed. Thanks!`;
                                       });
                                       alert(`Order ${j.order_id || ''} has been rematched.\n\n${j.rider_name} has been removed and the order is now available for other riders.`);
                                       loadData();
-                                    } catch (e) {
+                                    } catch (e: any) {
                                       alert('Error rematching: ' + e.message);
                                     }
                                   }
@@ -8466,7 +8466,7 @@ Please be punctual and update once completed. Thanks!`;
                                         alert('Job cancelled. (No customer account to refund)');
                                       }
                                       loadData();
-                                    } catch (e) {
+                                    } catch (e: any) {
                                       alert('Error cancelling job: ' + e.message);
                                     }
                                   }
@@ -8585,7 +8585,7 @@ Please be punctual and update once completed. Thanks!`;
                     <h4 className="font-semibold text-red-800 mb-2">⚠️ Jobs Missing POD ({podManagementData.withoutPod.length})</h4>
                     <p className="text-sm text-red-600 mb-3">These completed jobs do not have proof of delivery photos.</p>
                     <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {podManagementData.withoutPod.slice(0, 5).map((job) => (
+                      {podManagementData.withoutPod.slice(0, 5).map((job: any) => (
                         <div key={job.id} className="flex justify-between items-center p-2 bg-white rounded border">
                           <div>
                             <p className="font-medium text-sm">{job.pickup?.substring(0, 20)}... → {job.delivery?.substring(0, 20)}...</p>
@@ -8604,7 +8604,7 @@ Please be punctual and update once completed. Thanks!`;
                   {podManagementData.withPod.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">No POD photos uploaded yet</p>
                   ) : (
-                    podManagementData.withPod.slice(0, 10).map((job) => (
+                    podManagementData.withPod.slice(0, 10).map((job: any) => (
                       <div key={job.id} className="border rounded-lg p-4 hover:border-purple-300 transition-colors">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -8658,32 +8658,32 @@ Please be punctual and update once completed. Thanks!`;
                 <div className="grid grid-cols-5 gap-4 mb-6">
                   <div className="bg-yellow-50 p-4 rounded-lg text-center">
                     <p className="text-3xl font-bold text-yellow-600">
-                      {withdrawalRequests.filter((r) => r.details?.status === 'pending' || !r.details?.status).length}
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'pending' || !r.details?.status).length}
                     </p>
                     <p className="text-sm text-gray-600">Pending</p>
                   </div>
                   <div className="bg-green-50 p-4 rounded-lg text-center">
                     <p className="text-3xl font-bold text-green-600">
-                      {withdrawalRequests.filter((r) => r.details?.status === 'approved').length}
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'approved').length}
                     </p>
                     <p className="text-sm text-gray-600">Approved</p>
                   </div>
                   <div className="bg-blue-50 p-4 rounded-lg text-center">
                     <p className="text-3xl font-bold text-blue-600">
-                      {withdrawalRequests.filter((r) => r.details?.status === 'completed').length}
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'completed').length}
                     </p>
                     <p className="text-sm text-gray-600">Completed</p>
                   </div>
                   <div className="bg-red-50 p-4 rounded-lg text-center">
                     <p className="text-3xl font-bold text-red-600">
-                      {withdrawalRequests.filter((r) => r.details?.status === 'rejected').length}
+                      {withdrawalRequests.filter((r: any) => r.details?.status === 'rejected').length}
                     </p>
                     <p className="text-sm text-gray-600">Rejected</p>
                   </div>
                   <div className="bg-purple-50 p-4 rounded-lg text-center">
                     <p className="text-3xl font-bold text-purple-600">
-                      ${withdrawalRequests.filter((r) => r.details?.status === 'completed')
-                        .reduce((sum, r) => sum + (r.details?.amount || 0), 0).toFixed(2)}
+                      ${withdrawalRequests.filter((r: any) => r.details?.status === 'completed')
+                        .reduce((sum: number, r: any) => sum + (r.details?.amount || 0), 0).toFixed(2)}
                     </p>
                     <p className="text-sm text-gray-600">Total Paid</p>
                   </div>
@@ -8775,7 +8775,7 @@ Please be punctual and update once completed. Thanks!`;
                     </thead>
                     <tbody>
                       {withdrawalRequests
-                        .filter((req) => {
+                        .filter((req: any) => {
                           if (withdrawalFilter.status !== 'all') {
                             const status = req.details?.status || 'pending';
                             if (status !== withdrawalFilter.status) return false;
@@ -8785,7 +8785,7 @@ Please be punctual and update once completed. Thanks!`;
                           if (withdrawalFilter.dateTo && new Date(req.timestamp) > new Date(withdrawalFilter.dateTo + 'T23:59:59')) return false;
                           return true;
                         })
-                        .map((req) => (
+                        .map((req: any) => (
                           <tr key={req.id} className="border-t hover:bg-gray-50">
                             <td className="p-2 text-xs">
                               {formatSGTDate(req.timestamp)}<br/>
@@ -8883,19 +8883,19 @@ Please be punctual and update once completed. Thanks!`;
                 {/* Summary Stats */}
                 <div className="grid grid-cols-4 gap-4 mb-6">
                   <div className="bg-purple-50 p-4 rounded-lg text-center">
-                    <p className="text-3xl font-bold text-purple-600">{riders.filter((r) => r.tier === 1).length}</p>
+                    <p className="text-3xl font-bold text-purple-600">{riders.filter((r: any) => r.tier === 1).length}</p>
                     <p className="text-sm text-gray-600">Tier 1 (Root)</p>
                   </div>
                   <div className="bg-blue-50 p-4 rounded-lg text-center">
-                    <p className="text-3xl font-bold text-blue-600">{riders.filter((r) => r.tier === 2).length}</p>
+                    <p className="text-3xl font-bold text-blue-600">{riders.filter((r: any) => r.tier === 2).length}</p>
                     <p className="text-sm text-gray-600">Tier 2</p>
                   </div>
                   <div className="bg-green-50 p-4 rounded-lg text-center">
-                    <p className="text-3xl font-bold text-green-600">{riders.filter((r) => r.tier === 3).length}</p>
+                    <p className="text-3xl font-bold text-green-600">{riders.filter((r: any) => r.tier === 3).length}</p>
                     <p className="text-sm text-gray-600">Tier 3</p>
                   </div>
                   <div className="bg-orange-50 p-4 rounded-lg text-center">
-                    <p className="text-3xl font-bold text-orange-600">{riders.filter((r) => r.tier > 3).length}</p>
+                    <p className="text-3xl font-bold text-orange-600">{riders.filter((r: any) => r.tier > 3).length}</p>
                     <p className="text-sm text-gray-600">Tier 4+</p>
                   </div>
                 </div>
@@ -8907,7 +8907,7 @@ Please be punctual and update once completed. Thanks!`;
                     <p className="text-center text-gray-500 py-8">No riders registered yet</p>
                   ) : (
                     <div className="space-y-4">
-                      {referralTreeData.map((rootRider) => (
+                      {referralTreeData.map((rootRider: any) => (
                         <div key={rootRider.id} className="border-l-4 border-purple-500 pl-4">
                           {/* Root Rider */}
                           <div 
@@ -8929,7 +8929,7 @@ Please be punctual and update once completed. Thanks!`;
                           {/* Children (Tier 2) */}
                           {rootRider.children && rootRider.children.length > 0 && (
                             <div className="ml-6 mt-2 space-y-2">
-                              {rootRider.children.map((child) => (
+                              {rootRider.children.map((child: any) => (
                                 <div key={child.id} className="border-l-4 border-blue-400 pl-4">
                                   <div className="bg-blue-50 p-2 rounded-lg">
                                     <div className="flex justify-between items-center">
@@ -8947,7 +8947,7 @@ Please be punctual and update once completed. Thanks!`;
                                   {/* Grandchildren (Tier 3+) */}
                                   {child.children && child.children.length > 0 && (
                                     <div className="ml-6 mt-1 space-y-1">
-                                      {child.children.map((grandchild) => (
+                                      {child.children.map((grandchild: any) => (
                                         <div key={grandchild.id} className="border-l-4 border-green-400 pl-4">
                                           <div className="bg-green-50 p-2 rounded-lg">
                                             <div className="flex justify-between items-center">
@@ -9095,7 +9095,7 @@ Please be punctual and update once completed. Thanks!`;
                             </tr>
                           </thead>
                           <tbody>
-                            {reportsData.dailyData.slice(0, 14).map((day, idx) => (
+                            {reportsData.dailyData.slice(0, 14).map((day: any, idx: number) => (
                               <tr key={idx} className="border-t">
                                 <td className="p-3">{day.date}</td>
                                 <td className="p-3 text-center">{day.orders}</td>
@@ -9208,7 +9208,7 @@ Please be punctual and update once completed. Thanks!`;
                             <td colSpan={7} className="text-center py-8 text-gray-500">No rider data available</td>
                           </tr>
                         ) : (
-                          reportsData.riderPerformance.map((rider, idx) => (
+                          reportsData.riderPerformance.map((rider: any, idx: number) => (
                             <tr key={rider.id} className={`border-t ${idx === 0 ? 'bg-yellow-50' : ''}`}>
                               <td className="p-3 font-medium">
                                 {idx === 0 && '🏆 '}{rider.name}
@@ -9304,13 +9304,13 @@ Please be punctual and update once completed. Thanks!`;
                         </tr>
                       ) : (
                         auditLogs
-                          .filter((log) => {
+                          .filter((log: any) => {
                             if (auditLogFilter.action && log.action !== auditLogFilter.action) return false;
                             if (auditLogFilter.user && !log.user_id?.toLowerCase().includes(auditLogFilter.user.toLowerCase())) return false;
                             return true;
                           })
                           .slice(0, 50)
-                          .map((log, idx) => (
+                          .map((log: any, idx: number) => (
                             <tr key={idx} className="border-t hover:bg-gray-50">
                               <td className="p-3 text-xs text-gray-500">
                                 {formatSGT(log.timestamp)}
@@ -9401,7 +9401,7 @@ Please be punctual and update once completed. Thanks!`;
                     </h4>
                     <p className="text-sm text-red-700 mb-3">These jobs may need attention:</p>
                     <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {getDelayedJobs.map((job) => (
+                      {getDelayedJobs.map((job: any) => (
                         <div key={job.id} className="flex justify-between items-center p-2 bg-white rounded border">
                           <div>
                             <p className="font-medium text-sm">{job.pickup?.substring(0, 25)}...</p>
@@ -9436,9 +9436,9 @@ Please be punctual and update once completed. Thanks!`;
                         </tr>
                       </thead>
                       <tbody>
-                        {riders.map((rider) => {
-                          const downlineCount = riders.filter((r) => 
-                            r.upline_chain?.some((u) => u.id === rider.id)
+                        {riders.map((rider: any) => {
+                          const downlineCount = riders.filter((r: any) => 
+                            r.upline_chain?.some((u: any) => u.id === rider.id)
                           ).length;
                           const uplineName = rider.upline_chain?.[0]?.name || 'None (Top Level)';
                           return (
@@ -9470,7 +9470,7 @@ Please be punctual and update once completed. Thanks!`;
                                       }
                                       e.target.value = '';
                                     } else if (e.target.value) {
-                                      const selectedRider = riders.find((r) => r.id === e.target.value);
+                                      const selectedRider = riders.find((r: any) => r.id === e.target.value);
                                       if (confirm(`Place ${rider.name} under ${selectedRider?.name}?\n\n${rider.name} will become Tier ${(selectedRider?.tier || 1) + 1} under ${selectedRider?.name} (Tier ${selectedRider?.tier || 1}).\n\nThis will only affect future payouts.`)) {
                                         assignUpline(rider.id, e.target.value);
                                       }
@@ -9481,7 +9481,7 @@ Please be punctual and update once completed. Thanks!`;
                                 >
                                   <option value="">Set upline...</option>
                                   <option value="none">❌ No Upline (Top Level)</option>
-                                  {riders.filter((r) => r.id !== rider.id).map((r) => (
+                                  {riders.filter((r: any) => r.id !== rider.id).map((r: any) => (
                                     <option key={r.id} value={r.id}>{r.name} (Tier {r.tier || 1})</option>
                                   ))}
                                 </select>
@@ -9555,7 +9555,7 @@ Please be punctual and update once completed. Thanks!`;
                   <select
                     value={adminOrderForm.customerId}
                     onChange={(e) => {
-                      const cust = customers.find((c) => c.id === e.target.value);
+                      const cust = customers.find((c: any) => c.id === e.target.value);
                       setAdminOrderForm({
                         ...adminOrderForm,
                         customerId: e.target.value,
@@ -9566,7 +9566,7 @@ Please be punctual and update once completed. Thanks!`;
                     className="w-full px-3 py-2 border rounded-lg"
                   >
                     <option value="">-- Select Customer --</option>
-                    {customers.map((c) => (
+                    {customers.map((c: any) => (
                       <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
                     ))}
                   </select>
@@ -9656,7 +9656,7 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
                 <div className="bg-blue-50 p-4 rounded-lg text-center">
                   <p className="text-3xl font-bold text-blue-600">
-                    {jobs.filter((j) => ['accepted', 'picked-up', 'on-the-way'].includes(j.status)).length}
+                    {jobs.filter((j: any) => ['accepted', 'picked-up', 'on-the-way'].includes(j.status)).length}
                   </p>
                   <p className="text-sm text-gray-600">Active Deliveries</p>
                 </div>
@@ -9686,8 +9686,8 @@ Please be punctual and update once completed. Thanks!`;
               </div>
 
               <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
-                {allRiderLocations.map((loc) => {
-                  const rider = riders.find((r) => r.id === loc.rider_id);
+                {allRiderLocations.map((loc: any) => {
+                  const rider = riders.find((r: any) => r.id === loc.rider_id);
                   return (
                     <div key={loc.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                       <div>
@@ -9857,7 +9857,7 @@ Please be punctual and update once completed. Thanks!`;
                 <p className="text-center text-gray-500 py-4">No promotions created yet</p>
               ) : (
                 <div className="space-y-2">
-                  {promotions.map((promo) => (
+                  {promotions.map((promo: any) => (
                     <div key={promo.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border">
                       <div className="flex-1">
                         <p className="font-bold text-purple-600">{promo.code}</p>
@@ -9917,10 +9917,10 @@ Please be punctual and update once completed. Thanks!`;
                     onChange={(e) => setBroadcastMessage({...broadcastMessage, target: e.target.value})}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
-                    <option value="all_riders">All Riders ({riders.filter((r) => r.phone).length})</option>
-                    <option value="online_riders">Online Riders Only ({riders.filter((r) => r.phone && r.is_online).length})</option>
-                    <option value="all_customers">All Customers ({customers.filter((c) => c.phone).length})</option>
-                    <option value="all">Everyone ({riders.filter((r) => r.phone).length + customers.filter((c) => c.phone).length})</option>
+                    <option value="all_riders">All Riders ({riders.filter((r: any) => r.phone).length})</option>
+                    <option value="online_riders">Online Riders Only ({riders.filter((r: any) => r.phone && r.is_online).length})</option>
+                    <option value="all_customers">All Customers ({customers.filter((c: any) => c.phone).length})</option>
+                    <option value="all">Everyone ({riders.filter((r: any) => r.phone).length + customers.filter((c: any) => c.phone).length})</option>
                   </select>
                 </div>
                 <div>
@@ -10292,7 +10292,7 @@ Please be punctual and update once completed. Thanks!`;
                       });
                       setShowManualJobForm(false);
                       loadData();
-                    } catch (e) {
+                    } catch (e: any) {
                       alert('Error creating job: ' + e.message);
                     }
                   }}
@@ -10620,8 +10620,8 @@ Please be punctual and update once completed. Thanks!`;
                 {(() => {
                   // Filter riders: only online and with recent GPS location (within last 30 minutes)
                   const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-                  const onlineRidersWithGPS = riders.filter((r) => {
-                    const riderLoc = allRiderLocations?.find((loc) => loc.rider_id === r.id);
+                  const onlineRidersWithGPS = riders.filter((r: any) => {
+                    const riderLoc = allRiderLocations?.find((loc: any) => loc.rider_id === r.id);
                     const isOnline = r.is_online === true;
                     const hasRecentGPS = riderLoc && riderLoc.updated_at > thirtyMinsAgo;
                     // Exclude the currently assigned rider from the list when reassigning
@@ -10638,7 +10638,7 @@ Please be punctual and update once completed. Thanks!`;
                     );
                   }
                   
-                  return onlineRidersWithGPS.map((r) => (
+                  return onlineRidersWithGPS.map((r: any) => (
                     <button
                       key={r.id}
                       onClick={async () => {
@@ -10652,7 +10652,7 @@ Please be punctual and update once completed. Thanks!`;
                               newRider: r.name
                             });
                           }
-                        } catch (e) {
+                        } catch (e: any) {
                           alert('Error assigning rider: ' + e.message);
                         }
                       }}
@@ -10849,7 +10849,7 @@ Please be punctual and update once completed. Thanks!`;
                         </tr>
                       </thead>
                       <tbody>
-                        {jobSummaryData.riderStats.map((rider, idx) => (
+                        {jobSummaryData.riderStats.map((rider: any, idx: number) => (
                           <tr key={idx} className="border-t">
                             <td className="p-3 font-medium">{rider.name}</td>
                             <td className="p-3 text-center">{rider.jobs}</td>
@@ -10877,7 +10877,7 @@ Please be punctual and update once completed. Thanks!`;
                         </tr>
                       </thead>
                       <tbody>
-                        {jobSummaryData.dailyStats.map((day, idx) => (
+                        {jobSummaryData.dailyStats.map((day: any, idx: number) => (
                           <tr key={idx} className="border-t">
                             <td className="p-3">{day.date}</td>
                             <td className="p-3 text-center">{day.jobs}</td>
@@ -10929,7 +10929,7 @@ Please be punctual and update once completed. Thanks!`;
                 {/* Drop-offs - All stops */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">📍 Drop-off Location(s)</label>
-                  {(editJob.stops && editJob.stops.length > 0 ? editJob.stops : [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }]).map((stop, idx) => (
+                  {(editJob.stops && editJob.stops.length > 0 ? editJob.stops : [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }]).map((stop: any, idx: number) => (
                     <div key={idx} className="mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
                       <p className="text-xs font-bold text-green-700 mb-2">Drop-off {idx + 1}</p>
                       <div className="space-y-2">
@@ -10941,7 +10941,7 @@ Please be punctual and update once completed. Thanks!`;
                             onChange={(e) => {
                               const newStops = [...(editJob.stops || [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }])];
                               newStops[idx] = {...newStops[idx], address: e.target.value};
-                              const deliveryStr = newStops.map((s) => `${s.address} ${s.unitNo || ''}`).join(' → ');
+                              const deliveryStr = newStops.map((s: any) => `${s.address} ${s.unitNo || ''}`).join(' → ');
                               setEditJob({...editJob, stops: newStops, delivery: deliveryStr});
                             }}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
@@ -10971,7 +10971,7 @@ Please be punctual and update once completed. Thanks!`;
                                 const newStops = [...(editJob.stops || [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }])];
                                 newStops[idx] = {...newStops[idx], recipientName: e.target.value};
                                 // Also update legacy field for first stop
-                                const updates = { stops: newStops };
+                                const updates: any = { stops: newStops };
                                 if (idx === 0) updates.recipient_name = e.target.value;
                                 setEditJob({...editJob, ...updates});
                               }}
@@ -10987,7 +10987,7 @@ Please be punctual and update once completed. Thanks!`;
                               onChange={(e) => {
                                 const newStops = [...(editJob.stops || [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }])];
                                 newStops[idx] = {...newStops[idx], recipientPhone: e.target.value};
-                                const updates = { stops: newStops };
+                                const updates: any = { stops: newStops };
                                 if (idx === 0) updates.recipient_phone = e.target.value;
                                 setEditJob({...editJob, ...updates});
                               }}
@@ -11045,7 +11045,7 @@ Please be punctual and update once completed. Thanks!`;
                       try {
                         const stops = editJob.stops || [];
                         const deliveryStr = stops.length > 0 
-                          ? stops.map((s) => `${s.address || ''} ${s.unitNo || ''}`).join(' → ')
+                          ? stops.map((s: any) => `${s.address || ''} ${s.unitNo || ''}`).join(' → ')
                           : editJob.delivery;
                         
                         await api(`jobs?id=eq.${editJob.id}`, 'PATCH', {
@@ -11070,7 +11070,7 @@ Please be punctual and update once completed. Thanks!`;
                         setEditJob(null);
                         await loadData();
                         alert('Order updated successfully!');
-                      } catch (e) {
+                      } catch (e: any) {
                         alert('Error updating order: ' + e.message);
                       }
                     }}
@@ -11188,7 +11188,7 @@ Please be punctual and update once completed. Thanks!`;
                             
                             setEditCust({...editCust, credits: newCredits});
                             loadData();
-                          } catch (e) {
+                          } catch (e: any) {
                             alert('Error processing refund: ' + e.message);
                           }
                         }}
@@ -11225,7 +11225,7 @@ Please be punctual and update once completed. Thanks!`;
                   <button 
                     onClick={async () => {
                       try {
-                        const updateData = {
+                        const updateData: any = {
                           name: editCust.name,
                           email: editCust.email,
                           phone: editCust.phone,
@@ -11239,7 +11239,7 @@ Please be punctual and update once completed. Thanks!`;
                         alert('Customer updated successfully!');
                         setEditCust(null);
                         loadData();
-                      } catch (e) {
+                      } catch (e: any) {
                         alert('Error updating customer: ' + e.message);
                       }
                     }} 
@@ -11286,9 +11286,9 @@ Please be punctual and update once completed. Thanks!`;
               
               {/* Wallet Summary */}
               {(() => {
-                const customerJobs = jobs.filter((j) => j.customer_id === showCustomerWallet.id);
-                const completedAndActiveJobs = customerJobs.filter((j) => j.status !== 'cancelled');
-                const amountUsed = completedAndActiveJobs.reduce((sum, j) => sum + (parseFloat(j.price) || 0), 0);
+                const customerJobs = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id);
+                const completedAndActiveJobs = customerJobs.filter((j: any) => j.status !== 'cancelled');
+                const amountUsed = completedAndActiveJobs.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
                 const totalTopUps = amountUsed + (showCustomerWallet.credits || 0);
                 
                 return (
@@ -11314,21 +11314,21 @@ Please be punctual and update once completed. Thanks!`;
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {(() => {
                   const customerJobs = jobs
-                    .filter((j) => j.customer_id === showCustomerWallet.id)
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                    .filter((j: any) => j.customer_id === showCustomerWallet.id)
+                    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                   
                   // Get top-up and refund audit logs for this customer
                   const relevantLogs = auditLogs
-                    .filter((log) => {
+                    .filter((log: any) => {
                       if (log.action !== 'customer_topup' && log.action !== 'admin_job_cancel_refund') return false;
                       const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
                       return details?.customerId === showCustomerWallet.id;
                     });
                   
-                  const transactions = [] as any[];
+                  const transactions: any[] = [];
                   
                   // Add top-up logs (NOT refund logs — refunds will be shown from cancelled jobs)
-                  relevantLogs.forEach((log) => {
+                  relevantLogs.forEach((log: any) => {
                     const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
                     if (log.action === 'customer_topup') {
                       transactions.push({
@@ -11343,7 +11343,7 @@ Please be punctual and update once completed. Thanks!`;
                   });
                   
                   // Add job transactions
-                  customerJobs.forEach((j) => {
+                  customerJobs.forEach((j: any) => {
                     if (j.status === 'cancelled') {
                       // Cancelled job = refund (show as single +refund entry)
                       transactions.push({
@@ -11367,7 +11367,7 @@ Please be punctual and update once completed. Thanks!`;
                   
                   return transactions.length === 0 ? (
                     <p className="text-center text-gray-500 py-4">No transactions yet</p>
-                  ) : transactions.slice(0, 30).map((t, idx) => (
+                  ) : transactions.slice(0, 30).map((t: any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded border">
                       <div>
                         <p className="text-sm text-gray-700">{t.description}</p>
@@ -11500,7 +11500,7 @@ Please be punctual and update once completed. Thanks!`;
                   <button 
                     onClick={async () => {
                       try {
-                        const updateData = {
+                        const updateData: any = {
                           name: editRider.name,
                           email: editRider.email,
                           phone: editRider.phone,
@@ -11517,7 +11517,7 @@ Please be punctual and update once completed. Thanks!`;
                         setEditRider(null);
                         await loadData();
                         alert('Rider updated successfully!');
-                      } catch (e) {
+                      } catch (e: any) {
                         alert('Error updating rider: ' + e.message);
                       }
                     }} 
@@ -11644,7 +11644,7 @@ Please be punctual and update once completed. Thanks!`;
                         const code = createRiderForm.name.substring(0, 4).toUpperCase() + Math.floor(Math.random() * 10000);
                         
                         // Build upline chain if referral code provided
-                        let uplineChain = [] as any[];
+                        let uplineChain: any[] = [];
                         let riderTier = createRiderForm.tier || 1;
                         if (createRiderForm.referralCode) {
                           const ref = await api(`riders?referral_code=eq.${createRiderForm.referralCode}`);
@@ -11673,7 +11673,7 @@ Please be punctual and update once completed. Thanks!`;
                         setShowCreateRider(false);
                         setCreateRiderForm({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time', vehicle_type: 'bike', referralCode: '' });
                         loadData();
-                      } catch (e) {
+                      } catch (e: any) {
                         alert('Error creating rider: ' + e.message);
                       }
                     }} 
@@ -11817,7 +11817,7 @@ Please be punctual and update once completed. Thanks!`;
               {selectedPodJob.pod_images && Array.isArray(selectedPodJob.pod_images) && selectedPodJob.pod_images.length > 0 ? (
                 <div className="space-y-4">
                   <p className="text-sm font-medium text-gray-700">{selectedPodJob.pod_images.length} POD Photo{selectedPodJob.pod_images.length > 1 ? 's' : ''}:</p>
-                  {selectedPodJob.pod_images.map((pod, idx) => (
+                  {selectedPodJob.pod_images.map((pod: any, idx: number) => (
                     <div key={idx} className="border rounded-lg overflow-hidden">
                       <img 
                         src={pod.image} 
@@ -12121,7 +12121,7 @@ Please be punctual and update once completed. Thanks!`;
                 {/* Preview */}
                 {(() => {
                   // Calculate dates
-                  const dates = [] as string[];
+                  const dates: string[] = [];
                   const start = new Date(deliveryPlan.startDate + 'T00:00:00+08:00');
                   const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
                   
@@ -12174,7 +12174,7 @@ Please be punctual and update once completed. Thanks!`;
                     }
                     
                     // Calculate dates
-                    const dates = [] as string[];
+                    const dates: string[] = [];
                     const start = new Date(deliveryPlan.startDate + 'T00:00:00+08:00');
                     const dayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
                     
@@ -12250,7 +12250,7 @@ Please be punctual and update once completed. Thanks!`;
                       alert(`✅ Delivery plan created!\n\n${created} jobs scheduled.\n$${totalCost.toFixed(2)} deducted from wallet.`);
                       setShowDeliveryPlan(false);
                       loadData();
-                    } catch (e) {
+                    } catch (e: any) {
                       alert('Error creating delivery plan: ' + e.message);
                     }
                   }}
