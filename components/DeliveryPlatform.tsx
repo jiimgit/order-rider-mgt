@@ -11362,7 +11362,8 @@ Please be punctual and update once completed. Thanks!`;
                     .filter((log: any) => {
                       if (log.action !== 'customer_topup' && log.action !== 'admin_job_cancel_refund') return false;
                       const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
-                      return details?.customerId === showCustomerWallet.id;
+                      // Match by details.customerId OR by user_id (fallback for Stripe top-ups)
+                      return details?.customerId === showCustomerWallet.id || log.user_id === showCustomerWallet.id;
                     });
                   
                   const transactions: any[] = [];
