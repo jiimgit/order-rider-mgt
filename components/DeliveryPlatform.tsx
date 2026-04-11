@@ -1308,7 +1308,7 @@ const DeliveryPlatform = () => {
   // Load audit logs
   const loadAuditLogs = async () => {
     try {
-      const logs = await api('audit_logs?order=timestamp.desc&limit=50');
+      const logs = await api('audit_logs?order=timestamp.desc&limit=500');
       setAuditLogs(Array.isArray(logs) ? logs : []);
     } catch (e) {
       console.error('Failed to load audit logs:', e);
@@ -3348,8 +3348,8 @@ Please be punctual and update once completed. Thanks!`;
       const j = await api('jobs?select=*&order=created_at.desc&limit=100');
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
-      // Also load audit logs for withdrawal notifications
-      const logs = await api('audit_logs?order=timestamp.desc&limit=50');
+      // Also load audit logs for withdrawal notifications and transaction history
+      const logs = await api('audit_logs?order=timestamp.desc&limit=500');
       console.log('[LoadData] Audit logs loaded:', logs?.length || 0);
       
       // Load all rider locations for admin (to check GPS status)
