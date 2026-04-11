@@ -1305,6 +1305,21 @@ const DeliveryPlatform = () => {
     setAuditLogs(prev => [logEntry, ...prev]);
   };
 
+  // Open customer wallet and fetch their top-up logs directly from DB
+  const openCustomerWallet = async (customer: any) => {
+    try {
+      const topupLogs = await api(`audit_logs?action=eq.customer_topup&user_id=eq.${customer.id}&order=timestamp.desc&limit=100`);
+      const parsed = (Array.isArray(topupLogs) ? topupLogs : []).map((log: any) => ({
+        ...log,
+        details: typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return log.details; } })() : log.details
+      }));
+      setShowCustomerWallet({ ...customer, _topupLogs: parsed });
+    } catch (e) {
+      // Fallback: open without direct logs
+      setShowCustomerWallet({ ...customer, _topupLogs: [] });
+    }
+  };
+
   // Load audit logs
   const loadAuditLogs = async () => {
     try {
@@ -8095,14 +8110,14 @@ Please be punctual and update once completed. Thanks!`;
                           <div>
                             <p className="font-semibold text-lg">{c.name}</p>
                             <p className="text-sm text-gray-600">{c.email} | {c.phone}</p>
-                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => setShowCustomerWallet(c)}>
+                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => openCustomerWallet(c)}>
                               Credits: ${(c.credits || 0).toFixed(2)} 👁️
                             </p>
                             <p className="text-xs text-gray-400 mt-1">📅 Registered: {c.created_at ? formatSGT(c.created_at) : 'N/A'}</p>
                             <p className="text-xs text-gray-400">🕐 Last Login: {c.last_login ? formatSGT(c.last_login) : 'Never'}</p>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => setShowCustomerWallet(c)} className="p-2 bg-green-100 rounded hover:bg-green-200" title="View Wallet"><CreditCard size={18} /></button>
+                            <button onClick={() => openCustomerWallet(c)} className="p-2 bg-green-100 rounded hover:bg-green-200" title="View Wallet"><CreditCard size={18} /></button>
                             <button onClick={() => setEditCust({...c, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
                             <button onClick={async () => { if (window.confirm('Delete customer?')) { await api(`customers?id=eq.${c.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
                           </div>
@@ -11302,10 +11317,10 @@ Please be punctual and update once completed. Thanks!`;
                 <div className="flex gap-2">
                   <button 
                     onClick={async () => {
-                      // Refresh customer data
+                      // Refresh customer data and top-up logs
                       const fresh = await api(`customers?id=eq.${showCustomerWallet.id}`);
                       if (fresh && fresh.length > 0) {
-                        setShowCustomerWallet(fresh[0]);
+                        await openCustomerWallet(fresh[0]);
                       }
                       await loadData();
                     }}
@@ -11358,18 +11373,39 @@ Please be punctual and update once completed. Thanks!`;
                     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                   
                   // Get top-up and refund audit logs for this customer
+                  // Check both details.customerId and user_id for matching
                   const relevantLogs = auditLogs
                     .filter((log: any) => {
                       if (log.action !== 'customer_topup' && log.action !== 'admin_job_cancel_refund') return false;
                       const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
-                      // Match by details.customerId OR by user_id (fallback for Stripe top-ups)
                       return details?.customerId === showCustomerWallet.id || log.user_id === showCustomerWallet.id;
                     });
                   
-                  const transactions: any[] = [];
+                  // Also check walletTopUpLogs (fetched directly for this customer)
+                  const walletTopUpLogs = (showCustomerWallet._topupLogs || []);
                   
-                  // Add top-up logs (NOT refund logs — refunds will be shown from cancelled jobs)
+                  const transactions: any[] = [];
+                  const addedLogIds = new Set();
+                  
+                  // Add top-up logs from auditLogs state
                   relevantLogs.forEach((log: any) => {
+                    const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
+                    if (log.action === 'customer_topup') {
+                      addedLogIds.add(log.id);
+                      transactions.push({
+                        type: 'topup',
+                        amount: details?.amount || 0,
+                        date: log.timestamp,
+                        description: details?.status === 'stripe_payment' 
+                          ? `💳 Top-up via Stripe` 
+                          : `📱 Top-up via PayNow${details?.refNumber ? ` (Ref: ${details.refNumber})` : ''}`
+                      });
+                    }
+                  });
+                  
+                  // Add any top-up logs fetched directly that weren't already included
+                  walletTopUpLogs.forEach((log: any) => {
+                    if (addedLogIds.has(log.id)) return;
                     const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
                     if (log.action === 'customer_topup') {
                       transactions.push({
