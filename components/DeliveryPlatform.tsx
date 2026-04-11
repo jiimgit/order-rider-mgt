@@ -470,7 +470,6 @@ const DeliveryPlatform = () => {
   // Rider Profile & Delivery History states
   const [showRiderProfile, setShowRiderProfile] = useState(false);
   const [showDeliveryHistory, setShowDeliveryHistory] = useState(false);
-  const [riderJobsTab, setRiderJobsTab] = useState<string>('available');
 
   // Customer Order History Page state
   const [showOrderHistory, setShowOrderHistory] = useState(false);
@@ -564,93 +563,41 @@ const DeliveryPlatform = () => {
       const sessionId = urlParams.get('session_id');
       if (topupStatus === 'success' && sessionId) {
         // Payment successful - log the Stripe top-up
-        // Use a longer delay and retry to ensure auth is restored from localStorage
-        const logStripeTopup = async (retryCount = 0) => {
+        setTimeout(async () => {
           try {
             const savedAuth = localStorage.getItem('moveit_auth');
-            const pendingTopup = localStorage.getItem('moveit_pending_topup') || sessionStorage.getItem('moveit_pending_topup');
+            const pendingTopup = localStorage.getItem('moveit_pending_topup');
             const topupData = pendingTopup ? JSON.parse(pendingTopup) : null;
-            
-            // Also try to get customer ID from URL or from pending topup data
-            const urlCustomerId = urlParams.get('customer_id');
-            
-            let customerId = null;
-            let customerName = 'Unknown';
             
             if (savedAuth) {
               const parsedAuth = JSON.parse(savedAuth);
               if (parsedAuth.id && parsedAuth.type === 'customer') {
-                customerId = parsedAuth.id;
-              }
-            }
-            
-            // Fallback to pending topup data
-            if (!customerId && topupData?.customerId) {
-              customerId = topupData.customerId;
-              customerName = topupData.customerName || 'Unknown';
-            }
-            
-            // Fallback to URL param
-            if (!customerId && urlCustomerId) {
-              customerId = urlCustomerId;
-            }
-            
-            if (customerId) {
-              // Check if this session was already logged (prevent duplicates)
-              try {
-                const existing = await api(`audit_logs?action=eq.customer_topup&order=timestamp.desc&limit=20`);
-                const alreadyLogged = (Array.isArray(existing) ? existing : []).some((log: any) => {
-                  const d = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
-                  return d?.sessionId === sessionId;
+                const custData = await api(`customers?id=eq.${parsedAuth.id}`);
+                const custName = custData && custData.length > 0 ? custData[0].name : 'Unknown';
+                await api('audit_logs', 'POST', {
+                  action: 'customer_topup',
+                  user_id: parsedAuth.id,
+                  user_type: 'customer',
+                  details: JSON.stringify({
+                    customerId: parsedAuth.id,
+                    customerName: custName,
+                    amount: topupData?.amount || 0,
+                    sessionId: sessionId,
+                    status: 'stripe_payment'
+                  }),
+                  timestamp: new Date().toISOString()
                 });
-                if (alreadyLogged) {
-                  console.log('Stripe top-up already logged for session:', sessionId);
-                  localStorage.removeItem('moveit_pending_topup');
-                  alert('🎉 Payment successful! Your credits have been added to your account.');
-                  window.history.replaceState({}, '', window.location.pathname);
-                  loadData();
-                  return;
-                }
-              } catch (e) {
-                // Continue with logging even if duplicate check fails
               }
-              
-              const custData = await api(`customers?id=eq.${customerId}`);
-              customerName = custData && custData.length > 0 ? custData[0].name : 'Unknown';
-              await api('audit_logs', 'POST', {
-                action: 'customer_topup',
-                user_id: customerId,
-                user_type: 'customer',
-                details: JSON.stringify({
-                  customerId: customerId,
-                  customerName: customerName,
-                  amount: topupData?.amount || 0,
-                  sessionId: sessionId,
-                  status: 'stripe_payment'
-                }),
-                timestamp: new Date().toISOString()
-              });
-              console.log('Stripe top-up logged successfully for customer:', customerId);
-            } else if (retryCount < 3) {
-              // Auth not available yet, retry after a delay
-              console.log(`Stripe top-up log: auth not ready, retry ${retryCount + 1}/3`);
-              setTimeout(() => logStripeTopup(retryCount + 1), 1500);
-              return;
-            } else {
-              console.log('Stripe top-up log: could not determine customer ID after retries');
             }
-            
             // Clear pending top-up
             localStorage.removeItem('moveit_pending_topup');
-            try { sessionStorage.removeItem('moveit_pending_topup'); } catch(e) {}
           } catch (e) {
             console.log('Failed to log Stripe top-up:', e);
           }
           alert('🎉 Payment successful! Your credits have been added to your account.');
           window.history.replaceState({}, '', window.location.pathname);
           loadData();
-        };
-        setTimeout(() => logStripeTopup(0), 500);
+        }, 500);
       } else if (topupStatus === 'cancelled') {
         alert('Payment was cancelled. No charges were made.');
         window.history.replaceState({}, '', window.location.pathname);
@@ -1357,25 +1304,10 @@ const DeliveryPlatform = () => {
     setAuditLogs(prev => [logEntry, ...prev]);
   };
 
-  // Open customer wallet and fetch their top-up logs directly from DB
-  const openCustomerWallet = async (customer: any) => {
-    try {
-      const topupLogs = await api(`audit_logs?action=eq.customer_topup&user_id=eq.${customer.id}&order=timestamp.desc&limit=100`);
-      const parsed = (Array.isArray(topupLogs) ? topupLogs : []).map((log: any) => ({
-        ...log,
-        details: typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return log.details; } })() : log.details
-      }));
-      setShowCustomerWallet({ ...customer, _topupLogs: parsed });
-    } catch (e) {
-      // Fallback: open without direct logs
-      setShowCustomerWallet({ ...customer, _topupLogs: [] });
-    }
-  };
-
   // Load audit logs
   const loadAuditLogs = async () => {
     try {
-      const logs = await api('audit_logs?order=timestamp.desc&limit=500');
+      const logs = await api('audit_logs?order=timestamp.desc&limit=50');
       setAuditLogs(Array.isArray(logs) ? logs : []);
     } catch (e) {
       console.error('Failed to load audit logs:', e);
@@ -2526,7 +2458,7 @@ Example: If you top up $200 but decide not to use the service, the $200 will rem
 All wallet credits are valid for 6 months from the date of top-up.
 • After 6 months: Credits will automatically expire, Expired credits will be forfeited permanently
 • Extensions are not guaranteed and may only be granted at the MoveIt Logistics App's sole discretion
-Example: If you top up on 1 January 2026, your credits will expire on 30 June 2026.
+Example: If you top up on 1 January, your credits will expire on 30 June.
 
 4. Failed or Cancelled Delivery
 If a delivery cannot be completed:
@@ -3415,8 +3347,8 @@ Please be punctual and update once completed. Thanks!`;
       const j = await api('jobs?select=*&order=created_at.desc&limit=100');
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
-      // Also load audit logs for withdrawal notifications and transaction history
-      const logs = await api('audit_logs?order=timestamp.desc&limit=500');
+      // Also load audit logs for withdrawal notifications
+      const logs = await api('audit_logs?order=timestamp.desc&limit=50');
       console.log('[LoadData] Audit logs loaded:', logs?.length || 0);
       
       // Load all rider locations for admin (to check GPS status)
@@ -5203,9 +5135,7 @@ Please be punctual and update once completed. Thanks!`;
                         // Redirect to Stripe checkout
                         if (data.url) {
                           // Store amount for logging after successful payment
-                          const topupInfo = JSON.stringify({ amount: amt, customerId: auth.id, customerName: curr?.name || '', timestamp: new Date().toISOString() });
-                          localStorage.setItem('moveit_pending_topup', topupInfo);
-                          try { sessionStorage.setItem('moveit_pending_topup', topupInfo); } catch(e) {}
+                          localStorage.setItem('moveit_pending_topup', JSON.stringify({ amount: amt, timestamp: new Date().toISOString() }));
                           // Use direct navigation - most reliable across all platforms including iOS WebViews
                           window.location.href = data.url;
                         }
@@ -5679,35 +5609,45 @@ Please be punctual and update once completed. Thanks!`;
                   {/* Suggested Pricing Breakdown */}
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-xs font-semibold text-blue-800 mb-2">💡 Suggested Pricing</p>
-                    <div className="text-xs text-gray-700 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Base fee</span>
-                        <span className="font-medium">$3.00</span>
-                      </div>
-                      {formDistance !== null && (
-                        <div className="flex justify-between">
-                          <span>Distance: {formDistance} km × $0.95</span>
-                          <span className="font-medium">${(formDistance * 0.95).toFixed(2)}</span>
+                    {aiResult && aiResult.suggestedPrice ? (
+                      <div className="text-xs text-gray-700 space-y-1">
+                        <div className="flex justify-between pt-1 font-bold text-blue-900">
+                          <span>AI Suggested Price</span>
+                          <span>${aiResult.suggestedPrice}</span>
                         </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span>Drop-off: {jobForm.stops.filter((s: any) => s.address).length || 1} × $2.50</span>
-                        <span className="font-medium">${((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50).toFixed(2)}</span>
+                        <p className="text-xs text-gray-500 italic mt-1">Based on AI analysis of your delivery details</p>
                       </div>
-                      <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
-                        <span>Suggested Price</span>
-                        <span>
-                          ${formDistance !== null 
-                            ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
-                            : (3 + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
-                          }
-                        </span>
+                    ) : (
+                      <div className="text-xs text-gray-700 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Base fee</span>
+                          <span className="font-medium">$3.00</span>
+                        </div>
+                        {formDistance !== null && (
+                          <div className="flex justify-between">
+                            <span>Distance: {formDistance} km × $0.95</span>
+                            <span className="font-medium">${(formDistance * 0.95).toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span>Drop-off: {jobForm.stops.filter((s: any) => s.address).length || 1} × $2.50</span>
+                          <span className="font-medium">${((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
+                          <span>Suggested Price</span>
+                          <span>
+                            ${formDistance !== null 
+                              ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
+                              : (3 + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
+                            }
+                          </span>
+                        </div>
+                        {formDistance === null && (
+                          <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
+                        )}
                       </div>
-                      {formDistance === null && (
-                        <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
-                      )}
-                    </div>
-                    {formDistance !== null && (
+                    )}
+                    {formDistance !== null && !(aiResult && aiResult.suggestedPrice) && (
                       <button
                         type="button"
                         onClick={() => {
@@ -6333,7 +6273,7 @@ Please be punctual and update once completed. Thanks!`;
         )}
 
         {auth.type === 'rider' && curr && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {/* Online/Offline Status Bar */}
             <div className={`p-4 rounded-lg ${riderIsOnline ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
               <div className="flex items-center justify-between">
@@ -6477,125 +6417,76 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-
-            {/* Back Button - shown on sub-pages */}
-            {currentRiderView !== 'home' && (
+            {/* Back Button - Feature 1 */}
+            {riderViewHistory.length > 1 && (
               <button 
                 onClick={goBackRider}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-2"
               >
                 <ChevronLeft size={20} />
                 Back
               </button>
             )}
 
-            {/* ===== HOME VIEW ===== */}
-            {currentRiderView === 'home' && (
-              <>
-            {/* Rider Stats Header */}
-            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-green-100 text-sm">Total Earnings</p>
-                  <p className="text-5xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-green-100 text-sm">Completed Jobs</p>
-                  <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
-                </div>
-              </div>
-              
-              {/* Multi-job indicator - Feature 5 */}
-              {getActiveJobsForRider.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-green-400">
-                  <p className="text-green-100 text-sm">Active Jobs</p>
-                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
-                </div>
+            {/* Quick Actions Bar */}
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setShowRiderProfile(!showRiderProfile)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                  showRiderProfile ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-300'
+                }`}
+              >
+                <User size={18} />
+                My Profile
+              </button>
+              <button
+                onClick={() => setShowDeliveryHistory(!showDeliveryHistory)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                  showDeliveryHistory ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
+                }`}
+              >
+                <FileText size={18} />
+                Delivery History
+              </button>
+              <button
+                onClick={() => setShowRiderPerformance(!showRiderPerformance)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                  showRiderPerformance ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300'
+                }`}
+              >
+                <BarChart3 size={18} />
+                My Performance
+              </button>
+              {getActiveJobsForRider.length > 1 && (
+                <button
+                  onClick={() => setShowRouteOptimization(!showRouteOptimization)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                    showRouteOptimization ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
+                  }`}
+                >
+                  <Navigation size={18} />
+                  Optimize Route
+                </button>
               )}
-              
-              <div className="mt-4 pt-4 border-t border-green-400">
-                <p className="text-green-100 text-sm">Your Referral Code</p>
-                <p className="text-2xl font-bold">{curr.referral_code}</p>
-                <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
-              </div>
+              {gpsPermissionGranted !== true && (
+                <button
+                  onClick={() => {
+                    navigator.geolocation.getCurrentPosition(
+                      () => { setGpsPermissionGranted(true); alert('GPS is working!'); },
+                      () => setShowGpsWarning(true),
+                      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+                    );
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg font-medium"
+                >
+                  <AlertCircle size={18} />
+                  Enable GPS
+                </button>
+              )}
             </div>
 
-
-                {/* Navigation Buttons */}
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => navigateRiderView('profile')}
-                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-purple-400 hover:shadow-md transition-all"
-                  >
-                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                      <User size={24} className="text-purple-600" />
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">My Profile</span>
-                  </button>
-                  <button
-                    onClick={() => { navigateRiderView('jobs'); setRiderJobsTab('available'); }}
-                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all relative"
-                  >
-                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                      <Package size={24} className="text-orange-600" />
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">Jobs</span>
-                    {(activeJobsList.length > 0 || filteredAvailableJobs.length > 0) && (
-                      <span className="absolute top-2 right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                        {activeJobsList.length + filteredAvailableJobs.length}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => navigateRiderView('history')}
-                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all"
-                  >
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <FileText size={24} className="text-blue-600" />
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">Delivery History</span>
-                  </button>
-                  <button
-                    onClick={() => navigateRiderView('performance')}
-                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-green-400 hover:shadow-md transition-all"
-                  >
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                      <BarChart3 size={24} className="text-green-600" />
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">My Performance</span>
-                  </button>
-                  <button
-                    onClick={() => navigateRiderView('withdrawal')}
-                    className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-gray-200 hover:border-yellow-400 hover:shadow-md transition-all"
-                  >
-                    <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                      <CreditCard size={24} className="text-yellow-600" />
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">Withdrawal</span>
-                  </button>
-                  {gpsPermissionGranted !== true && (
-                    <button
-                      onClick={() => {
-                        navigator.geolocation.getCurrentPosition(
-                          () => { setGpsPermissionGranted(true); alert('GPS is working!'); },
-                          () => setShowGpsWarning(true),
-                          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-                        );
-                      }}
-                      className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl shadow border border-yellow-300 hover:shadow-md transition-all"
-                    >
-                      <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                        <AlertCircle size={24} className="text-yellow-600" />
-                      </div>
-                      <span className="text-sm font-semibold text-yellow-700">Enable GPS</span>
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* ===== PROFILE VIEW ===== */}
-            {currentRiderView === 'profile' && (
+            {/* Rider Profile Page */}
+            {showRiderProfile && curr && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <User className="text-purple-600" />
@@ -6697,8 +6588,8 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* ===== DELIVERY HISTORY VIEW ===== */}
-            {currentRiderView === 'history' && (
+            {/* Rider Delivery History Page */}
+            {showDeliveryHistory && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <FileText className="text-blue-600" />
@@ -6777,8 +6668,8 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* ===== PERFORMANCE VIEW ===== */}
-            {currentRiderView === 'performance' && riderPerformanceStats && (
+            {/* Rider Performance Page - Feature 9 */}
+            {showRiderPerformance && riderPerformanceStats && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <BarChart3 className="text-green-600" />
@@ -6837,9 +6728,101 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* ===== WITHDRAWAL VIEW ===== */}
-            {currentRiderView === 'withdrawal' && (
-              <div className="space-y-4">
+            {/* Route Optimization - Feature 8 */}
+            {showRouteOptimization && getActiveJobsForRider.length > 1 && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <Navigation className="text-blue-600" />
+                  Route Optimization
+                </h3>
+                
+                <p className="text-gray-600 mb-4">
+                  You have {getActiveJobsForRider.length} active jobs. Optimize your route for efficiency.
+                </p>
+
+                {/* Current Jobs List */}
+                <div className="mb-4">
+                  <h4 className="font-semibold text-gray-800 mb-2">Current Order:</h4>
+                  <div className="space-y-2">
+                    {(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider).map((job: any, idx: number) => (
+                      <div key={job.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{job.pickup?.substring(0, 30)}...</p>
+                          <p className="text-xs text-gray-500">→ {job.delivery?.substring(0, 30)}...</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          job.status === 'picked-up' ? 'bg-yellow-100 text-yellow-700' :
+                          job.status === 'on-the-way' ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {job.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => optimizeRoute(getActiveJobsForRider)}
+                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 flex items-center justify-center gap-2"
+                  >
+                    🔄 Auto-Optimize Route
+                  </button>
+                  
+                  <a
+                    href={generateOptimizedRouteUrl(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center gap-2 text-center"
+                  >
+                    <MapPin size={18} />
+                    Open in Google Maps
+                  </a>
+                </div>
+
+                {/* Tips */}
+                <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+                  <p className="text-xs text-yellow-800">
+                    💡 <strong>Tip:</strong> The optimizer groups nearby pickups together for efficiency. 
+                    For best results, pick up all packages before starting deliveries.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Rider Stats Header */}
+            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <p className="text-green-100 text-sm">Total Earnings</p>
+                  <p className="text-5xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-green-100 text-sm">Completed Jobs</p>
+                  <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
+                </div>
+              </div>
+              
+              {/* Multi-job indicator - Feature 5 */}
+              {getActiveJobsForRider.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-green-400">
+                  <p className="text-green-100 text-sm">Active Jobs</p>
+                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
+                </div>
+              )}
+              
+              <div className="mt-4 pt-4 border-t border-green-400">
+                <p className="text-green-100 text-sm">Your Referral Code</p>
+                <p className="text-2xl font-bold">{curr.referral_code}</p>
+                <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
+              </div>
+            </div>
+
             {/* Withdrawal Notifications - Show status of rider's withdrawal requests */}
             {(() => {
               const myWithdrawals = auditLogs.filter((log: any) => 
@@ -7168,125 +7151,6 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
-              </div>
-            )}
-
-            {/* ===== JOBS VIEW ===== */}
-            {currentRiderView === 'jobs' && (
-              <div className="space-y-4">
-                {/* Job Tabs */}
-                <div className="bg-white rounded-lg shadow p-1 flex">
-                  <button
-                    onClick={() => setRiderJobsTab('active')}
-                    className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-colors ${
-                      riderJobsTab === 'active' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    Active Jobs {activeJobsList.length > 0 && `(${activeJobsList.length})`}
-                  </button>
-                  <button
-                    onClick={() => setRiderJobsTab('today')}
-                    className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-colors ${
-                      riderJobsTab === 'today' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    {"Today's Deliveries"}
-                  </button>
-                  <button
-                    onClick={() => setRiderJobsTab('available')}
-                    className={`flex-1 py-3 rounded-lg font-semibold text-sm transition-colors ${
-                      riderJobsTab === 'available' 
-                        ? 'bg-orange-500 text-white' 
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    Available {filteredAvailableJobs.length > 0 && `(${filteredAvailableJobs.length})`}
-                  </button>
-                </div>
-
-                {/* Active Jobs Tab */}
-                {riderJobsTab === 'active' && (
-                  <div className="space-y-4">
-                    {getActiveJobsForRider.length > 1 && (
-                      <button
-                        onClick={() => setShowRouteOptimization(!showRouteOptimization)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                          showRouteOptimization ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
-                        }`}
-                      >
-                        <Navigation size={18} />
-                        Optimize Route
-                      </button>
-                    )}
-                    {showRouteOptimization && getActiveJobsForRider.length > 1 && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                  <Navigation className="text-blue-600" />
-                  Route Optimization
-                </h3>
-                
-                <p className="text-gray-600 mb-4">
-                  You have {getActiveJobsForRider.length} active jobs. Optimize your route for efficiency.
-                </p>
-
-                {/* Current Jobs List */}
-                <div className="mb-4">
-                  <h4 className="font-semibold text-gray-800 mb-2">Current Order:</h4>
-                  <div className="space-y-2">
-                    {(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider).map((job: any, idx: number) => (
-                      <div key={job.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold">
-                          {idx + 1}
-                        </span>
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{job.pickup?.substring(0, 30)}...</p>
-                          <p className="text-xs text-gray-500">→ {job.delivery?.substring(0, 30)}...</p>
-                        </div>
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          job.status === 'picked-up' ? 'bg-yellow-100 text-yellow-700' :
-                          job.status === 'on-the-way' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {job.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-3">
-                  <button
-                    onClick={() => optimizeRoute(getActiveJobsForRider)}
-                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 flex items-center justify-center gap-2"
-                  >
-                    🔄 Auto-Optimize Route
-                  </button>
-                  
-                  <a
-                    href={generateOptimizedRouteUrl(optimizedRoute.length > 0 ? optimizedRoute : getActiveJobsForRider)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center gap-2 text-center"
-                  >
-                    <MapPin size={18} />
-                    Open in Google Maps
-                  </a>
-                </div>
-
-                {/* Tips */}
-                <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
-                  <p className="text-xs text-yellow-800">
-                    💡 <strong>Tip:</strong> The optimizer groups nearby pickups together for efficiency. 
-                    For best results, pick up all packages before starting deliveries.
-                  </p>
-                </div>
-              </div>
-                    )}
             {/* Active Jobs - Grouped by TODAY and UPCOMING */}
             {activeJobsList.length > 0 && (
               <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
@@ -7805,59 +7669,7 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-                  </div>
-                )}
-
-                {/* Today's Deliveries Tab */}
-                {riderJobsTab === 'today' && (
-                  <div className="bg-white rounded-lg shadow-lg p-4">
-                    <h4 className="font-bold text-gray-800 mb-3">{"📋 Today's Deliveries"}</h4>
-                    {(() => {
-                      const todaySGT = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
-                      const todayJobs = activeJobsList.filter((j: any) => j.delivery_date === todaySGT || !j.delivery_date);
-                      
-                      if (todayJobs.length === 0) return (
-                        <div className="text-center py-8 text-gray-500">
-                          <Clock size={48} className="mx-auto mb-3 text-gray-300" />
-                          <p className="font-medium">No deliveries scheduled for today</p>
-                          <p className="text-sm mt-1">Check the Available Jobs tab for new orders</p>
-                        </div>
-                      );
-                      
-                      return (
-                        <div className="space-y-3">
-                          {todayJobs.map((job: any) => (
-                            <div 
-                              key={job.id}
-                              onClick={() => { setSelectedJobId(job.id); setRiderJobsTab('active'); }}
-                              className="p-3 rounded-lg border border-blue-200 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors"
-                            >
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  {job.order_id && <p className="text-xs font-bold text-purple-600">#{job.order_id}</p>}
-                                  <p className="font-semibold text-sm">{job.pickup} → {job.delivery}</p>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    💰 ${job.price} | 📦 {job.parcel_size || 'N/A'} | 🕐 {job.timeframe || 'ASAP'}
-                                  </p>
-                                </div>
-                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                  job.status === 'accepted' ? 'bg-blue-200 text-blue-800' :
-                                  job.status === 'picked-up' ? 'bg-yellow-200 text-yellow-800' :
-                                  'bg-green-200 text-green-800'
-                                }`}>
-                                  {job.status.replace('-', ' ').toUpperCase()}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {/* Available Jobs Tab */}
-                {riderJobsTab === 'available' && (
+            {/* Available Jobs - Only show when rider is online */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
               
@@ -8009,12 +7821,8 @@ Please be punctual and update once completed. Thanks!`;
                 </>
               )}
             </div>
-                )}
-              </div>
-            )}
           </div>
         )}
-
 
         {auth.type === 'admin' && (
           <div className="space-y-6">
@@ -8164,14 +7972,14 @@ Please be punctual and update once completed. Thanks!`;
                           <div>
                             <p className="font-semibold text-lg">{c.name}</p>
                             <p className="text-sm text-gray-600">{c.email} | {c.phone}</p>
-                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => openCustomerWallet(c)}>
+                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => setShowCustomerWallet(c)}>
                               Credits: ${(c.credits || 0).toFixed(2)} 👁️
                             </p>
                             <p className="text-xs text-gray-400 mt-1">📅 Registered: {c.created_at ? formatSGT(c.created_at) : 'N/A'}</p>
                             <p className="text-xs text-gray-400">🕐 Last Login: {c.last_login ? formatSGT(c.last_login) : 'Never'}</p>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => openCustomerWallet(c)} className="p-2 bg-green-100 rounded hover:bg-green-200" title="View Wallet"><CreditCard size={18} /></button>
+                            <button onClick={() => setShowCustomerWallet(c)} className="p-2 bg-green-100 rounded hover:bg-green-200" title="View Wallet"><CreditCard size={18} /></button>
                             <button onClick={() => setEditCust({...c, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
                             <button onClick={async () => { if (window.confirm('Delete customer?')) { await api(`customers?id=eq.${c.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
                           </div>
@@ -11371,10 +11179,10 @@ Please be punctual and update once completed. Thanks!`;
                 <div className="flex gap-2">
                   <button 
                     onClick={async () => {
-                      // Refresh customer data and top-up logs
+                      // Refresh customer data
                       const fresh = await api(`customers?id=eq.${showCustomerWallet.id}`);
                       if (fresh && fresh.length > 0) {
-                        await openCustomerWallet(fresh[0]);
+                        setShowCustomerWallet(fresh[0]);
                       }
                       await loadData();
                     }}
@@ -11427,39 +11235,17 @@ Please be punctual and update once completed. Thanks!`;
                     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                   
                   // Get top-up and refund audit logs for this customer
-                  // Check both details.customerId and user_id for matching
                   const relevantLogs = auditLogs
                     .filter((log: any) => {
                       if (log.action !== 'customer_topup' && log.action !== 'admin_job_cancel_refund') return false;
                       const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
-                      return details?.customerId === showCustomerWallet.id || log.user_id === showCustomerWallet.id;
+                      return details?.customerId === showCustomerWallet.id;
                     });
                   
-                  // Also check walletTopUpLogs (fetched directly for this customer)
-                  const walletTopUpLogs = (showCustomerWallet._topupLogs || []);
-                  
                   const transactions: any[] = [];
-                  const addedLogIds = new Set();
                   
-                  // Add top-up logs from auditLogs state
+                  // Add top-up logs (NOT refund logs — refunds will be shown from cancelled jobs)
                   relevantLogs.forEach((log: any) => {
-                    const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
-                    if (log.action === 'customer_topup') {
-                      addedLogIds.add(log.id);
-                      transactions.push({
-                        type: 'topup',
-                        amount: details?.amount || 0,
-                        date: log.timestamp,
-                        description: details?.status === 'stripe_payment' 
-                          ? `💳 Top-up via Stripe` 
-                          : `📱 Top-up via PayNow${details?.refNumber ? ` (Ref: ${details.refNumber})` : ''}`
-                      });
-                    }
-                  });
-                  
-                  // Add any top-up logs fetched directly that weren't already included
-                  walletTopUpLogs.forEach((log: any) => {
-                    if (addedLogIds.has(log.id)) return;
                     const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
                     if (log.action === 'customer_topup') {
                       transactions.push({
