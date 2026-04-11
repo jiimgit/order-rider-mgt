@@ -564,41 +564,93 @@ const DeliveryPlatform = () => {
       const sessionId = urlParams.get('session_id');
       if (topupStatus === 'success' && sessionId) {
         // Payment successful - log the Stripe top-up
-        setTimeout(async () => {
+        // Use a longer delay and retry to ensure auth is restored from localStorage
+        const logStripeTopup = async (retryCount = 0) => {
           try {
             const savedAuth = localStorage.getItem('moveit_auth');
-            const pendingTopup = localStorage.getItem('moveit_pending_topup');
+            const pendingTopup = localStorage.getItem('moveit_pending_topup') || sessionStorage.getItem('moveit_pending_topup');
             const topupData = pendingTopup ? JSON.parse(pendingTopup) : null;
+            
+            // Also try to get customer ID from URL or from pending topup data
+            const urlCustomerId = urlParams.get('customer_id');
+            
+            let customerId = null;
+            let customerName = 'Unknown';
             
             if (savedAuth) {
               const parsedAuth = JSON.parse(savedAuth);
               if (parsedAuth.id && parsedAuth.type === 'customer') {
-                const custData = await api(`customers?id=eq.${parsedAuth.id}`);
-                const custName = custData && custData.length > 0 ? custData[0].name : 'Unknown';
-                await api('audit_logs', 'POST', {
-                  action: 'customer_topup',
-                  user_id: parsedAuth.id,
-                  user_type: 'customer',
-                  details: JSON.stringify({
-                    customerId: parsedAuth.id,
-                    customerName: custName,
-                    amount: topupData?.amount || 0,
-                    sessionId: sessionId,
-                    status: 'stripe_payment'
-                  }),
-                  timestamp: new Date().toISOString()
-                });
+                customerId = parsedAuth.id;
               }
             }
+            
+            // Fallback to pending topup data
+            if (!customerId && topupData?.customerId) {
+              customerId = topupData.customerId;
+              customerName = topupData.customerName || 'Unknown';
+            }
+            
+            // Fallback to URL param
+            if (!customerId && urlCustomerId) {
+              customerId = urlCustomerId;
+            }
+            
+            if (customerId) {
+              // Check if this session was already logged (prevent duplicates)
+              try {
+                const existing = await api(`audit_logs?action=eq.customer_topup&order=timestamp.desc&limit=20`);
+                const alreadyLogged = (Array.isArray(existing) ? existing : []).some((log: any) => {
+                  const d = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
+                  return d?.sessionId === sessionId;
+                });
+                if (alreadyLogged) {
+                  console.log('Stripe top-up already logged for session:', sessionId);
+                  localStorage.removeItem('moveit_pending_topup');
+                  alert('🎉 Payment successful! Your credits have been added to your account.');
+                  window.history.replaceState({}, '', window.location.pathname);
+                  loadData();
+                  return;
+                }
+              } catch (e) {
+                // Continue with logging even if duplicate check fails
+              }
+              
+              const custData = await api(`customers?id=eq.${customerId}`);
+              customerName = custData && custData.length > 0 ? custData[0].name : 'Unknown';
+              await api('audit_logs', 'POST', {
+                action: 'customer_topup',
+                user_id: customerId,
+                user_type: 'customer',
+                details: JSON.stringify({
+                  customerId: customerId,
+                  customerName: customerName,
+                  amount: topupData?.amount || 0,
+                  sessionId: sessionId,
+                  status: 'stripe_payment'
+                }),
+                timestamp: new Date().toISOString()
+              });
+              console.log('Stripe top-up logged successfully for customer:', customerId);
+            } else if (retryCount < 3) {
+              // Auth not available yet, retry after a delay
+              console.log(`Stripe top-up log: auth not ready, retry ${retryCount + 1}/3`);
+              setTimeout(() => logStripeTopup(retryCount + 1), 1500);
+              return;
+            } else {
+              console.log('Stripe top-up log: could not determine customer ID after retries');
+            }
+            
             // Clear pending top-up
             localStorage.removeItem('moveit_pending_topup');
+            try { sessionStorage.removeItem('moveit_pending_topup'); } catch(e) {}
           } catch (e) {
             console.log('Failed to log Stripe top-up:', e);
           }
           alert('🎉 Payment successful! Your credits have been added to your account.');
           window.history.replaceState({}, '', window.location.pathname);
           loadData();
-        }, 500);
+        };
+        setTimeout(() => logStripeTopup(0), 500);
       } else if (topupStatus === 'cancelled') {
         alert('Payment was cancelled. No charges were made.');
         window.history.replaceState({}, '', window.location.pathname);
@@ -5151,7 +5203,9 @@ Please be punctual and update once completed. Thanks!`;
                         // Redirect to Stripe checkout
                         if (data.url) {
                           // Store amount for logging after successful payment
-                          localStorage.setItem('moveit_pending_topup', JSON.stringify({ amount: amt, timestamp: new Date().toISOString() }));
+                          const topupInfo = JSON.stringify({ amount: amt, customerId: auth.id, customerName: curr?.name || '', timestamp: new Date().toISOString() });
+                          localStorage.setItem('moveit_pending_topup', topupInfo);
+                          try { sessionStorage.setItem('moveit_pending_topup', topupInfo); } catch(e) {}
                           // Use direct navigation - most reliable across all platforms including iOS WebViews
                           window.location.href = data.url;
                         }
