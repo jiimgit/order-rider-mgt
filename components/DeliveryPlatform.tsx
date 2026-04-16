@@ -10848,7 +10848,31 @@ Please be punctual and update once completed. Thanks!`;
                   <label className="block text-sm font-medium text-gray-700 mb-2">📍 Drop-off Location(s)</label>
                   {(editJob.stops && editJob.stops.length > 0 ? editJob.stops : [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }]).map((stop: any, idx: number) => (
                     <div key={idx} className="mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                      <p className="text-xs font-bold text-green-700 mb-2">Drop-off {idx + 1}</p>
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-xs font-bold text-green-700">Drop-off {idx + 1}</p>
+                        {(editJob.stops && editJob.stops.length > 1) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!window.confirm(`Delete Drop-off ${idx + 1}? This will remove the stop completely.`)) return;
+                              const currentStops = editJob.stops || [];
+                              const newStops = currentStops.filter((_: any, i: number) => i !== idx);
+                              const deliveryStr = newStops.map((s: any) => `${s.address || ''} ${s.unitNo || ''}`).join(' → ');
+                              setEditJob({
+                                ...editJob,
+                                stops: newStops,
+                                delivery: deliveryStr,
+                                total_stops: newStops.length,
+                                recipient_name: newStops[0]?.recipientName || '',
+                                recipient_phone: newStops[0]?.recipientPhone || ''
+                              });
+                            }}
+                            className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 font-semibold flex items-center gap-1"
+                          >
+                            <Trash2 size={12} /> Cancel Drop
+                          </button>
+                        )}
+                      </div>
                       <div className="space-y-2">
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">Address</label>
@@ -10973,6 +10997,7 @@ Please be punctual and update once completed. Thanks!`;
                           recipient_name: stops[0]?.recipientName || editJob.recipient_name,
                           recipient_phone: stops[0]?.recipientPhone || editJob.recipient_phone,
                           stops: stops,
+                          total_stops: stops.length || 1,
                           delivery_date: editJob.delivery_date,
                           timeframe: editJob.timeframe,
                           delivery_slot: editJob.delivery_slot,
