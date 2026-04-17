@@ -5620,28 +5620,21 @@ Please be punctual and update once completed. Thanks!`;
                     ) : (
                       <div className="text-xs text-gray-700 space-y-1">
                         <div className="flex justify-between">
-                          <span>Base fee</span>
+                          <span>Base Fee</span>
                           <span className="font-medium">$3.00</span>
                         </div>
                         {formDistance !== null && (
                           <div className="flex justify-between">
-                            <span>Distance: {formDistance} km × $0.95</span>
-                            <span className="font-medium">${(formDistance * 0.95).toFixed(2)}</span>
+                            <span>Delivery Fee</span>
+                            <span className="font-medium">${((formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
                           </div>
                         )}
-                        <div className="flex justify-between">
-                          <span>Drop-off: {jobForm.stops.filter((s: any) => s.address).length || 1} × $2.50</span>
-                          <span className="font-medium">${((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
-                          <span>Suggested Price</span>
-                          <span>
-                            ${formDistance !== null 
-                              ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
-                              : (3 + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
-                            }
-                          </span>
-                        </div>
+                        {formDistance !== null && (
+                          <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
+                            <span>Total</span>
+                            <span>${(3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
+                          </div>
+                        )}
                         {formDistance === null && (
                           <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
                         )}
