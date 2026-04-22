@@ -3617,6 +3617,17 @@ Please be punctual and update once completed. Thanks!`;
       if (data.error) {
         alert('AI analysis failed: ' + data.error);
       } else {
+        // Recalculate suggested price using the app's pricing formula
+        // Formula: $3 base + drops × $2.50 (distance added later when postal codes are entered)
+        if (data.stops && data.stops.length > 0) {
+          const numDrops = data.stops.filter((s: any) => s.address).length || 1;
+          const minFormulaPrice = 3 + (numDrops * 2.50);
+          // Use the higher of AI price or formula price
+          const aiPrice = parseFloat(data.suggestedPrice) || 0;
+          if (aiPrice < minFormulaPrice) {
+            data.suggestedPrice = Math.ceil(minFormulaPrice);
+          }
+        }
         setAiResult(data);
       }
     } catch (e: any) {
