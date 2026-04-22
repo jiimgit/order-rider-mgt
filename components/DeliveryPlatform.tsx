@@ -2225,6 +2225,13 @@ const DeliveryPlatform = () => {
       const result = await calculateJobDistances(jobForm.pickup, jobForm.stops.filter((s: any) => s.address));
       if (result) {
         setFormDistance(result.totalDistance);
+        // Auto-update price if current price is below the formula price
+        const drops = jobForm.stops.filter((s: any) => s.address).length || 1;
+        const formulaPrice = 3 + (result.totalDistance * 0.95) + (drops * 2.50);
+        const currentPrice = parseFloat(jobForm.price) || 0;
+        if (currentPrice < formulaPrice) {
+          setJobForm(prev => ({...prev, price: formulaPrice.toFixed(2)}));
+        }
       }
     };
     const timer = setTimeout(calcFormDist, 1000);
@@ -3617,17 +3624,6 @@ Please be punctual and update once completed. Thanks!`;
       if (data.error) {
         alert('AI analysis failed: ' + data.error);
       } else {
-        // Recalculate suggested price using the app's pricing formula
-        // Formula: $3 base + drops × $2.50 (distance added later when postal codes are entered)
-        if (data.stops && data.stops.length > 0) {
-          const numDrops = data.stops.filter((s: any) => s.address).length || 1;
-          const minFormulaPrice = 3 + (numDrops * 2.50);
-          // Use the higher of AI price or formula price
-          const aiPrice = parseFloat(data.suggestedPrice) || 0;
-          if (aiPrice < minFormulaPrice) {
-            data.suggestedPrice = Math.ceil(minFormulaPrice);
-          }
-        }
         setAiResult(data);
       }
     } catch (e: any) {
@@ -3640,6 +3636,9 @@ Please be punctual and update once completed. Thanks!`;
   // Apply AI result to job form
   const applyAiResult = () => {
     if (!aiResult) return;
+    
+    const numDrops = aiResult.stops?.filter((s: any) => s.address).length || 1;
+    const minPrice = 3 + (numDrops * 2.50);
     
     setJobForm({
       ...jobForm,
@@ -3655,14 +3654,16 @@ Please be punctual and update once completed. Thanks!`;
       })) : [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
       parcelSize: aiResult.parcelSize || 'small',
       remarks: aiResult.remarks || '',
-      price: aiResult.suggestedPrice?.toString() || '3',
+      price: minPrice.toFixed(2),
       deliveryDate: aiResult.deliveryDate || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
       timeframe: aiResult.deliverySlot || ''
     });
     
+    // Clear AI result so the form's own pricing formula takes over
+    setAiResult(null);
     setShowAiInput(false);
     setAiInput('');
-    alert('✅ AI recommendations applied to the form! Please review and adjust if needed.');
+    alert('✅ AI recommendations applied to the form! The price will update once distance is calculated from postal codes.');
   };
 
   // Validate job form fields before showing T&C
