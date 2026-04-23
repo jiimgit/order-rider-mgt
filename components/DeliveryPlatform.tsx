@@ -3380,9 +3380,27 @@ Please be punctual and update once completed. Thanks!`;
       if (auth.type === 'customer' && auth.id && Array.isArray(j)) {
         const myJobs = j.filter((job: any) => job.customer_id === auth.id);
         const newNotifs: any[] = [];
+        const isFirstLoad = Object.keys(prevJobStatusesRef.current).length === 0;
         
         myJobs.forEach((job: any) => {
           const prevStatus = prevJobStatusesRef.current[job.id];
+          
+          // On first load: check for recently accepted/updated jobs (within last 10 minutes)
+          if (isFirstLoad && job.accepted_at) {
+            const acceptedTime = new Date(job.accepted_at).getTime();
+            const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+            if (acceptedTime > tenMinutesAgo && job.status === 'accepted') {
+              newNotifs.push({
+                id: `${job.id}-accepted-${Date.now()}`,
+                type: 'accepted',
+                message: `🏍️ Your delivery ${job.order_id || ''} has been accepted by ${job.rider_name || 'a rider'}!`,
+                jobId: job.id,
+                timestamp: job.accepted_at
+              });
+            }
+          }
+          
+          // On subsequent loads: detect status transitions
           if (prevStatus && prevStatus !== job.status) {
             if (job.status === 'accepted' && prevStatus === 'posted') {
               newNotifs.push({
