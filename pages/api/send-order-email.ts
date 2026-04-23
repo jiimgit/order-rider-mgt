@@ -13,6 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     customerPhone,
     pickup,
     delivery,
+    deliveryDate,
     deliverySlot,
     price,
     parcelSize,
@@ -26,7 +27,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Create transporter using SMTP
-    // You can use Gmail, SendGrid, Mailgun, or any SMTP service
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT || '587'),
@@ -44,6 +44,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       '6pm-11pm': '6pm – 11pm (cut off 9pm)'
     };
     const slotLabel = slotLabels[deliverySlot] || deliverySlot || 'Not specified';
+
+    // Format delivery date
+    const formatDate = (dateStr: string): string => {
+      if (!dateStr) return 'Not specified';
+      try {
+        const d = new Date(dateStr + 'T00:00:00+08:00');
+        return d.toLocaleDateString('en-GB', { 
+          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Singapore' 
+        });
+      } catch {
+        return dateStr;
+      }
+    };
 
     // Email content
     const emailHtml = `
@@ -99,6 +112,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               <span class="label">🏠 Delivery:</span>
               <span class="value">${delivery || 'N/A'}</span>
             </div>
+
+            <div class="detail-row">
+              <span class="label">📅 Date:</span>
+              <span class="value">${formatDate(deliveryDate)}</span>
+            </div>
             
             <div class="detail-row">
               <span class="label">🕐 Time Slot:</span>
@@ -131,7 +149,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           
           <div class="footer">
             <p>This is an automated notification from MoveIt Delivery App</p>
-            <p>© 2026 MoveIt. All rights reserved.</p>
+            <p>© 2026 The Food Thinker Pte Ltd. All rights reserved.</p>
           </div>
         </div>
       </body>
