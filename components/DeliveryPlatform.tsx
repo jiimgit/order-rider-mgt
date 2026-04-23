@@ -479,6 +479,7 @@ const DeliveryPlatform = () => {
   const [editingPromo, setEditingPromo] = useState<any>(null);
   const [customerNotifications, setCustomerNotifications] = useState<any[]>([]);
   const [prevJobStatuses, setPrevJobStatuses] = useState<any>({});
+  const prevJobStatusesRef = useRef<any>({});
 
   // Customer Bulk Import state
   const [showCustomerBulkImport, setShowCustomerBulkImport] = useState(false);
@@ -3328,16 +3329,17 @@ Please be punctual and update once completed. Thanks!`;
     return () => clearTimeout(loadingTimeout);
   }, [loading, auth.isAuth]);
   
-  // Auto-refresh data every 120 seconds (2 minutes) to reduce bandwidth usage
+  // Auto-refresh data - 30 seconds for customers (for notifications), 120 seconds for others
   useEffect(() => {
     if (auth.isAuth) {
+      const refreshInterval = auth.type === 'customer' ? 30000 : 120000;
       const interval = setInterval(() => {
         loadData();
         checkAutoReminders();
-      }, 120000); // 120 seconds (2 minutes)
+      }, refreshInterval);
       return () => clearInterval(interval);
     }
-  }, [auth.isAuth]);
+  }, [auth.isAuth, auth.type]);
 
   const loadData = async () => {
     try {
@@ -3380,7 +3382,7 @@ Please be punctual and update once completed. Thanks!`;
         const newNotifs: any[] = [];
         
         myJobs.forEach((job: any) => {
-          const prevStatus = prevJobStatuses[job.id];
+          const prevStatus = prevJobStatusesRef.current[job.id];
           if (prevStatus && prevStatus !== job.status) {
             if (job.status === 'accepted' && prevStatus === 'posted') {
               newNotifs.push({
@@ -3435,9 +3437,10 @@ Please be punctual and update once completed. Thanks!`;
           }
         }
         
-        // Save current statuses for next comparison
+        // Save current statuses using ref (always current, no stale closure)
         const statusMap: any = {};
         myJobs.forEach((job: any) => { statusMap[job.id] = job.status; });
+        prevJobStatusesRef.current = statusMap;
         setPrevJobStatuses(statusMap);
       }
       
