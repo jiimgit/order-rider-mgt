@@ -11009,6 +11009,38 @@ Please be punctual and update once completed. Thanks!`;
                           ? stops.map((s: any) => `${s.address || ''} ${s.unitNo || ''}`).join(' → ')
                           : editJob.delivery;
                         
+                        const newPrice = parseFloat(editJob.price) || 0;
+                        
+                        // Check if price changed - deduct/refund customer wallet
+                        const originalJob = jobs.find((j: any) => j.id === editJob.id);
+                        const oldPrice = originalJob ? (parseFloat(originalJob.price) || 0) : newPrice;
+                        const priceDiff = newPrice - oldPrice;
+                        
+                        if (priceDiff !== 0 && originalJob?.customer_id) {
+                          // Fetch fresh customer credits
+                          const freshCust = await api(`customers?id=eq.${originalJob.customer_id}`);
+                          if (freshCust && freshCust.length > 0) {
+                            const currentCredits = freshCust[0].credits || 0;
+                            
+                            if (priceDiff > 0) {
+                              // Price increased - deduct the difference from customer wallet
+                              if (currentCredits < priceDiff) {
+                                if (!window.confirm(`Warning: Customer only has $${currentCredits.toFixed(2)} credits but the price increase is $${priceDiff.toFixed(2)}.\n\nTheir balance will go negative. Continue?`)) {
+                                  return;
+                                }
+                              }
+                              await api(`customers?id=eq.${originalJob.customer_id}`, 'PATCH', {
+                                credits: currentCredits - priceDiff
+                              });
+                            } else {
+                              // Price decreased - refund the difference to customer wallet
+                              await api(`customers?id=eq.${originalJob.customer_id}`, 'PATCH', {
+                                credits: currentCredits + Math.abs(priceDiff)
+                              });
+                            }
+                          }
+                        }
+                        
                         await api(`jobs?id=eq.${editJob.id}`, 'PATCH', {
                           pickup: editJob.pickup,
                           delivery: deliveryStr,
@@ -11021,17 +11053,27 @@ Please be punctual and update once completed. Thanks!`;
                           delivery_date: editJob.delivery_date,
                           timeframe: editJob.timeframe,
                           delivery_slot: editJob.delivery_slot,
-                          price: parseFloat(editJob.price) || 0,
+                          price: newPrice,
                           parcel_size: editJob.parcel_size,
                           remarks: editJob.remarks
                         });
                         await logAuditAction('admin_edit_order', {
                           jobId: editJob.id,
-                          orderId: editJob.order_id
+                          orderId: editJob.order_id,
+                          oldPrice: oldPrice,
+                          newPrice: newPrice,
+                          priceDiff: priceDiff,
+                          customerId: originalJob?.customer_id,
+                          walletAdjusted: priceDiff !== 0
                         });
                         setEditJob(null);
                         await loadData();
-                        alert('Order updated successfully!');
+                        alert(priceDiff > 0 
+                          ? `Order updated! $${priceDiff.toFixed(2)} deducted from customer wallet.`
+                          : priceDiff < 0 
+                            ? `Order updated! $${Math.abs(priceDiff).toFixed(2)} refunded to customer wallet.`
+                            : 'Order updated successfully!'
+                        );
                       } catch (e: any) {
                         alert('Error updating order: ' + e.message);
                       }
