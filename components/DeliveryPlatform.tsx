@@ -10945,6 +10945,21 @@ Please be punctual and update once completed. Thanks!`;
                       </div>
                     </div>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentStops = editJob.stops || [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }];
+                      const newStops = [...currentStops, { address: '', unitNo: '', recipientName: '', recipientPhone: '' }];
+                      setEditJob({
+                        ...editJob,
+                        stops: newStops,
+                        total_stops: newStops.length
+                      });
+                    }}
+                    className="w-full py-2 border-2 border-dashed border-green-400 text-green-700 rounded-lg font-semibold text-sm hover:bg-green-50 transition-colors"
+                  >
+                    + Add Drop-off
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
