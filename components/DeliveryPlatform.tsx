@@ -3782,6 +3782,7 @@ Please be punctual and update once completed. Thanks!`;
             customerPhone: curr.phone,
             pickup: `${jobForm.pickup} ${jobForm.pickupUnitNo}`,
             delivery: deliveryAddresses,
+            deliveryDate: jobForm.deliveryDate,
             deliverySlot: jobForm.timeframe,
             price: price,
             parcelSize: jobForm.parcelSize,
@@ -3879,6 +3880,40 @@ Please be punctual and update once completed. Thanks!`;
       // Clear this job from notifications
       setNewJobNotifications(prev => prev.filter(n => n.id !== jobId));
       
+      // Send email notification to customer
+      try {
+        const job = jobs.find((j: any) => j.id === jobId);
+        if (job && job.customer_id) {
+          const customer = customers.find((c: any) => c.id === job.customer_id);
+          if (customer?.email) {
+            const trackingLink = typeof window !== 'undefined' ? `${window.location.origin}?track=${jobId}` : '';
+            fetch('/api/send-customer-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: customer.email,
+                type: 'accepted',
+                orderId: job.order_id || jobId,
+                customerName: customer.name,
+                pickup: job.pickup,
+                delivery: job.delivery,
+                deliveryDate: job.delivery_date,
+                deliverySlot: job.timeframe || job.delivery_slot,
+                price: job.price,
+                parcelSize: job.parcel_size,
+                remarks: job.remarks,
+                riderName: curr.name,
+                riderPhone: curr.phone,
+                riderVehicleType: curr.vehicle_type || 'bike',
+                trackingUrl: trackingLink
+              })
+            }).catch(err => console.log('Customer email notification failed:', err));
+          }
+        }
+      } catch (emailErr) {
+        console.log('Customer email notification error:', emailErr);
+      }
+      
       alert('Job accepted! Please keep GPS enabled until delivery is complete.');
       loadData();
     } catch (gpsError: any) {
@@ -3898,6 +3933,41 @@ Please be punctual and update once completed. Thanks!`;
               accepted_at: new Date().toISOString() 
             });
             setNewJobNotifications(prev => prev.filter(n => n.id !== jobId));
+            
+            // Send email notification to customer
+            try {
+              const job = jobs.find((j: any) => j.id === jobId);
+              if (job && job.customer_id) {
+                const customer = customers.find((c: any) => c.id === job.customer_id);
+                if (customer?.email) {
+                  const trackingLink = typeof window !== 'undefined' ? `${window.location.origin}?track=${jobId}` : '';
+                  fetch('/api/send-customer-notification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      to: customer.email,
+                      type: 'accepted',
+                      orderId: job.order_id || jobId,
+                      customerName: customer.name,
+                      pickup: job.pickup,
+                      delivery: job.delivery,
+                      deliveryDate: job.delivery_date,
+                      deliverySlot: job.timeframe || job.delivery_slot,
+                      price: job.price,
+                      parcelSize: job.parcel_size,
+                      remarks: job.remarks,
+                      riderName: curr.name,
+                      riderPhone: curr.phone,
+                      riderVehicleType: curr.vehicle_type || 'bike',
+                      trackingUrl: trackingLink
+                    })
+                  }).catch(err => console.log('Customer email notification failed:', err));
+                }
+              }
+            } catch (emailErr) {
+              console.log('Customer email notification error:', emailErr);
+            }
+            
             alert('Job accepted! Please enable GPS as soon as possible for tracking.');
             loadData();
           } catch (e: any) {
