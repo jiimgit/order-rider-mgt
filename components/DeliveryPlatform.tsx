@@ -2225,13 +2225,10 @@ const DeliveryPlatform = () => {
       const result = await calculateJobDistances(jobForm.pickup, jobForm.stops.filter((s: any) => s.address));
       if (result) {
         setFormDistance(result.totalDistance);
-        // Auto-update price if current price is below the formula price
+        // Always update price to match formula when distance changes
         const drops = jobForm.stops.filter((s: any) => s.address).length || 1;
         const formulaPrice = 3 + (result.totalDistance * 0.95) + (drops * 2.50);
-        const currentPrice = parseFloat(jobForm.price) || 0;
-        if (currentPrice < formulaPrice) {
-          setJobForm(prev => ({...prev, price: formulaPrice.toFixed(2)}));
-        }
+        setJobForm(prev => ({...prev, price: formulaPrice.toFixed(2)}));
       }
     };
     const timer = setTimeout(calcFormDist, 1000);
@@ -5617,20 +5614,27 @@ Please be punctual and update once completed. Thanks!`;
                         <span>Base Fee</span>
                         <span className="font-medium">$3.00</span>
                       </div>
-                      {formDistance !== null && (
-                        <div className="flex justify-between">
-                          <span>Delivery Fee</span>
-                          <span className="font-medium">${((formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
-                        </div>
-                      )}
-                      {formDistance !== null && (
-                        <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
-                          <span>Total</span>
-                          <span>${(3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
-                        </div>
-                      )}
-                      {formDistance === null && (
-                        <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
+                      {formDistance !== null ? (
+                        <>
+                          <div className="flex justify-between">
+                            <span>Delivery Fee ({formDistance} km, {jobForm.stops.filter((s: any) => s.address).length || 1} drop-off{(jobForm.stops.filter((s: any) => s.address).length || 1) > 1 ? 's' : ''})</span>
+                            <span className="font-medium">${((formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
+                            <span>Total</span>
+                            <span>${(3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between text-gray-400">
+                            <span>Delivery Fee</span>
+                            <span className="font-medium">—</span>
+                          </div>
+                          <div className="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                            <p className="text-xs text-yellow-700">⚠️ Enter <strong>6-digit Singapore postal codes</strong> for pickup and drop-off to calculate the delivery fee and total price.</p>
+                          </div>
+                        </>
                       )}
                     </div>
                     {formDistance !== null && (
