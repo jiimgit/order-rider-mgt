@@ -479,7 +479,6 @@ const DeliveryPlatform = () => {
   const [editingPromo, setEditingPromo] = useState<any>(null);
   const [customerNotifications, setCustomerNotifications] = useState<any[]>([]);
   const [prevJobStatuses, setPrevJobStatuses] = useState<any>({});
-  const prevJobStatusesRef = useRef<any>({});
 
   // Customer Bulk Import state
   const [showCustomerBulkImport, setShowCustomerBulkImport] = useState(false);
@@ -3329,17 +3328,16 @@ Please be punctual and update once completed. Thanks!`;
     return () => clearTimeout(loadingTimeout);
   }, [loading, auth.isAuth]);
   
-  // Auto-refresh data - 30 seconds for customers (for notifications), 120 seconds for others
+  // Auto-refresh data every 120 seconds (2 minutes) to reduce bandwidth usage
   useEffect(() => {
     if (auth.isAuth) {
-      const refreshInterval = auth.type === 'customer' ? 30000 : 120000;
       const interval = setInterval(() => {
         loadData();
         checkAutoReminders();
-      }, refreshInterval);
+      }, 120000); // 120 seconds (2 minutes)
       return () => clearInterval(interval);
     }
-  }, [auth.isAuth, auth.type]);
+  }, [auth.isAuth]);
 
   const loadData = async () => {
     try {
@@ -3380,27 +3378,9 @@ Please be punctual and update once completed. Thanks!`;
       if (auth.type === 'customer' && auth.id && Array.isArray(j)) {
         const myJobs = j.filter((job: any) => job.customer_id === auth.id);
         const newNotifs: any[] = [];
-        const isFirstLoad = Object.keys(prevJobStatusesRef.current).length === 0;
         
         myJobs.forEach((job: any) => {
-          const prevStatus = prevJobStatusesRef.current[job.id];
-          
-          // On first load: check for recently accepted/updated jobs (within last 10 minutes)
-          if (isFirstLoad && job.accepted_at) {
-            const acceptedTime = new Date(job.accepted_at).getTime();
-            const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
-            if (acceptedTime > tenMinutesAgo && job.status === 'accepted') {
-              newNotifs.push({
-                id: `${job.id}-accepted-${Date.now()}`,
-                type: 'accepted',
-                message: `🏍️ Your delivery ${job.order_id || ''} has been accepted by ${job.rider_name || 'a rider'}!`,
-                jobId: job.id,
-                timestamp: job.accepted_at
-              });
-            }
-          }
-          
-          // On subsequent loads: detect status transitions
+          const prevStatus = prevJobStatuses[job.id];
           if (prevStatus && prevStatus !== job.status) {
             if (job.status === 'accepted' && prevStatus === 'posted') {
               newNotifs.push({
@@ -3455,10 +3435,9 @@ Please be punctual and update once completed. Thanks!`;
           }
         }
         
-        // Save current statuses using ref (always current, no stale closure)
+        // Save current statuses for next comparison
         const statusMap: any = {};
         myJobs.forEach((job: any) => { statusMap[job.id] = job.status; });
-        prevJobStatusesRef.current = statusMap;
         setPrevJobStatuses(statusMap);
       }
       
@@ -3680,11 +3659,10 @@ Please be punctual and update once completed. Thanks!`;
       timeframe: aiResult.deliverySlot || ''
     });
     
-    // Clear AI result so the form's own pricing formula takes over
     setAiResult(null);
     setShowAiInput(false);
     setAiInput('');
-    alert('✅ AI recommendations applied to the form! The price will update once distance is calculated from postal codes.');
+    alert('✅ Form filled! The delivery fee will update automatically once distance is calculated from postal codes.');
   };
 
   // Validate job form fields before showing T&C
@@ -3800,7 +3778,6 @@ Please be punctual and update once completed. Thanks!`;
             customerPhone: curr.phone,
             pickup: `${jobForm.pickup} ${jobForm.pickupUnitNo}`,
             delivery: deliveryAddresses,
-            deliveryDate: jobForm.deliveryDate,
             deliverySlot: jobForm.timeframe,
             price: price,
             parcelSize: jobForm.parcelSize,
@@ -3898,40 +3875,6 @@ Please be punctual and update once completed. Thanks!`;
       // Clear this job from notifications
       setNewJobNotifications(prev => prev.filter(n => n.id !== jobId));
       
-      // Send email notification to customer
-      try {
-        const job = jobs.find((j: any) => j.id === jobId);
-        if (job && job.customer_id) {
-          const customer = customers.find((c: any) => c.id === job.customer_id);
-          if (customer?.email) {
-            const trackingLink = typeof window !== 'undefined' ? `${window.location.origin}?track=${jobId}` : '';
-            fetch('/api/send-customer-notification', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                to: customer.email,
-                type: 'accepted',
-                orderId: job.order_id || jobId,
-                customerName: customer.name,
-                pickup: job.pickup,
-                delivery: job.delivery,
-                deliveryDate: job.delivery_date,
-                deliverySlot: job.timeframe || job.delivery_slot,
-                price: job.price,
-                parcelSize: job.parcel_size,
-                remarks: job.remarks,
-                riderName: curr.name,
-                riderPhone: curr.phone,
-                riderVehicleType: curr.vehicle_type || 'bike',
-                trackingUrl: trackingLink
-              })
-            }).catch(err => console.log('Customer email notification failed:', err));
-          }
-        }
-      } catch (emailErr) {
-        console.log('Customer email notification error:', emailErr);
-      }
-      
       alert('Job accepted! Please keep GPS enabled until delivery is complete.');
       loadData();
     } catch (gpsError: any) {
@@ -3951,41 +3894,6 @@ Please be punctual and update once completed. Thanks!`;
               accepted_at: new Date().toISOString() 
             });
             setNewJobNotifications(prev => prev.filter(n => n.id !== jobId));
-            
-            // Send email notification to customer
-            try {
-              const job = jobs.find((j: any) => j.id === jobId);
-              if (job && job.customer_id) {
-                const customer = customers.find((c: any) => c.id === job.customer_id);
-                if (customer?.email) {
-                  const trackingLink = typeof window !== 'undefined' ? `${window.location.origin}?track=${jobId}` : '';
-                  fetch('/api/send-customer-notification', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      to: customer.email,
-                      type: 'accepted',
-                      orderId: job.order_id || jobId,
-                      customerName: customer.name,
-                      pickup: job.pickup,
-                      delivery: job.delivery,
-                      deliveryDate: job.delivery_date,
-                      deliverySlot: job.timeframe || job.delivery_slot,
-                      price: job.price,
-                      parcelSize: job.parcel_size,
-                      remarks: job.remarks,
-                      riderName: curr.name,
-                      riderPhone: curr.phone,
-                      riderVehicleType: curr.vehicle_type || 'bike',
-                      trackingUrl: trackingLink
-                    })
-                  }).catch(err => console.log('Customer email notification failed:', err));
-                }
-              }
-            } catch (emailErr) {
-              console.log('Customer email notification error:', emailErr);
-            }
-            
             alert('Job accepted! Please enable GPS as soon as possible for tracking.');
             loadData();
           } catch (e: any) {
@@ -5308,124 +5216,116 @@ Please be punctual and update once completed. Thanks!`;
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-6">Post New Delivery Job</h3>
               
-              {/* AI Auto Analysis Toggle */}
-              <div className="mb-6">
-                <button
-                  onClick={() => { setShowAiInput(!showAiInput); setAiResult(null); }}
-                  className={`w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
-                    showAiInput 
-                      ? 'bg-purple-600 text-white hover:bg-purple-700' 
-                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                  }`}
-                >
-                  🤖 {showAiInput ? 'Hide AI Auto-Fill' : 'AI Auto-Fill — Paste Your Delivery Details'}
-                </button>
-              </div>
-              
-              {/* AI Input Area */}
-              {showAiInput && (
-                <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
-                  <p className="text-sm text-purple-800 mb-3">
-                    📋 <strong>Paste your delivery details below</strong> and AI will automatically fill in the form for you.
-                  </p>
-                  <textarea
-                    value={aiInput}
-                    onChange={(e) => setAiInput(e.target.value)}
-                    className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                    rows={5}
-                    placeholder={"Example:\nPick up from 123 Tampines Street 45 #08-100 (John, 81234567)\nDeliver to:\n1) 456 Bedok North Ave 3 #05-200 - Sarah 92345678\n2) 789 Jurong West St 61 #12-300 - David 83456789\nDocuments, handle with care. Small parcel. Pick up at 2pm today."}
-                  />
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      onClick={analyzeWithAI}
-                      disabled={aiAnalyzing || aiInput.trim().length < 20}
-                      className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
-                        aiAnalyzing || aiInput.trim().length < 20
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-purple-600 text-white hover:bg-purple-700'
-                      }`}
-                    >
-                      {aiAnalyzing ? '🔄 Analyzing...' : '🤖 Analyze with AI'}
-                    </button>
-                    <button
-                      onClick={() => { setAiInput(''); setAiResult(null); }}
-                      className="px-4 py-3 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  
-                  {/* AI Result Preview */}
-                  {aiResult && (
-                    <div className="mt-4 p-4 bg-white rounded-lg border border-green-300">
-                      <h4 className="font-bold text-green-800 mb-3">✅ AI Analysis Result</h4>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="bg-orange-50 p-2 rounded">
-                          <p className="text-xs font-medium text-orange-600">PICKUP</p>
-                          <p className="text-gray-800">{aiResult.pickup} {aiResult.pickupUnitNo !== 'N/A' ? aiResult.pickupUnitNo : ''}</p>
-                          {aiResult.pickupContact && <p className="text-xs text-gray-500">Contact: {aiResult.pickupContact} {aiResult.pickupPhone}</p>}
-                        </div>
-                        
-                        {aiResult.stops?.map((stop: any, idx: number) => (
-                          <div key={idx} className="bg-green-50 p-2 rounded">
-                            <p className="text-xs font-medium text-green-600">DROP-OFF {idx + 1}</p>
-                            <p className="text-gray-800">{stop.address} {stop.unitNo !== 'N/A' ? stop.unitNo : ''}</p>
-                            {stop.recipientName && <p className="text-xs text-gray-500">Recipient: {stop.recipientName} {stop.recipientPhone}</p>}
-                          </div>
-                        ))}
-                        
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          <div className="bg-blue-50 p-2 rounded">
-                            <p className="text-xs text-blue-600">Parcel Size</p>
-                            <p className="font-medium capitalize">{aiResult.parcelSize}</p>
-                          </div>
-                          <div className="bg-blue-50 p-2 rounded">
-                            <p className="text-xs text-blue-600">Suggested Price</p>
-                            <p className="font-medium">${aiResult.suggestedPrice}</p>
-                          </div>
-                          {aiResult.deliverySlot && (
-                            <div className="bg-blue-50 p-2 rounded">
-                              <p className="text-xs text-blue-600">Delivery Slot</p>
-                              <p className="font-medium">{aiResult.deliverySlot}</p>
-                            </div>
-                          )}
-                          <div className="bg-blue-50 p-2 rounded">
-                            <p className="text-xs text-blue-600">Suggested Drivers</p>
-                            <p className="font-medium">{aiResult.suggestedDrivers}</p>
-                          </div>
-                        </div>
-                        
-                        {aiResult.remarks && (
-                          <div className="bg-yellow-50 p-2 rounded">
-                            <p className="text-xs text-yellow-600">Remarks</p>
-                            <p className="text-gray-700 italic">{aiResult.remarks}</p>
-                          </div>
-                        )}
-                        
-                        {aiResult.analysis && (
-                          <p className="text-xs text-gray-500 italic mt-2">🤖 {aiResult.analysis}</p>
-                        )}
+              {/* AI Delivery Instructions */}
+              <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
+                <p className="text-sm text-purple-800 mb-3">
+                  📋 <strong>Type your Delivery instructions here:</strong>
+                </p>
+                <ol className="text-xs text-purple-700 mb-3 space-y-1 pl-4 list-decimal">
+                  <li>When ready</li>
+                  <li>Pick up location</li>
+                  <li>Single location or multiple location</li>
+                  <li>Item size (pocket/small/medium/need a whole car boot)</li>
+                  <li>Remarks</li>
+                </ol>
+                <textarea
+                  value={aiInput}
+                  onChange={(e) => setAiInput(e.target.value)}
+                  className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+                  rows={5}
+                  placeholder={"Example:\nPick up from 123 Tampines Street 45 #08-100 (John, 81234567)\nDeliver to:\n1) 456 Bedok North Ave 3 #05-200 - Sarah 92345678\n2) 789 Jurong West St 61 #12-300 - David 83456789\nDocuments, handle with care. Small parcel. Pick up at 2pm today."}
+                />
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={analyzeWithAI}
+                    disabled={aiAnalyzing || aiInput.trim().length < 20}
+                    className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
+                      aiAnalyzing || aiInput.trim().length < 20
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    {aiAnalyzing ? '🔄 Analyzing...' : '🤖 Analyze with AI'}
+                  </button>
+                  <button
+                    onClick={() => { setAiInput(''); setAiResult(null); }}
+                    className="px-4 py-3 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300"
+                  >
+                    Clear
+                  </button>
+                </div>
+                
+                {/* AI Result Preview */}
+                {aiResult && (
+                  <div className="mt-4 p-4 bg-white rounded-lg border border-green-300">
+                    <h4 className="font-bold text-green-800 mb-3">✅ AI Analysis Result</h4>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="bg-orange-50 p-2 rounded">
+                        <p className="text-xs font-medium text-orange-600">PICKUP</p>
+                        <p className="text-gray-800">{aiResult.pickup} {aiResult.pickupUnitNo !== 'N/A' ? aiResult.pickupUnitNo : ''}</p>
+                        {aiResult.pickupContact && <p className="text-xs text-gray-500">Contact: {aiResult.pickupContact} {aiResult.pickupPhone}</p>}
                       </div>
                       
-                      <div className="flex gap-2 mt-4">
-                        <button
-                          onClick={applyAiResult}
-                          className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
-                        >
-                          ✅ Accept & Fill Form
-                        </button>
-                        <button
-                          onClick={() => setAiResult(null)}
-                          className="flex-1 py-3 bg-gray-200 text-gray-600 rounded-lg font-semibold hover:bg-gray-300"
-                        >
-                          ✏️ Enter Manually
-                        </button>
+                      {aiResult.stops?.map((stop: any, idx: number) => (
+                        <div key={idx} className="bg-green-50 p-2 rounded">
+                          <p className="text-xs font-medium text-green-600">DROP-OFF {idx + 1}</p>
+                          <p className="text-gray-800">{stop.address} {stop.unitNo !== 'N/A' ? stop.unitNo : ''}</p>
+                          {stop.recipientName && <p className="text-xs text-gray-500">Recipient: {stop.recipientName} {stop.recipientPhone}</p>}
+                        </div>
+                      ))}
+                      
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="bg-blue-50 p-2 rounded">
+                          <p className="text-xs text-blue-600">Parcel Size</p>
+                          <p className="font-medium capitalize">{aiResult.parcelSize}</p>
+                        </div>
+                        {aiResult.deliverySlot && (
+                          <div className="bg-blue-50 p-2 rounded">
+                            <p className="text-xs text-blue-600">Delivery Slot</p>
+                            <p className="font-medium">{aiResult.deliverySlot}</p>
+                          </div>
+                        )}
+                        <div className="bg-blue-50 p-2 rounded">
+                          <p className="text-xs text-blue-600">Suggested Drivers</p>
+                          <p className="font-medium">{aiResult.suggestedDrivers}</p>
+                        </div>
+                      </div>
+                      
+                      {aiResult.remarks && (
+                        <div className="bg-yellow-50 p-2 rounded">
+                          <p className="text-xs text-yellow-600">Remarks</p>
+                          <p className="text-gray-700 italic">{aiResult.remarks}</p>
+                        </div>
+                      )}
+                      
+                      {aiResult.analysis && (
+                        <p className="text-xs text-gray-500 italic mt-2">🤖 {aiResult.analysis}</p>
+                      )}
+
+                      <div className="bg-blue-50 p-2 rounded mt-2">
+                        <p className="text-xs text-blue-600">💡 Note</p>
+                        <p className="text-xs text-gray-600">The delivery fee will be calculated automatically based on distance and number of drop-offs after you accept.</p>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
+                    
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={applyAiResult}
+                        className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                      >
+                        ✅ Accept & Fill Form
+                      </button>
+                      <button
+                        onClick={() => setAiResult(null)}
+                        className="flex-1 py-3 bg-gray-200 text-gray-600 rounded-lg font-semibold hover:bg-gray-300"
+                      >
+                        ✏️ Enter Manually
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               
               {/* Postal Code Tip */}
               <div className="bg-blue-50 p-3 rounded-lg mb-4">
@@ -5712,38 +5612,28 @@ Please be punctual and update once completed. Thanks!`;
                   {/* Suggested Pricing Breakdown */}
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-xs font-semibold text-blue-800 mb-2">💡 Suggested Pricing</p>
-                    {aiResult && aiResult.suggestedPrice ? (
-                      <div className="text-xs text-gray-700 space-y-1">
-                        <div className="flex justify-between pt-1 font-bold text-blue-900">
-                          <span>AI Suggested Price</span>
-                          <span>${aiResult.suggestedPrice}</span>
-                        </div>
-                        <p className="text-xs text-gray-500 italic mt-1">Based on AI analysis of your delivery details</p>
+                    <div className="text-xs text-gray-700 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Base Fee</span>
+                        <span className="font-medium">$3.00</span>
                       </div>
-                    ) : (
-                      <div className="text-xs text-gray-700 space-y-1">
+                      {formDistance !== null && (
                         <div className="flex justify-between">
-                          <span>Base Fee</span>
-                          <span className="font-medium">$3.00</span>
+                          <span>Delivery Fee</span>
+                          <span className="font-medium">${((formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
                         </div>
-                        {formDistance !== null && (
-                          <div className="flex justify-between">
-                            <span>Delivery Fee</span>
-                            <span className="font-medium">${((formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
-                          </div>
-                        )}
-                        {formDistance !== null && (
-                          <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
-                            <span>Total</span>
-                            <span>${(3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
-                          </div>
-                        )}
-                        {formDistance === null && (
-                          <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
-                        )}
-                      </div>
-                    )}
-                    {formDistance !== null && !(aiResult && aiResult.suggestedPrice) && (
+                      )}
+                      {formDistance !== null && (
+                        <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
+                          <span>Total</span>
+                          <span>${(3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {formDistance === null && (
+                        <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
+                      )}
+                    </div>
+                    {formDistance !== null && (
                       <button
                         type="button"
                         onClick={() => {
@@ -10944,31 +10834,7 @@ Please be punctual and update once completed. Thanks!`;
                   <label className="block text-sm font-medium text-gray-700 mb-2">📍 Drop-off Location(s)</label>
                   {(editJob.stops && editJob.stops.length > 0 ? editJob.stops : [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }]).map((stop: any, idx: number) => (
                     <div key={idx} className="mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-xs font-bold text-green-700">Drop-off {idx + 1}</p>
-                        {(editJob.stops && editJob.stops.length > 1) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!window.confirm(`Delete Drop-off ${idx + 1}? This will remove the stop completely.`)) return;
-                              const currentStops = editJob.stops || [];
-                              const newStops = currentStops.filter((_: any, i: number) => i !== idx);
-                              const deliveryStr = newStops.map((s: any) => `${s.address || ''} ${s.unitNo || ''}`).join(' → ');
-                              setEditJob({
-                                ...editJob,
-                                stops: newStops,
-                                delivery: deliveryStr,
-                                total_stops: newStops.length,
-                                recipient_name: newStops[0]?.recipientName || '',
-                                recipient_phone: newStops[0]?.recipientPhone || ''
-                              });
-                            }}
-                            className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 font-semibold flex items-center gap-1"
-                          >
-                            <Trash2 size={12} /> Cancel Drop
-                          </button>
-                        )}
-                      </div>
+                      <p className="text-xs font-bold text-green-700 mb-2">Drop-off {idx + 1}</p>
                       <div className="space-y-2">
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">Address</label>
@@ -11036,21 +10902,6 @@ Please be punctual and update once completed. Thanks!`;
                       </div>
                     </div>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const currentStops = editJob.stops || [{ address: editJob.delivery || '', unitNo: '', recipientName: editJob.recipient_name || '', recipientPhone: editJob.recipient_phone || '' }];
-                      const newStops = [...currentStops, { address: '', unitNo: '', recipientName: '', recipientPhone: '' }];
-                      setEditJob({
-                        ...editJob,
-                        stops: newStops,
-                        total_stops: newStops.length
-                      });
-                    }}
-                    className="w-full py-2 border-2 border-dashed border-green-400 text-green-700 rounded-lg font-semibold text-sm hover:bg-green-50 transition-colors"
-                  >
-                    + Add Drop-off
-                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -11100,38 +10951,6 @@ Please be punctual and update once completed. Thanks!`;
                           ? stops.map((s: any) => `${s.address || ''} ${s.unitNo || ''}`).join(' → ')
                           : editJob.delivery;
                         
-                        const newPrice = parseFloat(editJob.price) || 0;
-                        
-                        // Check if price changed - deduct/refund customer wallet
-                        const originalJob = jobs.find((j: any) => j.id === editJob.id);
-                        const oldPrice = originalJob ? (parseFloat(originalJob.price) || 0) : newPrice;
-                        const priceDiff = newPrice - oldPrice;
-                        
-                        if (priceDiff !== 0 && originalJob?.customer_id) {
-                          // Fetch fresh customer credits
-                          const freshCust = await api(`customers?id=eq.${originalJob.customer_id}`);
-                          if (freshCust && freshCust.length > 0) {
-                            const currentCredits = freshCust[0].credits || 0;
-                            
-                            if (priceDiff > 0) {
-                              // Price increased - deduct the difference from customer wallet
-                              if (currentCredits < priceDiff) {
-                                if (!window.confirm(`Warning: Customer only has $${currentCredits.toFixed(2)} credits but the price increase is $${priceDiff.toFixed(2)}.\n\nTheir balance will go negative. Continue?`)) {
-                                  return;
-                                }
-                              }
-                              await api(`customers?id=eq.${originalJob.customer_id}`, 'PATCH', {
-                                credits: currentCredits - priceDiff
-                              });
-                            } else {
-                              // Price decreased - refund the difference to customer wallet
-                              await api(`customers?id=eq.${originalJob.customer_id}`, 'PATCH', {
-                                credits: currentCredits + Math.abs(priceDiff)
-                              });
-                            }
-                          }
-                        }
-                        
                         await api(`jobs?id=eq.${editJob.id}`, 'PATCH', {
                           pickup: editJob.pickup,
                           delivery: deliveryStr,
@@ -11140,31 +10959,20 @@ Please be punctual and update once completed. Thanks!`;
                           recipient_name: stops[0]?.recipientName || editJob.recipient_name,
                           recipient_phone: stops[0]?.recipientPhone || editJob.recipient_phone,
                           stops: stops,
-                          total_stops: stops.length || 1,
                           delivery_date: editJob.delivery_date,
                           timeframe: editJob.timeframe,
                           delivery_slot: editJob.delivery_slot,
-                          price: newPrice,
+                          price: parseFloat(editJob.price) || 0,
                           parcel_size: editJob.parcel_size,
                           remarks: editJob.remarks
                         });
                         await logAuditAction('admin_edit_order', {
                           jobId: editJob.id,
-                          orderId: editJob.order_id,
-                          oldPrice: oldPrice,
-                          newPrice: newPrice,
-                          priceDiff: priceDiff,
-                          customerId: originalJob?.customer_id,
-                          walletAdjusted: priceDiff !== 0
+                          orderId: editJob.order_id
                         });
                         setEditJob(null);
                         await loadData();
-                        alert(priceDiff > 0 
-                          ? `Order updated! $${priceDiff.toFixed(2)} deducted from customer wallet.`
-                          : priceDiff < 0 
-                            ? `Order updated! $${Math.abs(priceDiff).toFixed(2)} refunded to customer wallet.`
-                            : 'Order updated successfully!'
-                        );
+                        alert('Order updated successfully!');
                       } catch (e: any) {
                         alert('Error updating order: ' + e.message);
                       }
