@@ -5272,6 +5272,8 @@ Please be punctual and update once completed. Thanks!`;
                 <h4 className="font-bold text-gray-900">Pickup & Drop-off</h4>
               </div>
 
+              <div className="space-y-4">
+
               {/* Pickup Location */}
                 <div className="relative">
                   <div className="flex items-start gap-3">
@@ -5553,7 +5555,7 @@ Please be punctual and update once completed. Thanks!`;
                   </label>
                   
                   {/* Step 3: Price */}
-                  <div className="flex items-center gap-2 mb-4 mt-6">
+                  <div className="flex items-center gap-2 mb-4 mt-4">
                     <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
                     <h4 className="font-bold text-gray-900">Price</h4>
                   </div>
@@ -5821,7 +5823,7 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
-            {/* Dynamic Pricing Boost Prompts */}
+            {/* Dynamic Pricing Boost */}
             {boostStage >= 1 && (
               <div className={`rounded-lg shadow p-4 ${boostStage >= 2 ? 'bg-red-50 border border-red-200' : 'bg-orange-50 border border-orange-200'}`}>
                 <div className="flex items-center gap-2 mb-2">
@@ -5831,9 +5833,7 @@ Please be punctual and update once completed. Thanks!`;
                   </p>
                 </div>
                 <p className="text-xs text-gray-600 mb-3">
-                  {boostStage >= 2 
-                    ? 'Increase price to improve matching speed'
-                    : 'Boost +$2 for faster match'}
+                  {boostStage >= 2 ? 'Increase price to improve matching speed' : 'Boost +$2 for faster match'}
                 </p>
                 <button
                   onClick={async () => {
@@ -5843,14 +5843,10 @@ Please be punctual and update once completed. Thanks!`;
                       const newPrice = (parseFloat(pj.price) || 0) + boostAmt;
                       await api(`jobs?id=eq.${pj.id}`, 'PATCH', { price: newPrice });
                     }
-                    setBoostStage(0);
-                    setJobPostTime(null);
-                    await loadData();
+                    setBoostStage(0); setJobPostTime(null); await loadData();
                     alert(`Price boosted by $${boostAmt}!`);
                   }}
-                  className={`w-full py-2.5 rounded-lg font-semibold text-sm text-white ${
-                    boostStage >= 2 ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600'
-                  }`}
+                  className={`w-full py-2.5 rounded-lg font-semibold text-sm text-white ${boostStage >= 2 ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600'}`}
                 >
                   {boostStage >= 2 ? 'Increase Price +$4' : 'Boost Price +$2'}
                 </button>
