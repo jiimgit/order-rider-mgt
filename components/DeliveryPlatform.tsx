@@ -5392,82 +5392,52 @@ Please be punctual and update once completed. Thanks!`;
                         />
                       </div>
                       
-                      {/* Use My Profile Checkbox - Auto-fill pickup contact */}
-                      <div className="mt-3 p-4 bg-green-100 rounded-lg border-2 border-green-400">
-                        <label className="flex items-start gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={useMyProfile}
-                            onChange={(e) => {
-                              setUseMyProfile(e.target.checked);
-                              if (e.target.checked) {
-                                setJobForm(prev => ({
-                                  ...prev,
-                                  pickupContact: curr?.name || '',
-                                  pickupPhone: curr?.phone || ''
-                                }));
-                              } else {
-                                setJobForm(prev => ({
-                                  ...prev,
-                                  pickupContact: '',
-                                  pickupPhone: ''
-                                }));
-                              }
-                            }}
-                            className="w-6 h-6 mt-0.5 text-green-600 rounded focus:ring-green-500 border-2 border-green-500"
-                          />
-                          <div className="flex-1">
-                            <span className="font-semibold text-green-800 text-base">✅ Use my profile as pickup contact</span>
-                            <div className="mt-2 p-2 bg-white rounded border border-green-300">
-                              <p className="text-sm text-green-700"><strong>Name:</strong> {curr?.name || 'Not set'}</p>
-                              <p className="text-sm text-green-700"><strong>Phone:</strong> {curr?.phone || 'Not set'}</p>
-                            </div>
-                            <p className="text-xs text-green-600 mt-1">Check this to auto-fill contact details below</p>
-                          </div>
-                        </label>
+                      {/* Use My Profile Checkbox */}
+                      <div className="mt-2 flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
+                        <input
+                          type="checkbox"
+                          checked={useMyProfile}
+                          onChange={(e) => {
+                            setUseMyProfile(e.target.checked);
+                            if (e.target.checked) {
+                              setJobForm(prev => ({
+                                ...prev,
+                                pickupContact: curr?.name || '',
+                                pickupPhone: curr?.phone || ''
+                              }));
+                            } else {
+                              setJobForm(prev => ({
+                                ...prev,
+                                pickupContact: '',
+                                pickupPhone: ''
+                              }));
+                            }
+                          }}
+                          className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-700">Use my profile contact</p>
+                          {useMyProfile && <p className="text-xs text-gray-500 truncate">{curr?.name} · {curr?.phone}</p>}
+                        </div>
                       </div>
 
                       {/* Contact fields - show when not using profile */}
                       {!useMyProfile && (
-                        <div className="mt-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Details</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input 
-                              type="text" 
-                              value={jobForm.pickupContact} 
-                              onChange={(e) => setJobForm({...jobForm, pickupContact: e.target.value})} 
-                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
-                              placeholder="Contact name" 
-                            />
-                            <input 
-                              type="tel" 
-                              value={jobForm.pickupPhone} 
-                              onChange={(e) => setJobForm({...jobForm, pickupPhone: e.target.value})} 
-                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
-                              placeholder="Phone number" 
-                            />
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Show filled values when using profile */}
-                      {useMyProfile && (
-                        <div className="mt-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Details (Auto-filled)</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input 
-                              type="text" 
-                              value={curr?.name || ''} 
-                              disabled
-                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
-                            />
-                            <input 
-                              type="tel" 
-                              value={curr?.phone || ''} 
-                              disabled
-                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
-                            />
-                          </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <input 
+                            type="text" 
+                            value={jobForm.pickupContact} 
+                            onChange={(e) => setJobForm({...jobForm, pickupContact: e.target.value})} 
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                            placeholder="Contact name" 
+                          />
+                          <input 
+                            type="tel" 
+                            value={jobForm.pickupPhone} 
+                            onChange={(e) => setJobForm({...jobForm, pickupPhone: e.target.value})} 
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                            placeholder="Phone number" 
+                          />
                         </div>
                       )}
                     </div>
@@ -5701,63 +5671,88 @@ Please be punctual and update once completed. Thanks!`;
                   </select>
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Remarks / Special Instructions</label>
-                  <textarea 
-                    value={jobForm.remarks} 
-                    onChange={(e) => setJobForm({...jobForm, remarks: e.target.value})} 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                    placeholder="e.g., Fragile items, call before delivery, leave at door..."
-                    rows={3}
-                  />
-                </div>
+                {/* More Options (collapsed) */}
+                <details className="border border-gray-200 rounded-xl overflow-hidden">
+                  <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-600 flex items-center gap-2 hover:bg-gray-50 bg-gray-50">
+                    🏷️ More options (optional)
+                  </summary>
+                  <div className="px-4 pb-4 pt-2 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Remarks / Special Instructions</label>
+                      <textarea 
+                        value={jobForm.remarks} 
+                        onChange={(e) => setJobForm({...jobForm, remarks: e.target.value})} 
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                        placeholder="e.g., Fragile items, call before delivery, leave at door..."
+                        rows={2}
+                      />
+                    </div>
 
-                {/* Promo Code Section */}
-                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                  <label className="block text-sm font-medium text-purple-800 mb-2">🎟️ Promo Code</label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={promoCode} 
-                      onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); setPromoDiscount(null); }} 
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" 
-                      placeholder="Enter promo code"
-                    />
-                    <button 
-                      onClick={redeemPromoCode} 
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 text-sm"
-                    >
-                      Apply
-                    </button>
-                    {promoDiscount && (
-                      <button 
-                        onClick={() => { setPromoCode(''); setPromoDiscount(null); setPromoError(''); }} 
-                        className="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 text-sm"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                  {promoError && (
-                    <p className="text-sm text-red-600 mt-2">{promoError}</p>
-                  )}
-                  {promoDiscount && (
-                    <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
-                      <p className="text-sm text-green-700 font-medium">
-                        ✅ Code "{promoDiscount.code}" applied! 
-                        {promoDiscount.discount_type === 'fixed' 
-                          ? ` $${promoDiscount.discount_value} off` 
-                          : ` ${promoDiscount.discount_value}% off`}
-                      </p>
-                      {jobForm.price && (
-                        <p className="text-xs text-green-600 mt-1">
-                          Original: ${parseFloat(jobForm.price).toFixed(2)} → 
-                          You pay: <strong>${getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2)}</strong>
-                        </p>
+                    {/* Promo Code */}
+                    <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <label className="block text-sm font-medium text-purple-800 mb-2">🎟️ Promo Code</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={promoCode} 
+                          onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); setPromoDiscount(null); }} 
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm" 
+                          placeholder="Enter promo code"
+                        />
+                        <button 
+                          onClick={redeemPromoCode} 
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 text-sm"
+                        >
+                          Apply
+                        </button>
+                        {promoDiscount && (
+                          <button 
+                            onClick={() => { setPromoCode(''); setPromoDiscount(null); setPromoError(''); }} 
+                            className="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 text-sm"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      {promoError && <p className="text-sm text-red-600 mt-2">{promoError}</p>}
+                      {promoDiscount && (
+                        <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                          <p className="text-sm text-green-700 font-medium">
+                            ✅ Code "{promoDiscount.code}" applied! 
+                            {promoDiscount.discount_type === 'fixed' 
+                              ? ` $${promoDiscount.discount_value} off` 
+                              : ` ${promoDiscount.discount_value}% off`}
+                          </p>
+                          {jobForm.price && (
+                            <p className="text-xs text-green-600 mt-1">
+                              Original: ${parseFloat(jobForm.price).toFixed(2)} → 
+                              You pay: <strong>${getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2)}</strong>
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
+
+                    {/* Delivery Plan */}
+                    <button 
+                      type="button"
+                      onClick={() => setShowDeliveryPlan(true)}
+                      className="w-full bg-blue-50 text-blue-700 px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-100 border border-blue-100"
+                    >
+                      📅 Delivery Plan (Weekly / Monthly)
+                    </button>
+
+                    {/* Bulk Import */}
+                    <button 
+                      type="button"
+                      onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)}
+                      className="w-full bg-gray-50 text-gray-700 px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-gray-100 border border-gray-200"
+                    >
+                      <Upload size={16} />
+                      {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV/Excel)'}
+                    </button>
+                  </div>
+                </details>
 
                 <button 
                   onClick={createJob} 
@@ -5773,17 +5768,6 @@ Please be punctual and update once completed. Thanks!`;
                     {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}</>
                   )}
                 </button>
-                
-                {/* Bulk Import Option */}
-                <div className="mt-4 pt-4 border-t">
-                  <button
-                    onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                  >
-                    <Upload size={18} />
-                    {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV/Excel)'}
-                  </button>
-                </div>
               </div>
               
               {/* Customer Bulk Import Section */}
@@ -6290,6 +6274,32 @@ Please be punctual and update once completed. Thanks!`;
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Trust Indicators */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div className="grid grid-cols-4 gap-3 text-center">
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center"><Clock size={16} className="text-blue-600" /></div>
+                  <p className="text-xs font-semibold text-gray-800">Save Time</p>
+                  <p className="text-xs text-gray-400">Deliver in minutes</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-9 h-9 bg-green-50 rounded-full flex items-center justify-center"><CheckCircle size={16} className="text-green-600" /></div>
+                  <p className="text-xs font-semibold text-gray-800">Best Matches</p>
+                  <p className="text-xs text-gray-400">Smart matching</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-9 h-9 bg-purple-50 rounded-full flex items-center justify-center"><MapPin size={16} className="text-purple-600" /></div>
+                  <p className="text-xs font-semibold text-gray-800">Live Tracking</p>
+                  <p className="text-xs text-gray-400">Track in real-time</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-9 h-9 bg-orange-50 rounded-full flex items-center justify-center"><Send size={16} className="text-orange-600" /></div>
+                  <p className="text-xs font-semibold text-gray-800">24/7 Support</p>
+                  <p className="text-xs text-gray-400">Here to help</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
