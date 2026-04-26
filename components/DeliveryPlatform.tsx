@@ -4999,33 +4999,34 @@ Please be punctual and update once completed. Thanks!`;
         
         {auth.type === 'customer' && curr && (
           <div className="space-y-6">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-6 text-white">
+            {/* Credits Bar */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-blue-100 text-sm">Available Credits</p>
-                  <p className="text-5xl font-bold">${(curr.credits || 0).toFixed(2)}</p>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Credits</p>
+                  <p className="text-3xl font-bold text-gray-900">${(curr.credits || 0).toFixed(2)}</p>
                 </div>
                 <div className="flex gap-2">
                   <a 
                     href="https://wa.me/6580201980" 
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-green-500 text-white px-4 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-green-600 transition-colors shadow-lg"
+                    className="bg-green-500 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-green-600 transition-colors text-sm"
                   >
                     💬 Contact Us
                   </a>
                   <button 
                     onClick={() => { setShowTopUp(true); setTncAccepted(false); }} 
-                    className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 transition-colors shadow-lg"
+                    className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-blue-700 transition-colors text-sm"
                   >
-                    <CreditCard size={20} />
+                    <CreditCard size={16} />
                     Top Up
                   </button>
                 </div>
               </div>
               <button 
                 onClick={() => setShowDeliveryPlan(true)}
-                className="mt-3 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-opacity-30 transition-colors border border-white border-opacity-30"
+                className="mt-3 w-full bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors border border-blue-100"
               >
                 📅 Delivery Plan (Weekly / Monthly)
               </button>
@@ -5222,7 +5223,7 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">Create Delivery ⚡</h3>
@@ -5562,7 +5563,8 @@ Please be punctual and update once completed. Thanks!`;
 
                   {/* Suggested Pricing Breakdown */}
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-xs font-semibold text-blue-800 mb-2">💡 Suggested Pricing</p>
+                    <p className="text-xs font-semibold text-blue-800 mb-1">🏷️ Recommended Price <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs ml-1">Fast match</span></p>
+                    <p className="text-xs text-gray-500 mb-2">Most jobs get accepted in 5–10 mins</p>
                     <div className="text-xs text-gray-700 space-y-1">
                       <div className="flex justify-between">
                         <span>Base fee</span>
@@ -5606,17 +5608,20 @@ Please be punctual and update once completed. Thanks!`;
                     )}
                   </div>
                   
-                  <input 
-                    type="number" 
-                    value={jobForm.price} 
-                    onChange={(e) => setJobForm({...jobForm, price: e.target.value})} 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500" 
-                    min="3" 
-                    step="0.5"
-                    placeholder="10.00"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Minimum: $3.00. You may adjust the price above or below the suggestion.
+                  <div className="flex items-center justify-center gap-4 py-3">
+                    <button type="button" onClick={() => { const p = Math.max(3, (parseFloat(jobForm.price) || 3) - 1); setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100 transition-colors">−</button>
+                    <input 
+                      type="number" 
+                      value={jobForm.price} 
+                      onChange={(e) => setJobForm({...jobForm, price: e.target.value})} 
+                      className="w-32 text-center text-3xl font-bold border-0 focus:ring-0 bg-transparent" 
+                      min="3" 
+                      step="0.5"
+                    />
+                    <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 3) + 1; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100 transition-colors">+</button>
+                  </div>
+                  <p className="text-xs text-gray-400 text-center">
+                    💡 You can adjust the price if needed
                   </p>
                 </div>
                 
@@ -5696,23 +5701,24 @@ Please be punctual and update once completed. Thanks!`;
                 <button 
                   onClick={createJob} 
                   disabled={isSubmittingJob}
-                  className={`w-full py-4 rounded-lg font-semibold text-lg transition-colors ${
+                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
                     isSubmittingJob 
                       ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg'
                   }`}
                 >
-                  {isSubmittingJob ? '⏳ Submitting...' : (
-                    <>Post Job - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
+                  {isSubmittingJob ? '⏳ Finding driver...' : (
+                    <>Get Driver Now ⚡ - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
                     {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}</>
                   )}
                 </button>
+                <p className="text-xs text-gray-500 text-center mt-2">Most jobs matched in 5–10 mins</p>
                 
-                {/* Bulk Import Option */}
+                {/* More Options */}
                 <div className="mt-4 pt-4 border-t">
                   <button
                     onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100 border border-gray-200 text-sm"
                   >
                     <Upload size={18} />
                     {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV/Excel)'}
@@ -5853,9 +5859,9 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold">My Delivery Jobs</h3>
+                <h3 className="text-xl font-bold text-gray-900">My Deliveries</h3>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowOrderHistory(!showOrderHistory)}
@@ -6242,6 +6248,32 @@ Please be punctual and update once completed. Thanks!`;
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Trust Indicators */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <div className="grid grid-cols-4 gap-3 text-center">
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center"><Clock size={16} className="text-blue-600" /></div>
+                  <p className="text-xs font-semibold text-gray-800">Save Time</p>
+                  <p className="text-xs text-gray-400">Deliver in minutes</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-9 h-9 bg-green-50 rounded-full flex items-center justify-center"><CheckCircle size={16} className="text-green-600" /></div>
+                  <p className="text-xs font-semibold text-gray-800">Best Matches</p>
+                  <p className="text-xs text-gray-400">Smart matching</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-9 h-9 bg-purple-50 rounded-full flex items-center justify-center"><MapPin size={16} className="text-purple-600" /></div>
+                  <p className="text-xs font-semibold text-gray-800">Live Tracking</p>
+                  <p className="text-xs text-gray-400">Track in real-time</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-9 h-9 bg-orange-50 rounded-full flex items-center justify-center"><Send size={16} className="text-orange-600" /></div>
+                  <p className="text-xs font-semibold text-gray-800">24/7 Support</p>
+                  <p className="text-xs text-gray-400">We are here to help</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
