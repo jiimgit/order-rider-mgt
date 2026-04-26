@@ -4876,8 +4876,8 @@ Please be punctual and update once completed. Thanks!`;
   }
 
   return (
-    <div className={`min-h-screen ${auth.type === 'admin' ? 'bg-gray-100' : 'bg-gradient-to-b from-slate-50 to-white'}`}>
-      <nav className={`${auth.type === 'admin' ? 'bg-white shadow-md' : 'bg-white shadow-sm border-b border-gray-100'}`}>
+    <div className="min-h-screen bg-gray-100">
+      <nav className="bg-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">
@@ -5245,19 +5245,18 @@ Please be punctual and update once completed. Thanks!`;
                   <textarea value={aiInput} onChange={(e) => setAiInput(e.target.value)} className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm bg-white" rows={3} placeholder='e.g. "Bedok 460456 to Jurong 600123, small parcel, today 2pm"' />
                   <p className="text-xs text-gray-400 text-right mt-1">{aiInput.length} / 1500</p>
                   <div className="flex gap-2 mt-2">
-                    <button onClick={analyzeWithAI} disabled={aiAnalyzing || aiInput.trim().length < 20} className={`flex-1 py-2 rounded-lg font-semibold text-sm ${aiAnalyzing || aiInput.trim().length < 20 ? 'bg-gray-200 text-gray-400' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>{aiAnalyzing ? '🔄 Analyzing...' : '🤖 Analyze'}</button>
+                    <button onClick={analyzeWithAI} disabled={aiAnalyzing || aiInput.trim().length < 20} className={`flex-1 py-2 rounded-lg font-semibold text-sm ${aiAnalyzing || aiInput.trim().length < 20 ? 'bg-gray-200 text-gray-400' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>{aiAnalyzing ? 'Analyzing...' : 'Analyze'}</button>
                     <button onClick={() => { setAiInput(''); setAiResult(null); }} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Clear</button>
                   </div>
                   {aiResult && (
                     <div className="mt-3 p-3 bg-white rounded-lg border border-green-200">
-                      <p className="font-semibold text-green-800 text-sm mb-2">✅ AI Result</p>
+                      <p className="font-semibold text-green-800 text-sm mb-2">AI Result</p>
                       <div className="space-y-1 text-xs">
                         <div className="p-1.5 bg-orange-50 rounded"><span className="text-orange-600 font-medium">Pickup:</span> {aiResult.pickup}</div>
                         {aiResult.stops?.map((stop: any, idx: number) => (<div key={idx} className="p-1.5 bg-green-50 rounded"><span className="text-green-600 font-medium">Drop-off {idx+1}:</span> {stop.address}</div>))}
                         <div className="p-1.5 bg-blue-50 rounded"><span className="text-blue-600 font-medium">Parcel:</span> <span className="capitalize">{aiResult.parcelSize}</span></div>
                         {aiResult.remarks && <div className="p-1.5 bg-yellow-50 rounded"><span className="text-yellow-600 font-medium">Remarks:</span> {aiResult.remarks}</div>}
                       </div>
-                      <p className="text-xs text-gray-400 mt-2">💡 Price calculated from distance after filling form</p>
                       <div className="flex gap-2 mt-2">
                         <button onClick={applyAiResult} className="flex-1 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm">Use Details</button>
                         <button onClick={() => setAiResult(null)} className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Manual</button>
@@ -5517,7 +5516,7 @@ Please be punctual and update once completed. Thanks!`;
                   <h4 className="font-bold text-gray-900">Delivery Details</h4>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Delivery Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date <span className="text-red-500">*</span></label>
                   <input 
@@ -5546,13 +5545,18 @@ Please be punctual and update once completed. Thanks!`;
                     ))}
                   </select>
                 </div>
-                </div>
 
-                {/* Step 3: Price */}
-                <div className="flex items-center gap-2 mb-4 mt-6">
-                  <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
-                  <h4 className="font-bold text-gray-900">Price</h4>
-                </div>
+                {/* Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Delivery Fee
+                  </label>
+                  
+                  {/* Step 3: Price */}
+                  <div className="flex items-center gap-2 mb-4 mt-6">
+                    <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                    <h4 className="font-bold text-gray-900">Price</h4>
+                  </div>
 
                   {/* Suggested Pricing Breakdown */}
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -5696,7 +5700,7 @@ Please be punctual and update once completed. Thanks!`;
                       : 'bg-blue-600 text-white hover:bg-blue-700'
                   }`}
                 >
-                  {isSubmittingJob ? '⏳ Finding driver...' : (
+                  {isSubmittingJob ? '⏳ Submitting...' : (
                     <>Post Job - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
                     {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}</>
                   )}
@@ -5819,17 +5823,17 @@ Please be punctual and update once completed. Thanks!`;
 
             {/* Dynamic Pricing Boost Prompts */}
             {boostStage >= 1 && (
-              <div className={`rounded-2xl shadow-sm border p-4 ${boostStage >= 2 ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'}`}>
+              <div className={`rounded-lg shadow p-4 ${boostStage >= 2 ? 'bg-red-50 border border-red-200' : 'bg-orange-50 border border-orange-200'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`text-lg ${boostStage >= 2 ? '' : ''}`}>{boostStage >= 2 ? '🔥' : '⚡'}</span>
+                  <span className="text-lg">{boostStage >= 2 ? '🔥' : '⚡'}</span>
                   <p className={`font-bold text-sm ${boostStage >= 2 ? 'text-red-700' : 'text-orange-700'}`}>
                     {boostStage >= 2 ? 'High demand now' : 'No driver accepted yet'}
                   </p>
                 </div>
                 <p className="text-xs text-gray-600 mb-3">
                   {boostStage >= 2 
-                    ? 'Increase price to improve matching speed and get matched sooner'
-                    : 'Boost +$2 for faster match — get matched in 2–5 mins'}
+                    ? 'Increase price to improve matching speed'
+                    : 'Boost +$2 for faster match'}
                 </p>
                 <button
                   onClick={async () => {
@@ -5842,20 +5846,20 @@ Please be punctual and update once completed. Thanks!`;
                     setBoostStage(0);
                     setJobPostTime(null);
                     await loadData();
-                    alert(`⚡ Price boosted by $${boostAmt}! Your order has been re-pushed to drivers.`);
+                    alert(`Price boosted by $${boostAmt}!`);
                   }}
-                  className={`w-full py-2.5 rounded-xl font-semibold text-sm text-white transition-colors ${
+                  className={`w-full py-2.5 rounded-lg font-semibold text-sm text-white ${
                     boostStage >= 2 ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600'
                   }`}
                 >
-                  {boostStage >= 2 ? `Increase Price +$4` : `Boost Price +$2`}
+                  {boostStage >= 2 ? 'Increase Price +$4' : 'Boost Price +$2'}
                 </button>
               </div>
             )}
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-lg shadow-lg p-6">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-gray-900">My Deliveries</h3>
+                <h3 className="text-2xl font-bold">My Delivery Jobs</h3>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowOrderHistory(!showOrderHistory)}
@@ -6242,32 +6246,6 @@ Please be punctual and update once completed. Thanks!`;
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Features Strip */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-              <div className="grid grid-cols-4 gap-3 text-center">
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center"><Clock size={16} className="text-blue-600" /></div>
-                  <p className="text-xs font-semibold text-gray-800">Save Time</p>
-                  <p className="text-xs text-gray-400">Deliver fast</p>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-9 h-9 bg-green-50 rounded-full flex items-center justify-center"><CheckCircle size={16} className="text-green-600" /></div>
-                  <p className="text-xs font-semibold text-gray-800">Best Match</p>
-                  <p className="text-xs text-gray-400">Smart drivers</p>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-9 h-9 bg-purple-50 rounded-full flex items-center justify-center"><MapPin size={16} className="text-purple-600" /></div>
-                  <p className="text-xs font-semibold text-gray-800">Live Track</p>
-                  <p className="text-xs text-gray-400">Real-time</p>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-9 h-9 bg-orange-50 rounded-full flex items-center justify-center"><Send size={16} className="text-orange-600" /></div>
-                  <p className="text-xs font-semibold text-gray-800">24/7</p>
-                  <p className="text-xs text-gray-400">Support</p>
-                </div>
-              </div>
             </div>
           </div>
         )}
