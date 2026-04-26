@@ -2225,10 +2225,12 @@ const DeliveryPlatform = () => {
       const result = await calculateJobDistances(jobForm.pickup, jobForm.stops.filter((s: any) => s.address));
       if (result) {
         setFormDistance(result.totalDistance);
-        // Always update price to match formula when distance changes
-        const drops = jobForm.stops.filter((s: any) => s.address).length || 1;
-        const formulaPrice = 3 + (result.totalDistance * 0.95) + (drops * 2.50);
-        setJobForm(prev => ({...prev, price: formulaPrice.toFixed(2)}));
+        // Auto-update price only when distance is valid (> 0)
+        if (result.totalDistance > 0) {
+          const drops = jobForm.stops.filter((s: any) => s.address).length || 1;
+          const formulaPrice = 3 + (result.totalDistance * 0.95) + (drops * 2.50);
+          setJobForm(prev => ({...prev, price: formulaPrice.toFixed(2)}));
+        }
       }
     };
     const timer = setTimeout(calcFormDist, 1000);
@@ -5356,6 +5358,9 @@ Please be punctual and update once completed. Thanks!`;
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                         placeholder="Enter postal code (e.g., 238858) or full address" 
                       />
+                      {!extractPostalCode(jobForm.pickup) && jobForm.pickup.length > 0 && (
+                        <p className="text-xs text-orange-600 mt-1">⚠️ Please include a 6-digit postal code for accurate pricing</p>
+                      )}
                       <div className="mt-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Unit No <span className="text-red-500">*</span>
@@ -5509,6 +5514,9 @@ Please be punctual and update once completed. Thanks!`;
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                           placeholder="Enter postal code or full address" 
                         />
+                        {!extractPostalCode(stop.address) && stop.address.length > 0 && (
+                          <p className="text-xs text-orange-600 mt-1">⚠️ Please include a 6-digit postal code for accurate pricing</p>
+                        )}
                         <div className="mt-2">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Unit No <span className="text-red-500">*</span>
@@ -5614,10 +5622,10 @@ Please be punctual and update once completed. Thanks!`;
                         <span>Base Fee</span>
                         <span className="font-medium">$3.00</span>
                       </div>
-                      {formDistance !== null ? (
+                      {formDistance !== null && formDistance > 0 ? (
                         <>
                           <div className="flex justify-between">
-                            <span>Delivery Fee ({formDistance} km, {jobForm.stops.filter((s: any) => s.address).length || 1} drop-off{(jobForm.stops.filter((s: any) => s.address).length || 1) > 1 ? 's' : ''})</span>
+                            <span>Delivery Fee</span>
                             <span className="font-medium">${((formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
@@ -5637,7 +5645,7 @@ Please be punctual and update once completed. Thanks!`;
                         </>
                       )}
                     </div>
-                    {formDistance !== null && (
+                    {formDistance !== null && formDistance > 0 && (
                       <button
                         type="button"
                         onClick={() => {
