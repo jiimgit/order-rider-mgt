@@ -4866,15 +4866,15 @@ Please be punctual and update once completed. Thanks!`;
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-md">
+    <div className={`min-h-screen ${auth.type === 'admin' ? 'bg-gray-100' : 'bg-gradient-to-b from-blue-50 via-white to-blue-50'}`}>
+      <nav className={`${auth.type === 'admin' ? 'bg-white shadow-md' : 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg'}`}>
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className={`text-2xl font-bold ${auth.type === 'admin' ? '' : 'text-white'}`}>
               {auth.type === 'admin' ? 'Admin Dashboard' : auth.type === 'customer' ? 'Customer Portal' : 'Rider Portal'}
             </h1>
             {curr && (
-              <p className="text-sm text-gray-600">
+              <p className={`text-sm ${auth.type === 'admin' ? 'text-gray-600' : 'text-blue-100'}`}>
                 {curr.name}
                 {auth.type === 'customer' && ` | Credits: $${(curr.credits || 0).toFixed(2)}`}
                 {auth.type === 'rider' && ` | Tier ${curr.tier} | Earnings: $${(curr.earnings || 0).toFixed(2)}`}
@@ -4953,7 +4953,7 @@ Please be punctual and update once completed. Thanks!`;
                 setCurrentRiderView('home'); // Reset rider view
                 setRiderViewHistory(['home']);
               }} 
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${auth.type === 'admin' ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-white bg-opacity-20 text-white hover:bg-opacity-30 border border-white border-opacity-30'}`}
             >
               <LogOut size={16} />
               Logout
@@ -4988,37 +4988,40 @@ Please be punctual and update once completed. Thanks!`;
         )}
         
         {auth.type === 'customer' && curr && (
-          <div className="space-y-6">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-6 text-white">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-blue-100 text-sm">Available Credits</p>
-                  <p className="text-5xl font-bold">${(curr.credits || 0).toFixed(2)}</p>
+          <div className="space-y-5">
+            {/* Credits & Quick Actions Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-5">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Available Credits</p>
+                    <p className="text-4xl font-bold text-gray-900 mt-1">${(curr.credits || 0).toFixed(2)}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <a 
+                      href="https://wa.me/6580201980" 
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-green-500 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-green-600 transition-colors text-sm shadow-sm"
+                    >
+                      💬 Contact Us
+                    </a>
+                    <button 
+                      onClick={() => { setShowTopUp(true); setTncAccepted(false); }} 
+                      className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-blue-700 transition-colors text-sm shadow-sm"
+                    >
+                      <CreditCard size={16} />
+                      Top Up
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <a 
-                    href="https://wa.me/6580201980" 
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-green-500 text-white px-4 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-green-600 transition-colors shadow-lg"
-                  >
-                    💬 Contact Us
-                  </a>
-                  <button 
-                    onClick={() => { setShowTopUp(true); setTncAccepted(false); }} 
-                    className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 transition-colors shadow-lg"
-                  >
-                    <CreditCard size={20} />
-                    Top Up
-                  </button>
-                </div>
+                <button 
+                  onClick={() => setShowDeliveryPlan(true)}
+                  className="mt-4 w-full bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors border border-blue-200"
+                >
+                  📅 Delivery Plan (Weekly / Monthly)
+                </button>
               </div>
-              <button 
-                onClick={() => setShowDeliveryPlan(true)}
-                className="mt-3 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-opacity-30 transition-colors border border-white border-opacity-30"
-              >
-                📅 Delivery Plan (Weekly / Monthly)
-              </button>
             </div>
 
             {showTopUp && (
@@ -5212,8 +5215,9 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h3 className="text-2xl font-bold mb-6">Post New Delivery Job</h3>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-1">Create Delivery</h3>
+              <p className="text-sm text-gray-500 mb-6">Fast. Simple. Done. ⚡</p>
               
               {/* AI Delivery Instructions */}
               <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
@@ -5877,26 +5881,26 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold">My Delivery Jobs</h3>
+                <h3 className="text-xl font-bold text-gray-900">My Deliveries</h3>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowOrderHistory(!showOrderHistory)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                      showOrderHistory ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                      showOrderHistory ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
                     }`}
                   >
-                    <FileText size={18} />
+                    <FileText size={16} />
                     {showOrderHistory ? 'Hide History' : 'Order History'}
                   </button>
                   <button
                     onClick={() => setShowCustomerProfile(!showCustomerProfile)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-                      showCustomerProfile ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                      showCustomerProfile ? 'bg-gray-600 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
                     }`}
                   >
-                    <User size={18} />
+                    <User size={16} />
                     {showCustomerProfile ? 'Hide Profile' : 'My Profile'}
                   </button>
                 </div>
@@ -6267,13 +6271,47 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
             </div>
+
+            {/* Features Strip */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <div className="grid grid-cols-4 gap-3 text-center">
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
+                    <Clock size={18} className="text-blue-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-gray-800">Save Time</p>
+                  <p className="text-xs text-gray-500">Deliver fast</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
+                    <CheckCircle size={18} className="text-green-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-gray-800">Best Match</p>
+                  <p className="text-xs text-gray-500">Smart drivers</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center">
+                    <MapPin size={18} className="text-purple-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-gray-800">Live Track</p>
+                  <p className="text-xs text-gray-500">Real-time</p>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center">
+                    <Send size={18} className="text-orange-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-gray-800">24/7</p>
+                  <p className="text-xs text-gray-500">Support</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
         {auth.type === 'rider' && curr && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Online/Offline Status Bar */}
-            <div className={`p-4 rounded-lg ${riderIsOnline ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
+            <div className={`p-4 rounded-2xl shadow-sm border ${riderIsOnline ? 'bg-white border-green-200' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className={`w-4 h-4 rounded-full ${riderIsOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
@@ -6290,7 +6328,7 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
                 <button
                   onClick={riderIsOnline ? riderGoOffline : riderGoOnline}
-                  className={`px-6 py-3 rounded-lg font-bold text-white transition-colors ${
+                  className={`px-6 py-3 rounded-xl font-bold text-white transition-all shadow-sm ${
                     riderIsOnline 
                       ? 'bg-red-500 hover:bg-red-600' 
                       : 'bg-green-500 hover:bg-green-600'
@@ -6430,29 +6468,29 @@ Please be punctual and update once completed. Thanks!`;
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setShowRiderProfile(!showRiderProfile)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                  showRiderProfile ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-300'
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
+                  showRiderProfile ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-200 shadow-sm hover:bg-purple-50'
                 }`}
               >
-                <User size={18} />
+                <User size={16} />
                 My Profile
               </button>
               <button
                 onClick={() => setShowDeliveryHistory(!showDeliveryHistory)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                  showDeliveryHistory ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
+                  showDeliveryHistory ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-200 shadow-sm hover:bg-blue-50'
                 }`}
               >
-                <FileText size={18} />
+                <FileText size={16} />
                 Delivery History
               </button>
               <button
                 onClick={() => setShowRiderPerformance(!showRiderPerformance)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                  showRiderPerformance ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300'
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
+                  showRiderPerformance ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-200 shadow-sm hover:bg-green-50'
                 }`}
               >
-                <BarChart3 size={18} />
+                <BarChart3 size={16} />
                 My Performance
               </button>
               {getActiveJobsForRider.length > 1 && (
@@ -6794,30 +6832,29 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             {/* Rider Stats Header */}
-            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-green-100 text-sm">Total Earnings</p>
-                  <p className="text-5xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-green-50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-green-600 uppercase tracking-wide">Total Earnings</p>
+                  <p className="text-3xl font-bold text-green-700 mt-1">${(curr.earnings || 0).toFixed(2)}</p>
                 </div>
-                <div>
-                  <p className="text-green-100 text-sm">Completed Jobs</p>
-                  <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
+                <div className="bg-blue-50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Completed Jobs</p>
+                  <p className="text-3xl font-bold text-blue-700 mt-1">{curr.completed_jobs || 0}</p>
                 </div>
               </div>
               
-              {/* Multi-job indicator - Feature 5 */}
               {getActiveJobsForRider.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-green-400">
-                  <p className="text-green-100 text-sm">Active Jobs</p>
-                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
+                <div className="mt-4 bg-orange-50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-orange-600 uppercase tracking-wide">Active Jobs</p>
+                  <p className="text-xl font-bold text-orange-700 mt-1">{getActiveJobsForRider.length} job(s) in progress</p>
                 </div>
               )}
               
-              <div className="mt-4 pt-4 border-t border-green-400">
-                <p className="text-green-100 text-sm">Your Referral Code</p>
-                <p className="text-2xl font-bold">{curr.referral_code}</p>
-                <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
+              <div className="mt-4 bg-purple-50 rounded-xl p-4">
+                <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">Your Referral Code</p>
+                <p className="text-xl font-bold text-purple-700 mt-1">{curr.referral_code}</p>
+                <p className="text-xs text-purple-500 mt-1">Share this code to grow your team!</p>
               </div>
             </div>
 
@@ -7668,8 +7705,8 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             {/* Available Jobs - Only show when rider is online */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Available Jobs</h3>
               
               {!riderIsOnline ? (
                 <div className="text-center py-12">
