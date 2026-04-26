@@ -6348,6 +6348,9 @@ Please be punctual and update once completed. Thanks!`;
                   ⚠️ GPS must be enabled to go online and accept jobs
                 </p>
               )}
+              {riderIsOnline && (
+                <p className="text-xs text-green-600 mt-2">⚡ Stay online to get more jobs and higher priority</p>
+              )}
               
               {/* Auto-Accept Toggle */}
               {riderIsOnline && (
@@ -6838,46 +6841,49 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             {/* Rider Stats Header */}
-            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-green-100 text-sm">Total Earnings</p>
-                  <p className="text-5xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-green-50 rounded-xl p-3 text-center">
+                  <p className="text-xs font-medium text-green-600 uppercase">Total Earnings</p>
+                  <p className="text-2xl font-bold text-green-700">${(curr.earnings || 0).toFixed(2)}</p>
+                  <p className="text-xs text-green-500">{curr.completed_jobs || 0} Jobs</p>
                 </div>
-                <div>
-                  <p className="text-green-100 text-sm">Completed Jobs</p>
-                  <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
+                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                  <p className="text-xs font-medium text-blue-600 uppercase">Weekly Target</p>
+                  <p className="text-2xl font-bold text-blue-700">${(curr.earnings || 0).toFixed(0)}<span className="text-sm font-normal text-blue-400">/${bonusConfig.earningsTarget}</span></p>
+                  <div className="w-full bg-blue-200 rounded-full h-1.5 mt-1">
+                    <div className="bg-blue-600 h-1.5 rounded-full" style={{width: `${Math.min(100, ((curr.earnings || 0) / bonusConfig.earningsTarget) * 100)}%`}}></div>
+                  </div>
+                </div>
+                <div className="bg-purple-50 rounded-xl p-3 text-center">
+                  <p className="text-xs font-medium text-purple-600 uppercase">Status</p>
+                  {(curr.earnings || 0) >= bonusConfig.earningsTarget ? (
+                    <p className="text-sm font-bold text-green-600 mt-1">🎉 Bonus unlocked!</p>
+                  ) : (
+                    <p className="text-sm font-semibold text-purple-700 mt-1">Keep going!</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-0.5">{(curr.earnings || 0) >= bonusConfig.earningsTarget ? `+$${bonusConfig.earningsBonus} bonus` : `$${(bonusConfig.earningsTarget - (curr.earnings || 0)).toFixed(0)} to go`}</p>
                 </div>
               </div>
               
-              {/* Multi-job indicator - Feature 5 */}
               {getActiveJobsForRider.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-green-400">
-                  <p className="text-green-100 text-sm">Active Jobs</p>
-                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
+                <div className="mt-4 bg-yellow-50 rounded-xl p-3 flex justify-between items-center">
+                  <div>
+                    <p className="text-xs font-medium text-yellow-600 uppercase">Active Jobs</p>
+                    <p className="text-lg font-bold text-yellow-700">{getActiveJobsForRider.length} in progress</p>
+                  </div>
+                  <Package size={24} className="text-yellow-400" />
                 </div>
               )}
               
-              {/* Weekly Bonus Target */}
-              <div className="mt-4 bg-blue-50 rounded-xl p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Weekly Target</p>
-                  <p className="text-sm font-bold text-blue-700">${(curr.earnings || 0).toFixed(0)} / ${bonusConfig.earningsTarget}</p>
+              <div className="mt-4 bg-orange-50 rounded-xl p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-xs font-medium text-orange-600 uppercase">Referral Code</p>
+                    <p className="text-lg font-bold text-orange-700">{curr.referral_code}</p>
+                  </div>
+                  <p className="text-xs text-orange-500">Share to grow your team!</p>
                 </div>
-                <div className="w-full bg-blue-200 rounded-full h-2.5">
-                  <div className="bg-blue-600 h-2.5 rounded-full transition-all" style={{width: `${Math.min(100, ((curr.earnings || 0) / bonusConfig.earningsTarget) * 100)}%`}}></div>
-                </div>
-                {(curr.earnings || 0) >= bonusConfig.earningsTarget ? (
-                  <p className="text-xs text-green-600 font-semibold mt-1">🎉 Bonus unlocked! +${bonusConfig.earningsBonus}</p>
-                ) : (
-                  <p className="text-xs text-blue-500 mt-1">Only ${(bonusConfig.earningsTarget - (curr.earnings || 0)).toFixed(0)} more to hit bonus!</p>
-                )}
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-green-400">
-                <p className="text-green-100 text-sm">Your Referral Code</p>
-                <p className="text-2xl font-bold">{curr.referral_code}</p>
-                <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
               </div>
             </div>
 
@@ -7795,6 +7801,9 @@ Please be punctual and update once completed. Thanks!`;
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
+                      {filteredAvailableJobs.length > 0 && (
+                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">🔥 High demand now</span>
+                      )}
                       {selectedJobsForAccept.length > 0 && (
                         <span className="text-sm font-medium text-green-600">
                           {selectedJobsForAccept.length} selected
@@ -7854,10 +7863,22 @@ Please be punctual and update once completed. Thanks!`;
                               {renderJobDetailCard(job, false)}
                             </div>
                             
-                            {/* Earnings */}
+                            {/* Earnings & Value */}
                             <div className="text-right">
-                              <p className="text-xs text-gray-500">Earn:</p>
                               <p className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                              {job.distance_km && job.distance_km > 0 && (
+                                <p className="text-xs text-gray-500">{job.distance_km} km</p>
+                              )}
+                              {job.distance_km && job.distance_km > 0 && (
+                                <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold ${
+                                  (comm.activeRider / job.distance_km) >= 2 ? 'bg-green-100 text-green-700' :
+                                  (comm.activeRider / job.distance_km) >= 1.2 ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {(comm.activeRider / job.distance_km) >= 2 ? 'High earning' :
+                                   (comm.activeRider / job.distance_km) >= 1.2 ? 'Good deal' : 'Low value'}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -8215,6 +8236,36 @@ Please be punctual and update once completed. Thanks!`;
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Bonus Configuration */}
+            {adminView === 'riders' && (
+              <div className="bg-white rounded-lg shadow p-6 mt-6">
+                <h4 className="text-lg font-bold mb-4">🎯 Bonus Configuration</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm font-semibold text-blue-800 mb-2">Earnings Target</p>
+                    <div className="flex gap-2 items-center">
+                      <span className="text-sm text-gray-600">Earn $</span>
+                      <input type="number" value={bonusConfig.earningsTarget} onChange={(e) => setBonusConfig({...bonusConfig, earningsTarget: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded text-sm" />
+                      <span className="text-sm text-gray-600">→ +$</span>
+                      <input type="number" value={bonusConfig.earningsBonus} onChange={(e) => setBonusConfig({...bonusConfig, earningsBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
+                      <span className="text-sm text-gray-600">bonus</span>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <p className="text-sm font-semibold text-green-800 mb-2">Orders Target</p>
+                    <div className="flex gap-2 items-center">
+                      <span className="text-sm text-gray-600">Complete</span>
+                      <input type="number" value={bonusConfig.ordersTarget} onChange={(e) => setBonusConfig({...bonusConfig, ordersTarget: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
+                      <span className="text-sm text-gray-600">orders → +$</span>
+                      <input type="number" value={bonusConfig.ordersBonus} onChange={(e) => setBonusConfig({...bonusConfig, ordersBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
+                      <span className="text-sm text-gray-600">bonus</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-3">These targets are displayed to riders on their portal.</p>
               </div>
             )}
 
