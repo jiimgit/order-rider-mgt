@@ -5024,12 +5024,6 @@ Please be punctual and update once completed. Thanks!`;
                   </button>
                 </div>
               </div>
-              <button 
-                onClick={() => setShowDeliveryPlan(true)}
-                className="mt-3 w-full bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors border border-blue-100"
-              >
-                📅 Delivery Plan (Weekly / Monthly)
-              </button>
             </div>
 
             {showTopUp && (
@@ -5270,7 +5264,7 @@ Please be punctual and update once completed. Thanks!`;
               {/* Step 1: Pickup & Drop-off */}
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
-                <h4 className="font-bold text-gray-900">Pickup & Drop-off</h4>
+                <h4 className="font-bold text-gray-900">Where are we picking up?</h4>
               </div>
 
               <div className="space-y-4">
@@ -5349,47 +5343,18 @@ Please be punctual and update once completed. Thanks!`;
                         </label>
                       </div>
 
-                      {/* Contact fields - show when not using profile */}
-                      {!useMyProfile && (
-                        <div className="mt-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Details</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input 
-                              type="text" 
-                              value={jobForm.pickupContact} 
-                              onChange={(e) => setJobForm({...jobForm, pickupContact: e.target.value})} 
-                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
-                              placeholder="Contact name" 
-                            />
-                            <input 
-                              type="tel" 
-                              value={jobForm.pickupPhone} 
-                              onChange={(e) => setJobForm({...jobForm, pickupPhone: e.target.value})} 
-                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
-                              placeholder="Phone number" 
-                            />
-                          </div>
+                      {/* Use profile contact checkbox */}
+                      <div className="mt-2 flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                        <input type="checkbox" checked={useMyProfile} onChange={(e) => setUseMyProfile(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-700">Use my profile contact</p>
+                          {useMyProfile && <p className="text-xs text-gray-500 truncate">{curr?.name} · {curr?.phone}</p>}
                         </div>
-                      )}
-                      
-                      {/* Show filled values when using profile */}
-                      {useMyProfile && (
-                        <div className="mt-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Details (Auto-filled)</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input 
-                              type="text" 
-                              value={curr?.name || ''} 
-                              disabled
-                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
-                            />
-                            <input 
-                              type="tel" 
-                              value={curr?.phone || ''} 
-                              disabled
-                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
-                            />
-                          </div>
+                      </div>
+                      {!useMyProfile && (
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <input type="text" value={jobForm.pickupContact} onChange={(e) => setJobForm({...jobForm, pickupContact: e.target.value})} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Contact name" />
+                          <input type="tel" value={jobForm.pickupPhone} onChange={(e) => setJobForm({...jobForm, pickupPhone: e.target.value})} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Phone number" />
                         </div>
                       )}
                     </div>
@@ -5516,7 +5481,7 @@ Please be punctual and update once completed. Thanks!`;
                 {/* Step 2: Delivery Details */}
                 <div className="flex items-center gap-2 mb-4 mt-6">
                   <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                  <h4 className="font-bold text-gray-900">Delivery Details</h4>
+                  <h4 className="font-bold text-gray-900">When should we deliver?</h4>
                 </div>
 
                 {/* Delivery Date */}
@@ -5555,45 +5520,68 @@ Please be punctual and update once completed. Thanks!`;
                     Delivery Fee
                   </label>
                   
-                  {/* Step 3: Price */}
+                                  {/* Step 3: What are we delivering? */}
+                <div className="flex items-center gap-2 mb-4 mt-6">
+                  <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                  <h4 className="font-bold text-gray-900">What are we delivering?</h4>
+                </div>
+
+                {/* Parcel Size */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
+                  <select 
+                    value={jobForm.parcelSize} 
+                    onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
+                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
+                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
+                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
+                  </select>
+                </div>
+
+                {/* Step 4: Price */}
                   <div className="flex items-center gap-2 mb-4 mt-4">
-                    <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                    <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
                     <h4 className="font-bold text-gray-900">Price</h4>
                   </div>
 
-                  {/* Suggested Pricing Breakdown */}
-                  <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-xs font-semibold text-blue-800 mb-1">🏷️ Recommended Price <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs ml-1">Fast match</span></p>
-                    <p className="text-xs text-gray-500 mb-2">Most jobs get accepted in 5–10 mins</p>
-                    <div className="text-xs text-gray-700 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Base fee</span>
-                        <span className="font-medium">$3.00</span>
+                  {/* Pricing Display */}
+                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-semibold">Recommended</span>
+                        <p className="text-3xl font-bold text-gray-900 mt-1">${formDistance !== null && formDistance > 0 ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2) : jobForm.price || '10.00'}</p>
+                        <p className="text-xs text-gray-500 mt-1">Most jobs matched in 5–10 mins</p>
                       </div>
-                      {formDistance !== null && (
-                        <div className="flex justify-between">
-                          <span>Delivery Fee</span>
-                          <span className="font-medium">${(formDistance * 0.95).toFixed(2)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span>Drop-off surcharge</span>
-                        <span className="font-medium">${((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
-                        <span>Suggested Price</span>
-                        <span>
-                          ${formDistance !== null 
-                            ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
-                            : (3 + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
-                          }
-                        </span>
-                      </div>
-                      {formDistance === null && (
-                        <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentPrice = parseFloat(jobForm.price) || 10;
+                          setJobForm({...jobForm, price: (currentPrice + 2).toFixed(2)});
+                        }}
+                        className="px-4 py-3 border-2 border-blue-200 rounded-xl text-center hover:bg-blue-100 transition-colors"
+                      >
+                        <p className="text-blue-700 font-bold text-sm">⚡ Boost +$2.00</p>
+                        <p className="text-xs text-gray-500">Faster match (2–5 mins)</p>
+                      </button>
                     </div>
-                    {formDistance !== null && (
+                    
+                    {formDistance !== null && formDistance > 0 && (
+                      <details className="mt-3">
+                        <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">View price breakdown</summary>
+                        <div className="mt-2 text-xs text-gray-600 space-y-1">
+                          <div className="flex justify-between"><span>Base Fee</span><span>$3.00</span></div>
+                          <div className="flex justify-between"><span>Delivery Fee</span><span>${((formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span></div>
+                          <div className="flex justify-between font-semibold border-t pt-1"><span>Total</span><span>${(3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span></div>
+                        </div>
+                      </details>
+                    )}
+                    {(formDistance === null || formDistance === 0) && (
+                      <p className="text-xs text-gray-400 mt-2">Enter postal codes to calculate distance-based pricing</p>
+                    )}
+                    {formDistance !== null && formDistance > 0 && (
                       <button
                         type="button"
                         onClick={() => {
@@ -5601,9 +5589,9 @@ Please be punctual and update once completed. Thanks!`;
                           const suggested = 3 + (formDistance * 0.95) + (drops * 2.50);
                           setJobForm({...jobForm, price: suggested.toFixed(2)});
                         }}
-                        className="mt-2 w-full py-1.5 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700"
+                        className="mt-2 w-full py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700"
                       >
-                        Use Suggested Price
+                        Use Recommended Price
                       </button>
                     )}
                   </div>
@@ -5625,21 +5613,14 @@ Please be punctual and update once completed. Thanks!`;
                   </p>
                 </div>
                 
-                {/* Parcel Size */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
-                  <select 
-                    value={jobForm.parcelSize} 
-                    onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
-                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
-                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
-                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
-                  </select>
                 </div>
                 
+                {/* More Options (collapsed) */}
+                <details className="border border-gray-200 rounded-xl">
+                  <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700 flex items-center gap-2 hover:bg-gray-50">
+                    🏷️ More options (optional)
+                  </summary>
+                  <div className="px-4 pb-4 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Remarks / Special Instructions</label>
                   <textarea 
@@ -5698,6 +5679,27 @@ Please be punctual and update once completed. Thanks!`;
                   )}
                 </div>
 
+                    {/* Delivery Plan */}
+                    <button 
+                      type="button"
+                      onClick={() => setShowDeliveryPlan(true)}
+                      className="w-full bg-blue-50 text-blue-700 px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-100 border border-blue-100"
+                    >
+                      📅 Delivery Plan (Weekly / Monthly)
+                    </button>
+
+                    {/* Bulk Import */}
+                    <button 
+                      type="button"
+                      onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)}
+                      className="w-full bg-gray-50 text-gray-700 px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-gray-100 border border-gray-200"
+                    >
+                      <Upload size={16} />
+                      {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV/Excel)'}
+                    </button>
+                  </div>
+                </details>
+
                 <button 
                   onClick={createJob} 
                   disabled={isSubmittingJob}
@@ -5708,22 +5710,14 @@ Please be punctual and update once completed. Thanks!`;
                   }`}
                 >
                   {isSubmittingJob ? '⏳ Finding driver...' : (
-                    <>Get Driver Now ⚡ - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
-                    {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}</>
+                    <div className="text-center">
+                      <div>Get Driver Now – ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price}</div>
+                      <div className="text-xs font-normal opacity-80 mt-0.5">🔒 Secure · Trusted · Fast</div>
+                    </div>
                   )}
                 </button>
-                <p className="text-xs text-gray-500 text-center mt-2">Most jobs matched in 5–10 mins</p>
                 
-                {/* More Options */}
-                <div className="mt-4 pt-4 border-t">
-                  <button
-                    onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100 border border-gray-200 text-sm"
-                  >
-                    <Upload size={18} />
-                    {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV/Excel)'}
-                  </button>
-                </div>
+                {/* More Options already placed above with Remarks/Promo/Plan */}
               </div>
               
               {/* Customer Bulk Import Section */}
