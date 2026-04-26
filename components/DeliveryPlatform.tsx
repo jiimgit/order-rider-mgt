@@ -403,6 +403,7 @@ const DeliveryPlatform = () => {
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
   const [showDeliveryPlan, setShowDeliveryPlan] = useState(false);
   const [showPasteOrder, setShowPasteOrder] = useState(false);
+  const [bonusConfig, setBonusConfig] = useState({ earningsTarget: 180, earningsBonus: 10, ordersTarget: 10, ordersBonus: 5 });
   const [jobPostTime, setJobPostTime] = useState<number | null>(null);
   const [boostStage, setBoostStage] = useState(0);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
@@ -6306,6 +6307,15 @@ Please be punctual and update once completed. Thanks!`;
 
         {auth.type === 'rider' && curr && (
           <div className="space-y-6">
+            {/* Deactivated Rider Message */}
+            {curr.status === 'deactivated' && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 text-center">
+                <XCircle size={48} className="mx-auto mb-3 text-red-400" />
+                <h3 className="text-lg font-bold text-red-700 mb-2">Account Inactive</h3>
+                <p className="text-sm text-red-600">Your account is currently inactive. Please contact support.</p>
+                <a href="https://wa.me/6580201980" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 text-sm">💬 Contact Support</a>
+              </div>
+            )}
             {/* Online/Offline Status Bar */}
             <div className={`p-4 rounded-lg ${riderIsOnline ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
               <div className="flex items-center justify-between">
@@ -6848,6 +6858,22 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
               
+              {/* Weekly Bonus Target */}
+              <div className="mt-4 bg-blue-50 rounded-xl p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Weekly Target</p>
+                  <p className="text-sm font-bold text-blue-700">${(curr.earnings || 0).toFixed(0)} / ${bonusConfig.earningsTarget}</p>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2.5">
+                  <div className="bg-blue-600 h-2.5 rounded-full transition-all" style={{width: `${Math.min(100, ((curr.earnings || 0) / bonusConfig.earningsTarget) * 100)}%`}}></div>
+                </div>
+                {(curr.earnings || 0) >= bonusConfig.earningsTarget ? (
+                  <p className="text-xs text-green-600 font-semibold mt-1">🎉 Bonus unlocked! +${bonusConfig.earningsBonus}</p>
+                ) : (
+                  <p className="text-xs text-blue-500 mt-1">Only ${(bonusConfig.earningsTarget - (curr.earnings || 0)).toFixed(0)} more to hit bonus!</p>
+                )}
+              </div>
+
               <div className="mt-4 pt-4 border-t border-green-400">
                 <p className="text-green-100 text-sm">Your Referral Code</p>
                 <p className="text-2xl font-bold">{curr.referral_code}</p>
@@ -7701,7 +7727,8 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Available Jobs - Only show when rider is online */}
+            {/* Available Jobs - Only show when rider is online and active */}
+            {curr.status !== 'deactivated' && (
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
               
@@ -7853,6 +7880,7 @@ Please be punctual and update once completed. Thanks!`;
                 </>
               )}
             </div>
+            )}
           </div>
         )}
 
@@ -8103,7 +8131,11 @@ Please be punctual and update once completed. Thanks!`;
                       <div key={r.id} className="border rounded-lg p-4 hover:border-green-300 transition-colors">
                         <div className="flex justify-between items-center">
                           <div>
-                            <p className="font-semibold text-lg">{r.name} - Tier {r.tier}</p>
+                            <p className="font-semibold text-lg">{r.name} - Tier {r.tier}
+                              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${r.status === 'deactivated' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                {r.status === 'deactivated' ? 'Inactive' : 'Active'}
+                              </span>
+                            </p>
                             <p className="text-sm text-gray-600">{r.email} | {r.phone}</p>
                             <p className="text-sm text-gray-600 mt-1">Code: <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">{r.referral_code}</span></p>
                             <p className="text-sm font-bold text-green-600 mt-1">Earnings: ${(r.earnings || 0).toFixed(2)} | Jobs: {r.completed_jobs || 0}</p>
@@ -8125,6 +8157,22 @@ Please be punctual and update once completed. Thanks!`;
                             </p>
                           </div>
                           <div className="flex gap-2">
+                            <button 
+                              onClick={async () => {
+                                const newStatus = r.status === 'deactivated' ? 'active' : 'deactivated';
+                                const reason = prompt(`Reason for ${newStatus === 'deactivated' ? 'deactivating' : 'activating'} ${r.name}:`);
+                                if (reason !== null) {
+                                  await api(`riders?id=eq.${r.id}`, 'PATCH', { status: newStatus });
+                                  await logAuditAction('rider_status_change', { riderId: r.id, riderName: r.name, newStatus, reason });
+                                  await loadData();
+                                  alert(`${r.name} is now ${newStatus === 'deactivated' ? 'INACTIVE' : 'ACTIVE'}.`);
+                                }
+                              }}
+                              className={`p-2 rounded text-xs font-semibold ${r.status === 'deactivated' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'}`}
+                              title={r.status === 'deactivated' ? 'Activate' : 'Deactivate'}
+                            >
+                              {r.status === 'deactivated' ? '✅ Activate' : '⏸️ Deactivate'}
+                            </button>
                             <button onClick={() => setEditRider({...r, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
                             <button onClick={async () => { if (window.confirm('Delete rider?')) { await api(`riders?id=eq.${r.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
                           </div>
@@ -9166,6 +9214,9 @@ Please be punctual and update once completed. Thanks!`;
                               <td className="p-3 text-center">
                                 <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
                                   Tier {rider.tier}
+                                  <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${rider.status === 'deactivated' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                    {rider.status === 'deactivated' ? 'Inactive' : 'Active'}
+                                  </span>
                                 </span>
                               </td>
                               <td className="p-3 text-center">{rider.totalJobs}</td>
@@ -9208,6 +9259,7 @@ Please be punctual and update once completed. Thanks!`;
                       <option value="accept_job">Accept Job</option>
                       <option value="complete_job">Complete Job</option>
                       <option value="edit_rider">Edit Rider</option>
+                      <option value="rider_status_change">Status Change</option>
                       <option value="edit_customer">Edit Customer</option>
                       <option value="assign_rider">Assign Rider</option>
                       <option value="flag_pod">Flag POD</option>
