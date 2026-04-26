@@ -402,6 +402,9 @@ const DeliveryPlatform = () => {
   const [formDistance, setFormDistance] = useState<number | null>(null);
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
   const [showDeliveryPlan, setShowDeliveryPlan] = useState(false);
+  const [showPasteOrder, setShowPasteOrder] = useState(false);
+  const [jobPostTime, setJobPostTime] = useState<number | null>(null);
+  const [boostStage, setBoostStage] = useState(0);
   const [deliveryPlan, setDeliveryPlan] = useState({
     planType: 'weekly' as 'weekly' | 'monthly',
     pickup: '',
@@ -2225,7 +2228,6 @@ const DeliveryPlatform = () => {
       const result = await calculateJobDistances(jobForm.pickup, jobForm.stops.filter((s: any) => s.address));
       if (result) {
         setFormDistance(result.totalDistance);
-        // Auto-update price only when distance is valid (> 0)
         if (result.totalDistance > 0) {
           const drops = jobForm.stops.filter((s: any) => s.address).length || 1;
           const formulaPrice = 3 + (result.totalDistance * 0.95) + (drops * 2.50);
@@ -3338,6 +3340,17 @@ Please be punctual and update once completed. Thanks!`;
     }
   }, [auth.isAuth]);
 
+  // Dynamic pricing boost timer
+  useEffect(() => {
+    if (auth.type !== 'customer' || !jobPostTime) return;
+    const timer = setInterval(() => {
+      const elapsed = (Date.now() - jobPostTime) / 1000 / 60;
+      if (elapsed >= 8 && boostStage < 2) setBoostStage(2);
+      else if (elapsed >= 3 && boostStage < 1) setBoostStage(1);
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [auth.type, jobPostTime, boostStage]);
+
   const loadData = async () => {
     try {
       setError('');
@@ -3636,9 +3649,6 @@ Please be punctual and update once completed. Thanks!`;
   const applyAiResult = () => {
     if (!aiResult) return;
     
-    const numDrops = aiResult.stops?.filter((s: any) => s.address).length || 1;
-    const minPrice = 3 + (numDrops * 2.50);
-    
     setJobForm({
       ...jobForm,
       pickup: aiResult.pickup || '',
@@ -3653,15 +3663,15 @@ Please be punctual and update once completed. Thanks!`;
       })) : [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
       parcelSize: aiResult.parcelSize || 'small',
       remarks: aiResult.remarks || '',
-      price: minPrice.toFixed(2),
+      price: (() => { const d = aiResult.stops?.filter((s: any) => s.address).length || 1; return (3 + d * 2.50).toFixed(2); })(),
       deliveryDate: aiResult.deliveryDate || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
       timeframe: aiResult.deliverySlot || ''
     });
     
-    setAiResult(null);
     setShowAiInput(false);
+    setShowPasteOrder(false);
     setAiInput('');
-    alert('✅ Form filled! The delivery fee will update automatically once distance is calculated from postal codes.');
+    alert('✅ AI recommendations applied to the form! Please review and adjust if needed.');
   };
 
   // Validate job form fields before showing T&C
@@ -3799,7 +3809,7 @@ Please be punctual and update once completed. Thanks!`;
         parcelSize: 'small', 
         remarks: '' 
       });
-      alert(`Job posted successfully!\nOrder ID: ${orderId}`);
+      setJobPostTime(Date.now()); setBoostStage(0); alert(`Job posted successfully!\nOrder ID: ${orderId}`);
       loadData();
     } catch (e: any) { 
       // If job creation failed, refund the credits back
@@ -4866,15 +4876,15 @@ Please be punctual and update once completed. Thanks!`;
   }
 
   return (
-    <div className={`min-h-screen ${auth.type === 'admin' ? 'bg-gray-100' : 'bg-gradient-to-b from-blue-50 via-white to-blue-50'}`}>
-      <nav className={`${auth.type === 'admin' ? 'bg-white shadow-md' : 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg'}`}>
+    <div className={`min-h-screen ${auth.type === 'admin' ? 'bg-gray-100' : 'bg-gradient-to-b from-slate-50 to-white'}`}>
+      <nav className={`${auth.type === 'admin' ? 'bg-white shadow-md' : 'bg-white shadow-sm border-b border-gray-100'}`}>
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div>
-            <h1 className={`text-2xl font-bold ${auth.type === 'admin' ? '' : 'text-white'}`}>
+            <h1 className="text-2xl font-bold">
               {auth.type === 'admin' ? 'Admin Dashboard' : auth.type === 'customer' ? 'Customer Portal' : 'Rider Portal'}
             </h1>
             {curr && (
-              <p className={`text-sm ${auth.type === 'admin' ? 'text-gray-600' : 'text-blue-100'}`}>
+              <p className="text-sm text-gray-600">
                 {curr.name}
                 {auth.type === 'customer' && ` | Credits: $${(curr.credits || 0).toFixed(2)}`}
                 {auth.type === 'rider' && ` | Tier ${curr.tier} | Earnings: $${(curr.earnings || 0).toFixed(2)}`}
@@ -4953,7 +4963,7 @@ Please be punctual and update once completed. Thanks!`;
                 setCurrentRiderView('home'); // Reset rider view
                 setRiderViewHistory(['home']);
               }} 
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${auth.type === 'admin' ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-white bg-opacity-20 text-white hover:bg-opacity-30 border border-white border-opacity-30'}`}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
             >
               <LogOut size={16} />
               Logout
@@ -4988,40 +4998,37 @@ Please be punctual and update once completed. Thanks!`;
         )}
         
         {auth.type === 'customer' && curr && (
-          <div className="space-y-5">
-            {/* Credits & Quick Actions Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-5">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Available Credits</p>
-                    <p className="text-4xl font-bold text-gray-900 mt-1">${(curr.credits || 0).toFixed(2)}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <a 
-                      href="https://wa.me/6580201980" 
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-green-500 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-green-600 transition-colors text-sm shadow-sm"
-                    >
-                      💬 Contact Us
-                    </a>
-                    <button 
-                      onClick={() => { setShowTopUp(true); setTncAccepted(false); }} 
-                      className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-blue-700 transition-colors text-sm shadow-sm"
-                    >
-                      <CreditCard size={16} />
-                      Top Up
-                    </button>
-                  </div>
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-6 text-white">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-blue-100 text-sm">Available Credits</p>
+                  <p className="text-5xl font-bold">${(curr.credits || 0).toFixed(2)}</p>
                 </div>
-                <button 
-                  onClick={() => setShowDeliveryPlan(true)}
-                  className="mt-4 w-full bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors border border-blue-200"
-                >
-                  📅 Delivery Plan (Weekly / Monthly)
-                </button>
+                <div className="flex gap-2">
+                  <a 
+                    href="https://wa.me/6580201980" 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-green-500 text-white px-4 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-green-600 transition-colors shadow-lg"
+                  >
+                    💬 Contact Us
+                  </a>
+                  <button 
+                    onClick={() => { setShowTopUp(true); setTncAccepted(false); }} 
+                    className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 transition-colors shadow-lg"
+                  >
+                    <CreditCard size={20} />
+                    Top Up
+                  </button>
+                </div>
               </div>
+              <button 
+                onClick={() => setShowDeliveryPlan(true)}
+                className="mt-3 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-opacity-30 transition-colors border border-white border-opacity-30"
+              >
+                📅 Delivery Plan (Weekly / Monthly)
+              </button>
             </div>
 
             {showTopUp && (
@@ -5215,130 +5222,58 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-1">Create Delivery</h3>
-              <p className="text-sm text-gray-500 mb-6">Fast. Simple. Done. ⚡</p>
-              
-              {/* AI Delivery Instructions */}
-              <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
-                <p className="text-sm text-purple-800 mb-3">
-                  📋 <strong>Type your Delivery instructions here:</strong>
-                </p>
-                <ol className="text-xs text-purple-700 mb-3 space-y-1 pl-4 list-decimal">
-                  <li>When ready</li>
-                  <li>Pick up location</li>
-                  <li>Single location or multiple location</li>
-                  <li>Item size (pocket/small/medium/need a whole car boot)</li>
-                  <li>Remarks</li>
-                </ol>
-                <textarea
-                  value={aiInput}
-                  onChange={(e) => setAiInput(e.target.value)}
-                  className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                  rows={5}
-                  placeholder={"Example:\nPick up from 123 Tampines Street 45 #08-100 (John, 81234567)\nDeliver to:\n1) 456 Bedok North Ave 3 #05-200 - Sarah 92345678\n2) 789 Jurong West St 61 #12-300 - David 83456789\nDocuments, handle with care. Small parcel. Pick up at 2pm today."}
-                />
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={analyzeWithAI}
-                    disabled={aiAnalyzing || aiInput.trim().length < 20}
-                    className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
-                      aiAnalyzing || aiInput.trim().length < 20
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
-                  >
-                    {aiAnalyzing ? '🔄 Analyzing...' : '🤖 Analyze with AI'}
-                  </button>
-                  <button
-                    onClick={() => { setAiInput(''); setAiResult(null); }}
-                    className="px-4 py-3 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300"
-                  >
-                    Clear
-                  </button>
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Create Delivery ⚡</h3>
+                  <p className="text-sm text-gray-500">Fast. Simple. Done.</p>
                 </div>
-                
-                {/* AI Result Preview */}
-                {aiResult && (
-                  <div className="mt-4 p-4 bg-white rounded-lg border border-green-300">
-                    <h4 className="font-bold text-green-800 mb-3">✅ AI Analysis Result</h4>
-                    
-                    <div className="space-y-2 text-sm">
-                      <div className="bg-orange-50 p-2 rounded">
-                        <p className="text-xs font-medium text-orange-600">PICKUP</p>
-                        <p className="text-gray-800">{aiResult.pickup} {aiResult.pickupUnitNo !== 'N/A' ? aiResult.pickupUnitNo : ''}</p>
-                        {aiResult.pickupContact && <p className="text-xs text-gray-500">Contact: {aiResult.pickupContact} {aiResult.pickupPhone}</p>}
-                      </div>
-                      
-                      {aiResult.stops?.map((stop: any, idx: number) => (
-                        <div key={idx} className="bg-green-50 p-2 rounded">
-                          <p className="text-xs font-medium text-green-600">DROP-OFF {idx + 1}</p>
-                          <p className="text-gray-800">{stop.address} {stop.unitNo !== 'N/A' ? stop.unitNo : ''}</p>
-                          {stop.recipientName && <p className="text-xs text-gray-500">Recipient: {stop.recipientName} {stop.recipientPhone}</p>}
-                        </div>
-                      ))}
-                      
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div className="bg-blue-50 p-2 rounded">
-                          <p className="text-xs text-blue-600">Parcel Size</p>
-                          <p className="font-medium capitalize">{aiResult.parcelSize}</p>
-                        </div>
-                        {aiResult.deliverySlot && (
-                          <div className="bg-blue-50 p-2 rounded">
-                            <p className="text-xs text-blue-600">Delivery Slot</p>
-                            <p className="font-medium">{aiResult.deliverySlot}</p>
-                          </div>
-                        )}
-                        <div className="bg-blue-50 p-2 rounded">
-                          <p className="text-xs text-blue-600">Suggested Drivers</p>
-                          <p className="font-medium">{aiResult.suggestedDrivers}</p>
-                        </div>
-                      </div>
-                      
-                      {aiResult.remarks && (
-                        <div className="bg-yellow-50 p-2 rounded">
-                          <p className="text-xs text-yellow-600">Remarks</p>
-                          <p className="text-gray-700 italic">{aiResult.remarks}</p>
-                        </div>
-                      )}
-                      
-                      {aiResult.analysis && (
-                        <p className="text-xs text-gray-500 italic mt-2">🤖 {aiResult.analysis}</p>
-                      )}
-
-                      <div className="bg-blue-50 p-2 rounded mt-2">
-                        <p className="text-xs text-blue-600">💡 Note</p>
-                        <p className="text-xs text-gray-600">The delivery fee will be calculated automatically based on distance and number of drop-offs after you accept.</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2 mt-4">
-                      <button
-                        onClick={applyAiResult}
-                        className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
-                      >
-                        ✅ Accept & Fill Form
-                      </button>
-                      <button
-                        onClick={() => setAiResult(null)}
-                        className="flex-1 py-3 bg-gray-200 text-gray-600 rounded-lg font-semibold hover:bg-gray-300"
-                      >
-                        ✏️ Enter Manually
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <button
+                  onClick={() => setShowPasteOrder(!showPasteOrder)}
+                  className="flex items-center gap-2 px-3 py-2 border border-purple-200 text-purple-700 rounded-xl text-xs font-medium hover:bg-purple-50"
+                >
+                  📋 Paste order (optional)
+                </button>
               </div>
               
-              {/* Postal Code Tip */}
-              <div className="bg-blue-50 p-3 rounded-lg mb-4">
-                <p className="text-sm text-blue-800">
-                  💡 <strong>Tip:</strong> Enter a 6-digit Singapore postal code to auto-fill the address!
-                </p>
+              {showPasteOrder && (
+                <div className="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-sm font-semibold text-purple-800">Paste your order details</p>
+                    <button onClick={() => { setShowPasteOrder(false); setAiInput(''); setAiResult(null); }} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+                  </div>
+                  <textarea value={aiInput} onChange={(e) => setAiInput(e.target.value)} className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm bg-white" rows={3} placeholder='e.g. "Bedok 460456 to Jurong 600123, small parcel, today 2pm"' />
+                  <p className="text-xs text-gray-400 text-right mt-1">{aiInput.length} / 1500</p>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={analyzeWithAI} disabled={aiAnalyzing || aiInput.trim().length < 20} className={`flex-1 py-2 rounded-lg font-semibold text-sm ${aiAnalyzing || aiInput.trim().length < 20 ? 'bg-gray-200 text-gray-400' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>{aiAnalyzing ? '🔄 Analyzing...' : '🤖 Analyze'}</button>
+                    <button onClick={() => { setAiInput(''); setAiResult(null); }} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Clear</button>
+                  </div>
+                  {aiResult && (
+                    <div className="mt-3 p-3 bg-white rounded-lg border border-green-200">
+                      <p className="font-semibold text-green-800 text-sm mb-2">✅ AI Result</p>
+                      <div className="space-y-1 text-xs">
+                        <div className="p-1.5 bg-orange-50 rounded"><span className="text-orange-600 font-medium">Pickup:</span> {aiResult.pickup}</div>
+                        {aiResult.stops?.map((stop: any, idx: number) => (<div key={idx} className="p-1.5 bg-green-50 rounded"><span className="text-green-600 font-medium">Drop-off {idx+1}:</span> {stop.address}</div>))}
+                        <div className="p-1.5 bg-blue-50 rounded"><span className="text-blue-600 font-medium">Parcel:</span> <span className="capitalize">{aiResult.parcelSize}</span></div>
+                        {aiResult.remarks && <div className="p-1.5 bg-yellow-50 rounded"><span className="text-yellow-600 font-medium">Remarks:</span> {aiResult.remarks}</div>}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">💡 Price calculated from distance after filling form</p>
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={applyAiResult} className="flex-1 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm">Use Details</button>
+                        <button onClick={() => setAiResult(null)} className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Manual</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 1: Pickup & Drop-off */}
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                <h4 className="font-bold text-gray-900">Pickup & Drop-off</h4>
               </div>
 
-              <div className="space-y-4">
-                {/* Pickup Location */}
+              {/* Pickup Location */}
                 <div className="relative">
                   <div className="flex items-start gap-3">
                     <div className="flex flex-col items-center">
@@ -5362,9 +5297,6 @@ Please be punctual and update once completed. Thanks!`;
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                         placeholder="Enter postal code (e.g., 238858) or full address" 
                       />
-                      {!extractPostalCode(jobForm.pickup) && jobForm.pickup.length > 0 && (
-                        <p className="text-xs text-orange-600 mt-1">⚠️ Please include a 6-digit postal code for accurate pricing</p>
-                      )}
                       <div className="mt-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Unit No <span className="text-red-500">*</span>
@@ -5518,9 +5450,6 @@ Please be punctual and update once completed. Thanks!`;
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                           placeholder="Enter postal code or full address" 
                         />
-                        {!extractPostalCode(stop.address) && stop.address.length > 0 && (
-                          <p className="text-xs text-orange-600 mt-1">⚠️ Please include a 6-digit postal code for accurate pricing</p>
-                        )}
                         <div className="mt-2">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Unit No <span className="text-red-500">*</span>
@@ -5582,7 +5511,13 @@ Please be punctual and update once completed. Thanks!`;
                   <span className="text-xl">+</span> Add Stop
                 </button>
 
-                {/* Delivery Date */}
+                {/* Step 2: Delivery Details */}
+                <div className="flex items-center gap-2 mb-4 mt-6">
+                  <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                  <h4 className="font-bold text-gray-900">Delivery Details</h4>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date <span className="text-red-500">*</span></label>
                   <input 
@@ -5611,45 +5546,46 @@ Please be punctual and update once completed. Thanks!`;
                     ))}
                   </select>
                 </div>
+                </div>
 
-                {/* Price */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Delivery Fee
-                  </label>
-                  
+                {/* Step 3: Price */}
+                <div className="flex items-center gap-2 mb-4 mt-6">
+                  <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                  <h4 className="font-bold text-gray-900">Price</h4>
+                </div>
+
                   {/* Suggested Pricing Breakdown */}
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-xs font-semibold text-blue-800 mb-2">💡 Suggested Pricing</p>
                     <div className="text-xs text-gray-700 space-y-1">
                       <div className="flex justify-between">
-                        <span>Base Fee</span>
+                        <span>Base fee</span>
                         <span className="font-medium">$3.00</span>
                       </div>
-                      {formDistance !== null && formDistance > 0 ? (
-                        <>
-                          <div className="flex justify-between">
-                            <span>Delivery Fee</span>
-                            <span className="font-medium">${((formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
-                            <span>Total</span>
-                            <span>${(3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex justify-between text-gray-400">
-                            <span>Delivery Fee</span>
-                            <span className="font-medium">—</span>
-                          </div>
-                          <div className="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
-                            <p className="text-xs text-yellow-700">⚠️ Enter <strong>6-digit Singapore postal codes</strong> for pickup and drop-off to calculate the delivery fee and total price.</p>
-                          </div>
-                        </>
+                      {formDistance !== null && (
+                        <div className="flex justify-between">
+                          <span>Delivery Fee</span>
+                          <span className="font-medium">${(formDistance * 0.95).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span>Drop-off surcharge</span>
+                        <span className="font-medium">${((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
+                        <span>Suggested Price</span>
+                        <span>
+                          ${formDistance !== null 
+                            ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
+                            : (3 + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
+                          }
+                        </span>
+                      </div>
+                      {formDistance === null && (
+                        <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
                       )}
                     </div>
-                    {formDistance !== null && formDistance > 0 && (
+                    {formDistance !== null && (
                       <button
                         type="button"
                         onClick={() => {
@@ -5760,7 +5696,7 @@ Please be punctual and update once completed. Thanks!`;
                       : 'bg-blue-600 text-white hover:bg-blue-700'
                   }`}
                 >
-                  {isSubmittingJob ? '⏳ Submitting...' : (
+                  {isSubmittingJob ? '⏳ Finding driver...' : (
                     <>Post Job - ${promoDiscount && jobForm.price ? getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2) : jobForm.price} {jobForm.stops.length > 1 ? `(${jobForm.stops.length} stops)` : ''}
                     {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}</>
                   )}
@@ -5881,26 +5817,62 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
+            {/* Dynamic Pricing Boost Prompts */}
+            {boostStage >= 1 && (
+              <div className={`rounded-2xl shadow-sm border p-4 ${boostStage >= 2 ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-lg ${boostStage >= 2 ? '' : ''}`}>{boostStage >= 2 ? '🔥' : '⚡'}</span>
+                  <p className={`font-bold text-sm ${boostStage >= 2 ? 'text-red-700' : 'text-orange-700'}`}>
+                    {boostStage >= 2 ? 'High demand now' : 'No driver accepted yet'}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-600 mb-3">
+                  {boostStage >= 2 
+                    ? 'Increase price to improve matching speed and get matched sooner'
+                    : 'Boost +$2 for faster match — get matched in 2–5 mins'}
+                </p>
+                <button
+                  onClick={async () => {
+                    const boostAmt = boostStage >= 2 ? 4 : 2;
+                    const postedJobs = jobs.filter((j: any) => j.customer_id === auth.id && j.status === 'posted');
+                    for (const pj of postedJobs) {
+                      const newPrice = (parseFloat(pj.price) || 0) + boostAmt;
+                      await api(`jobs?id=eq.${pj.id}`, 'PATCH', { price: newPrice });
+                    }
+                    setBoostStage(0);
+                    setJobPostTime(null);
+                    await loadData();
+                    alert(`⚡ Price boosted by $${boostAmt}! Your order has been re-pushed to drivers.`);
+                  }}
+                  className={`w-full py-2.5 rounded-xl font-semibold text-sm text-white transition-colors ${
+                    boostStage >= 2 ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600'
+                  }`}
+                >
+                  {boostStage >= 2 ? `Increase Price +$4` : `Boost Price +$2`}
+                </button>
+              </div>
+            )}
+
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-gray-900">My Deliveries</h3>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowOrderHistory(!showOrderHistory)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                      showOrderHistory ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                      showOrderHistory ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                     }`}
                   >
-                    <FileText size={16} />
+                    <FileText size={18} />
                     {showOrderHistory ? 'Hide History' : 'Order History'}
                   </button>
                   <button
                     onClick={() => setShowCustomerProfile(!showCustomerProfile)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                      showCustomerProfile ? 'bg-gray-600 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                      showCustomerProfile ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    <User size={16} />
+                    <User size={18} />
                     {showCustomerProfile ? 'Hide Profile' : 'My Profile'}
                   </button>
                 </div>
@@ -6276,32 +6248,24 @@ Please be punctual and update once completed. Thanks!`;
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <div className="grid grid-cols-4 gap-3 text-center">
                 <div className="flex flex-col items-center gap-1">
-                  <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
-                    <Clock size={18} className="text-blue-600" />
-                  </div>
+                  <div className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center"><Clock size={16} className="text-blue-600" /></div>
                   <p className="text-xs font-semibold text-gray-800">Save Time</p>
-                  <p className="text-xs text-gray-500">Deliver fast</p>
+                  <p className="text-xs text-gray-400">Deliver fast</p>
                 </div>
                 <div className="flex flex-col items-center gap-1">
-                  <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
-                    <CheckCircle size={18} className="text-green-600" />
-                  </div>
+                  <div className="w-9 h-9 bg-green-50 rounded-full flex items-center justify-center"><CheckCircle size={16} className="text-green-600" /></div>
                   <p className="text-xs font-semibold text-gray-800">Best Match</p>
-                  <p className="text-xs text-gray-500">Smart drivers</p>
+                  <p className="text-xs text-gray-400">Smart drivers</p>
                 </div>
                 <div className="flex flex-col items-center gap-1">
-                  <div className="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center">
-                    <MapPin size={18} className="text-purple-600" />
-                  </div>
+                  <div className="w-9 h-9 bg-purple-50 rounded-full flex items-center justify-center"><MapPin size={16} className="text-purple-600" /></div>
                   <p className="text-xs font-semibold text-gray-800">Live Track</p>
-                  <p className="text-xs text-gray-500">Real-time</p>
+                  <p className="text-xs text-gray-400">Real-time</p>
                 </div>
                 <div className="flex flex-col items-center gap-1">
-                  <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center">
-                    <Send size={18} className="text-orange-600" />
-                  </div>
+                  <div className="w-9 h-9 bg-orange-50 rounded-full flex items-center justify-center"><Send size={16} className="text-orange-600" /></div>
                   <p className="text-xs font-semibold text-gray-800">24/7</p>
-                  <p className="text-xs text-gray-500">Support</p>
+                  <p className="text-xs text-gray-400">Support</p>
                 </div>
               </div>
             </div>
@@ -6309,9 +6273,9 @@ Please be punctual and update once completed. Thanks!`;
         )}
 
         {auth.type === 'rider' && curr && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {/* Online/Offline Status Bar */}
-            <div className={`p-4 rounded-2xl shadow-sm border ${riderIsOnline ? 'bg-white border-green-200' : 'bg-white border-gray-200'}`}>
+            <div className={`p-4 rounded-lg ${riderIsOnline ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className={`w-4 h-4 rounded-full ${riderIsOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
@@ -6328,7 +6292,7 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
                 <button
                   onClick={riderIsOnline ? riderGoOffline : riderGoOnline}
-                  className={`px-6 py-3 rounded-xl font-bold text-white transition-all shadow-sm ${
+                  className={`px-6 py-3 rounded-lg font-bold text-white transition-colors ${
                     riderIsOnline 
                       ? 'bg-red-500 hover:bg-red-600' 
                       : 'bg-green-500 hover:bg-green-600'
@@ -6468,29 +6432,29 @@ Please be punctual and update once completed. Thanks!`;
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setShowRiderProfile(!showRiderProfile)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
-                  showRiderProfile ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-200 shadow-sm hover:bg-purple-50'
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                  showRiderProfile ? 'bg-purple-600 text-white' : 'bg-white text-purple-700 border border-purple-300'
                 }`}
               >
-                <User size={16} />
+                <User size={18} />
                 My Profile
               </button>
               <button
                 onClick={() => setShowDeliveryHistory(!showDeliveryHistory)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
-                  showDeliveryHistory ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-200 shadow-sm hover:bg-blue-50'
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                  showDeliveryHistory ? 'bg-blue-600 text-white' : 'bg-white text-blue-700 border border-blue-300'
                 }`}
               >
-                <FileText size={16} />
+                <FileText size={18} />
                 Delivery History
               </button>
               <button
                 onClick={() => setShowRiderPerformance(!showRiderPerformance)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-colors ${
-                  showRiderPerformance ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-200 shadow-sm hover:bg-green-50'
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                  showRiderPerformance ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300'
                 }`}
               >
-                <BarChart3 size={16} />
+                <BarChart3 size={18} />
                 My Performance
               </button>
               {getActiveJobsForRider.length > 1 && (
@@ -6832,29 +6796,30 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             {/* Rider Stats Header */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-green-50 rounded-xl p-4">
-                  <p className="text-xs font-medium text-green-600 uppercase tracking-wide">Total Earnings</p>
-                  <p className="text-3xl font-bold text-green-700 mt-1">${(curr.earnings || 0).toFixed(2)}</p>
+            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <p className="text-green-100 text-sm">Total Earnings</p>
+                  <p className="text-5xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-4">
-                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Completed Jobs</p>
-                  <p className="text-3xl font-bold text-blue-700 mt-1">{curr.completed_jobs || 0}</p>
+                <div>
+                  <p className="text-green-100 text-sm">Completed Jobs</p>
+                  <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
                 </div>
               </div>
               
+              {/* Multi-job indicator - Feature 5 */}
               {getActiveJobsForRider.length > 0 && (
-                <div className="mt-4 bg-orange-50 rounded-xl p-4">
-                  <p className="text-xs font-medium text-orange-600 uppercase tracking-wide">Active Jobs</p>
-                  <p className="text-xl font-bold text-orange-700 mt-1">{getActiveJobsForRider.length} job(s) in progress</p>
+                <div className="mt-4 pt-4 border-t border-green-400">
+                  <p className="text-green-100 text-sm">Active Jobs</p>
+                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
                 </div>
               )}
               
-              <div className="mt-4 bg-purple-50 rounded-xl p-4">
-                <p className="text-xs font-medium text-purple-600 uppercase tracking-wide">Your Referral Code</p>
-                <p className="text-xl font-bold text-purple-700 mt-1">{curr.referral_code}</p>
-                <p className="text-xs text-purple-500 mt-1">Share this code to grow your team!</p>
+              <div className="mt-4 pt-4 border-t border-green-400">
+                <p className="text-green-100 text-sm">Your Referral Code</p>
+                <p className="text-2xl font-bold">{curr.referral_code}</p>
+                <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
               </div>
             </div>
 
@@ -7705,8 +7670,8 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             {/* Available Jobs - Only show when rider is online */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Available Jobs</h3>
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
               
               {!riderIsOnline ? (
                 <div className="text-center py-12">
