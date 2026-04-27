@@ -5205,9 +5205,7 @@ Please be punctual and update once completed. Thanks!`;
                   <h3 className="text-xl font-bold text-gray-900">Create Delivery ⚡</h3>
                   <p className="text-sm text-gray-500">Fast. Simple. Done.</p>
                 </div>
-                <button onClick={() => setShowPasteOrder(!showPasteOrder)} className="flex items-center gap-2 px-3 py-2 border border-purple-200 text-purple-700 rounded-xl text-xs font-medium hover:bg-purple-50">
-                  📋 Paste order (optional)
-                </button>
+                <button onClick={() => setShowPasteOrder(!showPasteOrder)} className="flex items-center gap-2 px-3 py-2 border border-purple-200 text-purple-700 rounded-xl text-xs font-medium hover:bg-purple-50">📋 Paste order (optional)</button>
               </div>
               {showPasteOrder && (
                 <div className="mb-4 p-4 bg-purple-50 rounded-xl border border-purple-200">
@@ -5237,11 +5235,8 @@ Please be punctual and update once completed. Thanks!`;
                   )}
                 </div>
               )}
-
               <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span> Pickup & Drop-off</p>
-
               <div className="space-y-4">
-
               {/* Pickup Location */}
                 <div className="relative">
                   <div className="flex items-start gap-3">
@@ -5281,7 +5276,6 @@ Please be punctual and update once completed. Thanks!`;
                         />
                       </div>
                       
-                      {/* Use My Profile Checkbox */}
                       <div className="mt-2 flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
                         <input type="checkbox" checked={useMyProfile} onChange={(e) => { setUseMyProfile(e.target.checked); if (e.target.checked) { setJobForm(prev => ({...prev, pickupContact: curr?.name || '', pickupPhone: curr?.phone || ''})); } else { setJobForm(prev => ({...prev, pickupContact: '', pickupPhone: ''})); } }} className="w-5 h-5 text-blue-600 rounded" />
                         <div className="flex-1 min-w-0">
@@ -5491,6 +5485,22 @@ Please be punctual and update once completed. Thanks!`;
                     Delivery Fee
                   </label>
                   
+                <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span> Parcel Size</p>
+                {/* Parcel Size */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
+                  <select 
+                    value={jobForm.parcelSize} 
+                    onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
+                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
+                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
+                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
+                  </select>
+                </div>
+
                   <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span> Price</p>
                   {/* Suggested Pricing Breakdown */}
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -5550,21 +5560,6 @@ Please be punctual and update once completed. Thanks!`;
                   </div>
                 </div>
                 
-                <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span> Parcel Size</p>
-                {/* Parcel Size */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
-                  <select 
-                    value={jobForm.parcelSize} 
-                    onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
-                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
-                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
-                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
-                  </select>
-                </div>
                 
                 <details className="border border-gray-200 rounded-xl overflow-hidden">
                   <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-600 flex items-center gap-2 hover:bg-gray-50 bg-gray-50">🏷️ More options (optional)</summary>
@@ -5767,7 +5762,6 @@ Please be punctual and update once completed. Thanks!`;
                 <button onClick={async () => { const amt = boostStage >= 2 ? 4 : 2; const pj = jobs.filter((j: any) => j.customer_id === auth.id && j.status === 'posted'); for (const p of pj) { await api(`jobs?id=eq.${p.id}`, 'PATCH', { price: (parseFloat(p.price) || 0) + amt }); } setBoostStage(0); setJobPostTime(null); await loadData(); alert(`Price boosted by $${amt}!`); }} className={`w-full py-2 rounded-lg font-semibold text-sm text-white ${boostStage >= 2 ? 'bg-red-600' : 'bg-orange-500'}`}>{boostStage >= 2 ? 'Increase Price +$4' : 'Boost Price +$2'}</button>
               </div>
             )}
-
             <div className="bg-white rounded-lg shadow-lg p-6">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold">My Delivery Jobs</h3>
@@ -6691,32 +6685,31 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Rider Stats Header */}
-            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-green-100 text-sm">Total Earnings</p>
-                  <p className="text-5xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-green-50 rounded-xl p-3 text-center">
+                  <p className="text-xs font-medium text-green-600 uppercase">Earnings</p>
+                  <p className="text-2xl font-bold text-green-700">${(curr.earnings || 0).toFixed(2)}</p>
+                  <p className="text-xs text-green-500">{curr.completed_jobs || 0} jobs</p>
                 </div>
-                <div>
-                  <p className="text-green-100 text-sm">Completed Jobs</p>
-                  <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
+                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                  <p className="text-xs font-medium text-blue-600 uppercase">{bonusConfig.period === 'daily' ? 'Daily' : 'Weekly'} Target</p>
+                  <p className="text-lg font-bold text-blue-700">${(curr.earnings || 0).toFixed(0)}<span className="text-xs font-normal text-blue-400">/${bonusConfig.earningsTarget}</span></p>
+                  <div className="w-full bg-blue-200 rounded-full h-1.5 mt-1"><div className="bg-blue-600 h-1.5 rounded-full" style={{width: `${Math.min(100, ((curr.earnings || 0) / bonusConfig.earningsTarget) * 100)}%`}}></div></div>
+                  <p className="text-xs mt-1">{(curr.earnings || 0) >= bonusConfig.earningsTarget ? <span className="text-green-600 font-semibold">🎉 Bonus!</span> : <span className="text-blue-500">${(bonusConfig.earningsTarget - (curr.earnings || 0)).toFixed(0)} to go</span>}</p>
+                </div>
+                <div className="bg-purple-50 rounded-xl p-3 text-center">
+                  <p className="text-xs font-medium text-purple-600 uppercase">Referral</p>
+                  <p className="text-lg font-bold text-purple-700">{curr.referral_code}</p>
+                  <p className="text-xs text-purple-500">Share to earn!</p>
                 </div>
               </div>
-              
-              {/* Multi-job indicator - Feature 5 */}
               {getActiveJobsForRider.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-green-400">
-                  <p className="text-green-100 text-sm">Active Jobs</p>
-                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
+                <div className="mt-3 bg-yellow-50 rounded-xl p-3 flex justify-between items-center">
+                  <div><p className="text-xs font-medium text-yellow-600 uppercase">Active Jobs</p><p className="text-lg font-bold text-yellow-700">{getActiveJobsForRider.length} in progress</p></div>
+                  <Package size={24} className="text-yellow-400" />
                 </div>
               )}
-              
-              <div className="mt-4 pt-4 border-t border-green-400">
-                <p className="text-green-100 text-sm">Your Referral Code</p>
-                <p className="text-2xl font-bold">{curr.referral_code}</p>
-                <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
-              </div>
             </div>
 
             {/* Withdrawal Notifications - Show status of rider's withdrawal requests */}
@@ -7565,7 +7558,7 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Available Jobs - Only show when rider is online and active */}
+            {/* Available Jobs */}
             {curr.status !== 'deactivated' && (
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
@@ -7688,19 +7681,22 @@ Please be punctual and update once completed. Thanks!`;
                               </div>
                             </div>
                             
-                            {/* Job Details - Improved */}
                             <div className="flex-1">
-                              {renderJobDetailCard(job, false)}
+                              <div className="mb-1">
+                                {job.order_id && <span className="text-xs font-bold text-purple-600">#{job.order_id}</span>}
+                                <p className="font-semibold text-sm">{job.pickup?.substring(0, 30)}{job.pickup?.length > 30 ? '...' : ''} → {job.delivery?.substring(0, 30)}{job.delivery?.length > 30 ? '...' : ''}</p>
+                                <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                                  {job.delivery_date && <span>📅 {job.delivery_date}</span>}
+                                  {job.timeframe && <span>🕐 {job.timeframe}</span>}
+                                  {job.parcel_size && <span className="capitalize">📦 {job.parcel_size}</span>}
+                                </div>
+                              </div>
+                              <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View full details</summary><div className="mt-1 text-xs">{renderJobDetailCard(job, false)}</div></details>
                             </div>
-                            
                             <div className="text-right">
                               <p className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
                               {job.distance_km && job.distance_km > 0 && <p className="text-xs text-gray-500">{job.distance_km} km</p>}
-                              {job.distance_km && job.distance_km > 0 && (
-                                <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold ${(comm.activeRider / job.distance_km) >= 2 ? 'bg-green-100 text-green-700' : (comm.activeRider / job.distance_km) >= 1.2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                                  {(comm.activeRider / job.distance_km) >= 2 ? 'High earning' : (comm.activeRider / job.distance_km) >= 1.2 ? 'Good deal' : 'Low value'}
-                                </span>
-                              )}
+                              {job.distance_km && job.distance_km > 0 && <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold ${(comm.activeRider / job.distance_km) >= 2 ? 'bg-green-100 text-green-700' : (comm.activeRider / job.distance_km) >= 1.2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{(comm.activeRider / job.distance_km) >= 2 ? 'High earning' : (comm.activeRider / job.distance_km) >= 1.2 ? 'Good deal' : 'Low value'}</span>}
                             </div>
                           </div>
                         </div>
@@ -7974,9 +7970,7 @@ Please be punctual and update once completed. Thanks!`;
                       <div key={r.id} className="border rounded-lg p-4 hover:border-green-300 transition-colors">
                         <div className="flex justify-between items-center">
                           <div>
-                            <p className="font-semibold text-lg">{r.name} - Tier {r.tier}
-                              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${r.status === 'deactivated' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{r.status === 'deactivated' ? 'Inactive' : 'Active'}</span>
-                            </p>
+                            <p className="font-semibold text-lg">{r.name} - Tier {r.tier} <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${r.status === 'deactivated' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{r.status === 'deactivated' ? 'Inactive' : 'Active'}</span></p>
                             <p className="text-sm text-gray-600">{r.email} | {r.phone}</p>
                             <p className="text-sm text-gray-600 mt-1">Code: <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">{r.referral_code}</span></p>
                             <p className="text-sm font-bold text-green-600 mt-1">Earnings: ${(r.earnings || 0).toFixed(2)} | Jobs: {r.completed_jobs || 0}</p>
@@ -7998,7 +7992,7 @@ Please be punctual and update once completed. Thanks!`;
                             </p>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={async () => { const ns = r.status === 'deactivated' ? 'active' : 'deactivated'; const reason = prompt(`Reason for ${ns === 'deactivated' ? 'deactivating' : 'activating'} ${r.name}:`); if (reason !== null) { await api(`riders?id=eq.${r.id}`, 'PATCH', { status: ns }); await logAuditAction('rider_status_change', { riderId: r.id, riderName: r.name, newStatus: ns, reason }); await loadData(); alert(`${r.name} is now ${ns === 'deactivated' ? 'INACTIVE' : 'ACTIVE'}.`); } }} className={`p-2 rounded text-xs font-semibold ${r.status === 'deactivated' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`} title={r.status === 'deactivated' ? 'Activate' : 'Deactivate'}>{r.status === 'deactivated' ? '✅' : '⏸️'}</button>
+                            <button onClick={async () => { const ns = r.status === 'deactivated' ? 'active' : 'deactivated'; const reason = prompt(`${ns === 'deactivated' ? 'Deactivate' : 'Activate'} ${r.name}? Reason:`); if (reason !== null) { await api(`riders?id=eq.${r.id}`, 'PATCH', { status: ns }); await logAuditAction('rider_status_change', { riderId: r.id, riderName: r.name, newStatus: ns, reason }); await loadData(); } }} className={`p-2 rounded text-xs font-semibold ${r.status === 'deactivated' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{r.status === 'deactivated' ? '✅' : '⏸️'}</button>
                             <button onClick={() => setEditRider({...r, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
                             <button onClick={async () => { if (window.confirm('Delete rider?')) { await api(`riders?id=eq.${r.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
                           </div>
@@ -8048,42 +8042,13 @@ Please be punctual and update once completed. Thanks!`;
               <div className="bg-white rounded-lg shadow p-6 mt-6">
                 <h4 className="text-lg font-bold mb-4">🎯 Bonus Configuration</h4>
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bonus Period</label>
-                    <select value={bonusConfig.period} onChange={(e) => setBonusConfig({...bonusConfig, period: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm">
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="custom">Custom Date Range</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Bonus Method</label>
-                    <select value={bonusConfig.method} onChange={(e) => setBonusConfig({...bonusConfig, method: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm">
-                      <option value="earnings">Earnings Target Only</option>
-                      <option value="orders">Orders Target Only</option>
-                      <option value="both">Both</option>
-                    </select>
-                  </div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Bonus Period</label><select value={bonusConfig.period} onChange={(e) => setBonusConfig({...bonusConfig, period: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="custom">Custom Date Range</option></select></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Bonus Method</label><select value={bonusConfig.method} onChange={(e) => setBonusConfig({...bonusConfig, method: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm"><option value="earnings">Earnings Only</option><option value="orders">Orders Only</option><option value="both">Both</option></select></div>
                 </div>
-                {bonusConfig.period === 'custom' && (
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div><label className="block text-xs text-gray-600 mb-1">Start Date</label><input type="date" value={bonusConfig.startDate} onChange={(e) => setBonusConfig({...bonusConfig, startDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
-                    <div><label className="block text-xs text-gray-600 mb-1">End Date</label><input type="date" value={bonusConfig.endDate} onChange={(e) => setBonusConfig({...bonusConfig, endDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
-                  </div>
-                )}
+                {bonusConfig.period === 'custom' && (<div className="grid grid-cols-2 gap-4 mb-4"><div><label className="block text-xs text-gray-600 mb-1">Start</label><input type="date" value={bonusConfig.startDate} onChange={(e) => setBonusConfig({...bonusConfig, startDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div><div><label className="block text-xs text-gray-600 mb-1">End</label><input type="date" value={bonusConfig.endDate} onChange={(e) => setBonusConfig({...bonusConfig, endDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div></div>)}
                 <div className="grid grid-cols-2 gap-4">
-                  {(bonusConfig.method === 'earnings' || bonusConfig.method === 'both') && (
-                    <div className="p-4 bg-blue-50 rounded-lg">
-                      <p className="text-sm font-semibold text-blue-800 mb-2">Earnings Target</p>
-                      <div className="flex gap-2 items-center flex-wrap"><span className="text-sm">Earn $</span><input type="number" value={bonusConfig.earningsTarget} onChange={(e) => setBonusConfig({...bonusConfig, earningsTarget: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded text-sm" /><span className="text-sm">→ +$</span><input type="number" value={bonusConfig.earningsBonus} onChange={(e) => setBonusConfig({...bonusConfig, earningsBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">bonus</span></div>
-                    </div>
-                  )}
-                  {(bonusConfig.method === 'orders' || bonusConfig.method === 'both') && (
-                    <div className="p-4 bg-green-50 rounded-lg">
-                      <p className="text-sm font-semibold text-green-800 mb-2">Orders Target</p>
-                      <div className="flex gap-2 items-center flex-wrap"><span className="text-sm">Complete</span><input type="number" value={bonusConfig.ordersTarget} onChange={(e) => setBonusConfig({...bonusConfig, ordersTarget: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">orders → +$</span><input type="number" value={bonusConfig.ordersBonus} onChange={(e) => setBonusConfig({...bonusConfig, ordersBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">bonus</span></div>
-                    </div>
-                  )}
+                  {(bonusConfig.method === 'earnings' || bonusConfig.method === 'both') && (<div className="p-4 bg-blue-50 rounded-lg"><p className="text-sm font-semibold text-blue-800 mb-2">Earnings Target</p><div className="flex gap-2 items-center flex-wrap"><span className="text-sm">Earn $</span><input type="number" value={bonusConfig.earningsTarget} onChange={(e) => setBonusConfig({...bonusConfig, earningsTarget: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded text-sm" /><span className="text-sm">→ +$</span><input type="number" value={bonusConfig.earningsBonus} onChange={(e) => setBonusConfig({...bonusConfig, earningsBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">bonus</span></div></div>)}
+                  {(bonusConfig.method === 'orders' || bonusConfig.method === 'both') && (<div className="p-4 bg-green-50 rounded-lg"><p className="text-sm font-semibold text-green-800 mb-2">Orders Target</p><div className="flex gap-2 items-center flex-wrap"><span className="text-sm">Complete</span><input type="number" value={bonusConfig.ordersTarget} onChange={(e) => setBonusConfig({...bonusConfig, ordersTarget: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">orders → +$</span><input type="number" value={bonusConfig.ordersBonus} onChange={(e) => setBonusConfig({...bonusConfig, ordersBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">bonus</span></div></div>)}
                 </div>
               </div>
             )}
