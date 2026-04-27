@@ -5307,26 +5307,7 @@ Please be punctual and update once completed. Thanks!`;
                         </div>
                       )}
                       
-                      {/* Show filled values when using profile */}
-                      {useMyProfile && (
-                        <div className="mt-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Details (Auto-filled)</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <input 
-                              type="text" 
-                              value={curr?.name || ''} 
-                              disabled
-                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
-                            />
-                            <input 
-                              type="tel" 
-                              value={curr?.phone || ''} 
-                              disabled
-                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
-                            />
-                          </div>
-                        </div>
-                      )}
+
                     </div>
                   </div>
                 </div>
@@ -5506,45 +5487,18 @@ Please be punctual and update once completed. Thanks!`;
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-xs font-semibold text-blue-800 mb-1"><span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">Recommended</span></p>
                     <p className="text-xs text-gray-500 mb-2">Most jobs matched in 5–10 mins</p>
-                    <div className="text-xs text-gray-700 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Base fee</span>
-                        <span className="font-medium">$3.00</span>
+                    <details className="mt-2">
+                      <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">View price breakdown</summary>
+                      <div className="mt-2 text-xs text-gray-700 space-y-1 p-2 bg-white rounded">
+                        <div className="flex justify-between"><span>Base fee</span><span>$3.00</span></div>
+                        {formDistance !== null && (<div className="flex justify-between"><span>Delivery Fee</span><span>${(formDistance * 0.95).toFixed(2)}</span></div>)}
+                        <div className="flex justify-between"><span>Drop-off surcharge</span><span>${((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50).toFixed(2)}</span></div>
+                        <div className="flex justify-between pt-1 mt-1 border-t font-bold"><span>Total</span><span>${formDistance !== null ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2) : (3 + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)}</span></div>
                       </div>
-                      {formDistance !== null && (
-                        <div className="flex justify-between">
-                          <span>Delivery Fee</span>
-                          <span className="font-medium">${(formDistance * 0.95).toFixed(2)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span>Drop-off surcharge</span>
-                        <span className="font-medium">${((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between pt-1 mt-1 border-t border-blue-300 font-bold text-blue-900">
-                        <span>Suggested Price</span>
-                        <span>
-                          ${formDistance !== null 
-                            ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
-                            : (3 + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2)
-                          }
-                        </span>
-                      </div>
-                      {formDistance === null && (
-                        <p className="text-xs text-gray-400 italic mt-1">Enter pickup and drop-off postal codes to calculate distance</p>
-                      )}
-                    </div>
+                    </details>
                     {formDistance !== null && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const drops = jobForm.stops.filter((s: any) => s.address).length || 1;
-                          const suggested = 3 + (formDistance * 0.95) + (drops * 2.50);
-                          setJobForm({...jobForm, price: suggested.toFixed(2)});
-                        }}
-                        className="mt-2 w-full py-1.5 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700"
-                      >
-                        Use Suggested Price
+                      <button type="button" onClick={() => { const drops = jobForm.stops.filter((s: any) => s.address).length || 1; const suggested = 3 + (formDistance * 0.95) + (drops * 2.50); setJobForm({...jobForm, price: suggested.toFixed(2)}); }} className="mt-2 w-full py-1.5 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700">
+                        Use Recommended Price
                       </button>
                     )}
                   </div>
@@ -5622,6 +5576,9 @@ Please be punctual and update once completed. Thanks!`;
                   )}
                 </div>
 
+
+                    <button type="button" onClick={() => setShowDeliveryPlan(true)} className="w-full bg-blue-50 text-blue-700 px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-100 border border-blue-100">📅 Delivery Plan</button>
+                    <button type="button" onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)} className="w-full bg-gray-50 text-gray-700 px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-gray-100 border border-gray-200"><Upload size={16} /> Bulk Import</button>
                   </div>
                 </details>
 
@@ -5639,17 +5596,6 @@ Please be punctual and update once completed. Thanks!`;
                     {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}</>
                   )}
                 </button>
-                
-                {/* Bulk Import Option */}
-                <div className="mt-4 pt-4 border-t">
-                  <button
-                    onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                  >
-                    <Upload size={18} />
-                    {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV/Excel)'}
-                  </button>
-                </div>
               </div>
               
               {/* Customer Bulk Import Section */}
@@ -7627,27 +7573,6 @@ Please be punctual and update once completed. Thanks!`;
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
                       {filteredAvailableJobs.length > 0 && <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">🔥 High demand</span>}
-                      {selectedJobsForAccept.length > 0 && (
-                        <span className="text-sm font-medium text-green-600">
-                          {selectedJobsForAccept.length} selected
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Select All / Clear All */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setSelectedJobsForAccept(filteredAvailableJobs.map((j: any) => j.id))}
-                        className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                      >
-                        Select All
-                      </button>
-                      <button
-                        onClick={() => setSelectedJobsForAccept([])}
-                        className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                      >
-                        Clear All
-                      </button>
                     </div>
                     
                     {filteredAvailableJobs.map((job: any) => {
@@ -7656,30 +7581,9 @@ Please be punctual and update once completed. Thanks!`;
                       return (
                         <div 
                           key={job.id} 
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedJobsForAccept(selectedJobsForAccept.filter(id => id !== job.id));
-                            } else {
-                              setSelectedJobsForAccept([...selectedJobsForAccept, job.id]);
-                            }
-                          }}
-                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
-                            isSelected 
-                              ? 'border-green-500 bg-green-50 shadow-md' 
-                              : 'border-gray-200 hover:border-green-400 hover:shadow-md'
-                          }`}
+                          className="border rounded-lg p-3 transition-all border-gray-200 hover:border-green-400 hover:shadow-md"
                         >
                           <div className="flex items-start gap-3">
-                            {/* Checkbox */}
-                            <div className="pt-1">
-                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                                isSelected 
-                                  ? 'bg-green-500 border-green-500' 
-                                  : 'border-gray-300 bg-white'
-                              }`}>
-                                {isSelected && <Check size={14} className="text-white" />}
-                              </div>
-                            </div>
                             
                             <div className="flex-1">
                               <div className="mb-1">
@@ -7697,23 +7601,14 @@ Please be punctual and update once completed. Thanks!`;
                               <p className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
                               {job.distance_km && job.distance_km > 0 && <p className="text-xs text-gray-500">{job.distance_km} km</p>}
                               {job.distance_km && job.distance_km > 0 && <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold ${(comm.activeRider / job.distance_km) >= 2 ? 'bg-green-100 text-green-700' : (comm.activeRider / job.distance_km) >= 1.2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{(comm.activeRider / job.distance_km) >= 2 ? 'High earning' : (comm.activeRider / job.distance_km) >= 1.2 ? 'Good deal' : 'Low value'}</span>}
+                              <button onClick={(e) => { e.stopPropagation(); setPendingTnCAction({ type: 'accept', jobId: job.id }); setShowRiderTnC(true); setTncAccepted(false); }} className="mt-2 w-full py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700">Accept</button>
                             </div>
                           </div>
                         </div>
                       );
                     })}
                     
-                    {/* Accept Selected Jobs Button */}
-                    {selectedJobsForAccept.length > 0 && (
-                      <div className="sticky bottom-0 bg-white pt-3 pb-2 border-t">
-                        <button 
-                          onClick={() => { setPendingTnCAction({ type: 'bulk_accept', jobIds: [...selectedJobsForAccept] }); setShowRiderTnC(true); setTncAccepted(false); }} 
-                          className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg hover:bg-green-700 transition-colors"
-                        >
-                          {`Accept ${selectedJobsForAccept.length} Job${selectedJobsForAccept.length > 1 ? 's' : ''}`}
-                        </button>
-                      </div>
-                    )}
+
                   </div>
                 )}
                 </>
