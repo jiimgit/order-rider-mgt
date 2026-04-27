@@ -3374,8 +3374,17 @@ Please be punctual and update once completed. Thanks!`;
     try {
       const logs = await api('audit_logs?action=eq.bonus_config_update&order=created_at.desc&limit=1');
       if (logs && logs.length > 0 && logs[0].details) {
-        const saved = typeof logs[0].details === 'string' ? JSON.parse(logs[0].details) : logs[0].details;
-        setBonusConfig(prev => ({...prev, ...saved}));
+        let saved = logs[0].details;
+        // Handle double-stringified JSON
+        if (typeof saved === 'string') {
+          try { saved = JSON.parse(saved); } catch (e) { /* already parsed */ }
+        }
+        if (typeof saved === 'string') {
+          try { saved = JSON.parse(saved); } catch (e) { /* still a string, give up */ }
+        }
+        if (typeof saved === 'object' && saved !== null) {
+          setBonusConfig(prev => ({...prev, ...saved}));
+        }
       }
     } catch (e) {
       console.log('No saved bonus config found');
@@ -6676,9 +6685,21 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
                   <p className="text-xs font-medium text-blue-600 uppercase">{bonusConfig.period === 'daily' ? 'Daily' : 'Weekly'} Target</p>
-                  <p className="text-lg font-bold text-blue-700">${(curr.earnings || 0).toFixed(0)}<span className="text-xs font-normal text-blue-400">/${bonusConfig.earningsTarget}</span></p>
-                  <div className="w-full bg-blue-200 rounded-full h-1.5 mt-1"><div className="bg-blue-600 h-1.5 rounded-full" style={{width: `${Math.min(100, ((curr.earnings || 0) / bonusConfig.earningsTarget) * 100)}%`}}></div></div>
-                  <p className="text-xs mt-1">{(curr.earnings || 0) >= bonusConfig.earningsTarget ? <span className="text-green-600 font-semibold">🎉 Bonus!</span> : <span className="text-blue-500">${(bonusConfig.earningsTarget - (curr.earnings || 0)).toFixed(0)} to go</span>}</p>
+                  {(bonusConfig.method === 'earnings' || bonusConfig.method === 'both') && bonusConfig.earningsTarget > 0 ? (
+                    <>
+                      <p className="text-lg font-bold text-blue-700">${(curr.earnings || 0).toFixed(0)}<span className="text-xs font-normal text-blue-400">/${bonusConfig.earningsTarget}</span></p>
+                      <div className="w-full bg-blue-200 rounded-full h-1.5 mt-1"><div className="bg-blue-600 h-1.5 rounded-full" style={{width: `${Math.min(100, ((curr.earnings || 0) / bonusConfig.earningsTarget) * 100)}%`}}></div></div>
+                      <p className="text-xs mt-1">{(curr.earnings || 0) >= bonusConfig.earningsTarget ? <span className="text-green-600 font-semibold">🎉 +${bonusConfig.earningsBonus} Bonus!</span> : <span className="text-blue-500">${(bonusConfig.earningsTarget - (curr.earnings || 0)).toFixed(0)} to go</span>}</p>
+                    </>
+                  ) : (bonusConfig.method === 'orders') && bonusConfig.ordersTarget > 0 ? (
+                    <>
+                      <p className="text-lg font-bold text-blue-700">{curr.completed_jobs || 0}<span className="text-xs font-normal text-blue-400">/{bonusConfig.ordersTarget}</span></p>
+                      <div className="w-full bg-blue-200 rounded-full h-1.5 mt-1"><div className="bg-blue-600 h-1.5 rounded-full" style={{width: `${Math.min(100, ((curr.completed_jobs || 0) / bonusConfig.ordersTarget) * 100)}%`}}></div></div>
+                      <p className="text-xs mt-1">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? <span className="text-green-600 font-semibold">🎉 +${bonusConfig.ordersBonus} Bonus!</span> : <span className="text-blue-500">{bonusConfig.ordersTarget - (curr.completed_jobs || 0)} orders to go</span>}</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-400 mt-2">No target set</p>
+                  )}
                 </div>
                 <div className="bg-purple-50 rounded-xl p-3 text-center">
                   <p className="text-xs font-medium text-purple-600 uppercase">Referral</p>
