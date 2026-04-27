@@ -403,10 +403,9 @@ const DeliveryPlatform = () => {
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
   const [showDeliveryPlan, setShowDeliveryPlan] = useState(false);
   const [showPasteOrder, setShowPasteOrder] = useState(false);
-  const [bonusConfig, setBonusConfig] = useState({ earningsTarget: 180, earningsBonus: 10, ordersTarget: 10, ordersBonus: 5, period: 'weekly', method: 'both', startDate: '', endDate: '' });
   const [jobPostTime, setJobPostTime] = useState<number | null>(null);
   const [boostStage, setBoostStage] = useState(0);
-  const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const [bonusConfig, setBonusConfig] = useState({ earningsTarget: 180, earningsBonus: 10, ordersTarget: 10, ordersBonus: 5, period: 'weekly', method: 'both', startDate: '', endDate: '' });
   const [deliveryPlan, setDeliveryPlan] = useState({
     planType: 'weekly' as 'weekly' | 'monthly',
     pickup: '',
@@ -5000,21 +4999,12 @@ Please be punctual and update once completed. Thanks!`;
         
         {auth.type === 'customer' && curr && (
           <div className="space-y-6">
-            {/* Top Bar - Credits + Contact */}
             <div className="flex justify-between items-center">
               <div className="flex gap-2">
-                <button 
-                  onClick={() => { setShowTopUp(true); setTncAccepted(false); }} 
-                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700"
-                >
+                <button onClick={() => { setShowTopUp(true); setTncAccepted(false); }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700">
                   <CreditCard size={14} /> Top Up (${(curr.credits || 0).toFixed(2)})
                 </button>
-                <a 
-                  href="https://wa.me/6580201980" target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-2 bg-green-500 text-white rounded-lg font-medium text-sm hover:bg-green-600"
-                >
-                  💬 Contact Us
-                </a>
+                <a href="https://wa.me/6580201980" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 bg-green-500 text-white rounded-lg font-medium text-sm hover:bg-green-600">💬 Contact Us</a>
               </div>
             </div>
 
@@ -5210,132 +5200,49 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             <div className="bg-white rounded-lg shadow-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-1">Create Delivery ⚡</h3>
-              <p className="text-sm text-gray-500 mb-4">Fast. Simple. Done.</p>
-              
-              {/* AI Auto Analysis Toggle */}
-              <div className="mb-6">
-                <button
-                  onClick={() => { setShowAiInput(!showAiInput); setShowPasteOrder(!showPasteOrder); setAiResult(null); }}
-                  className={`w-full py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
-                    showAiInput || showPasteOrder 
-                      ? 'bg-purple-600 text-white hover:bg-purple-700' 
-                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                  }`}
-                >
-                  📋 {showPasteOrder ? 'Hide' : 'Paste order (optional)'}
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Create Delivery ⚡</h3>
+                  <p className="text-sm text-gray-500">Fast. Simple. Done.</p>
+                </div>
+                <button onClick={() => setShowPasteOrder(!showPasteOrder)} className="flex items-center gap-2 px-3 py-2 border border-purple-200 text-purple-700 rounded-xl text-xs font-medium hover:bg-purple-50">
+                  📋 Paste order (optional)
                 </button>
               </div>
-              
-              {/* AI Input Area */}
-              {showAiInput && (
-                <div className="mb-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
-                  <p className="text-sm text-purple-800 mb-3">
-                    📋 <strong>Paste your delivery details below</strong> and AI will automatically fill in the form for you.
-                  </p>
-                  <textarea
-                    value={aiInput}
-                    onChange={(e) => setAiInput(e.target.value)}
-                    className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                    rows={5}
-                    placeholder={"Example:\nPick up from 123 Tampines Street 45 #08-100 (John, 81234567)\nDeliver to:\n1) 456 Bedok North Ave 3 #05-200 - Sarah 92345678\n2) 789 Jurong West St 61 #12-300 - David 83456789\nDocuments, handle with care. Small parcel. Pick up at 2pm today."}
-                  />
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      onClick={analyzeWithAI}
-                      disabled={aiAnalyzing || aiInput.trim().length < 20}
-                      className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
-                        aiAnalyzing || aiInput.trim().length < 20
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-purple-600 text-white hover:bg-purple-700'
-                      }`}
-                    >
-                      {aiAnalyzing ? '🔄 Analyzing...' : '🤖 Analyze with AI'}
-                    </button>
-                    <button
-                      onClick={() => { setAiInput(''); setAiResult(null); }}
-                      className="px-4 py-3 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300"
-                    >
-                      Clear
-                    </button>
+              {showPasteOrder && (
+                <div className="mb-4 p-4 bg-purple-50 rounded-xl border border-purple-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-sm font-semibold text-purple-800">Paste your order details</p>
+                    <button onClick={() => { setShowPasteOrder(false); setAiInput(''); setAiResult(null); }} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
                   </div>
-                  
-                  {/* AI Result Preview */}
+                  <textarea value={aiInput} onChange={(e) => setAiInput(e.target.value)} className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm bg-white" rows={3} placeholder='e.g. "Bedok 460456 to Jurong 600123, small parcel, today 2pm"' />
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={analyzeWithAI} disabled={aiAnalyzing || aiInput.trim().length < 20} className={`flex-1 py-2 rounded-lg font-semibold text-sm ${aiAnalyzing || aiInput.trim().length < 20 ? 'bg-gray-200 text-gray-400' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>{aiAnalyzing ? 'Analyzing...' : 'Analyze'}</button>
+                    <button onClick={() => { setAiInput(''); setAiResult(null); }} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Clear</button>
+                  </div>
                   {aiResult && (
-                    <div className="mt-4 p-4 bg-white rounded-lg border border-green-300">
-                      <h4 className="font-bold text-green-800 mb-3">✅ AI Analysis Result</h4>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="bg-orange-50 p-2 rounded">
-                          <p className="text-xs font-medium text-orange-600">PICKUP</p>
-                          <p className="text-gray-800">{aiResult.pickup} {aiResult.pickupUnitNo !== 'N/A' ? aiResult.pickupUnitNo : ''}</p>
-                          {aiResult.pickupContact && <p className="text-xs text-gray-500">Contact: {aiResult.pickupContact} {aiResult.pickupPhone}</p>}
-                        </div>
-                        
-                        {aiResult.stops?.map((stop: any, idx: number) => (
-                          <div key={idx} className="bg-green-50 p-2 rounded">
-                            <p className="text-xs font-medium text-green-600">DROP-OFF {idx + 1}</p>
-                            <p className="text-gray-800">{stop.address} {stop.unitNo !== 'N/A' ? stop.unitNo : ''}</p>
-                            {stop.recipientName && <p className="text-xs text-gray-500">Recipient: {stop.recipientName} {stop.recipientPhone}</p>}
-                          </div>
-                        ))}
-                        
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          <div className="bg-blue-50 p-2 rounded">
-                            <p className="text-xs text-blue-600">Parcel Size</p>
-                            <p className="font-medium capitalize">{aiResult.parcelSize}</p>
-                          </div>
-                          <div className="bg-blue-50 p-2 rounded">
-                            <p className="text-xs text-blue-600">Suggested Price</p>
-                            <p className="font-medium">${aiResult.suggestedPrice}</p>
-                          </div>
-                          {aiResult.deliverySlot && (
-                            <div className="bg-blue-50 p-2 rounded">
-                              <p className="text-xs text-blue-600">Delivery Slot</p>
-                              <p className="font-medium">{aiResult.deliverySlot}</p>
-                            </div>
-                          )}
-                          <div className="bg-blue-50 p-2 rounded">
-                            <p className="text-xs text-blue-600">Suggested Drivers</p>
-                            <p className="font-medium">{aiResult.suggestedDrivers}</p>
-                          </div>
-                        </div>
-                        
-                        {aiResult.remarks && (
-                          <div className="bg-yellow-50 p-2 rounded">
-                            <p className="text-xs text-yellow-600">Remarks</p>
-                            <p className="text-gray-700 italic">{aiResult.remarks}</p>
-                          </div>
-                        )}
-                        
-                        {aiResult.analysis && (
-                          <p className="text-xs text-gray-500 italic mt-2">🤖 {aiResult.analysis}</p>
-                        )}
+                    <div className="mt-3 p-3 bg-white rounded-lg border border-green-200">
+                      <p className="font-semibold text-green-800 text-sm mb-2">AI Result</p>
+                      <div className="space-y-1 text-xs">
+                        <div className="p-1.5 bg-orange-50 rounded"><span className="text-orange-600 font-medium">Pickup:</span> {aiResult.pickup}</div>
+                        {aiResult.stops?.map((stop: any, idx: number) => (<div key={idx} className="p-1.5 bg-green-50 rounded"><span className="text-green-600 font-medium">Drop-off {idx+1}:</span> {stop.address}</div>))}
+                        <div className="p-1.5 bg-blue-50 rounded"><span className="text-blue-600 font-medium">Parcel:</span> <span className="capitalize">{aiResult.parcelSize}</span></div>
+                        {aiResult.remarks && <div className="p-1.5 bg-yellow-50 rounded"><span className="text-yellow-600 font-medium">Remarks:</span> {aiResult.remarks}</div>}
                       </div>
-                      
-                      <div className="flex gap-2 mt-4">
-                        <button
-                          onClick={applyAiResult}
-                          className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
-                        >
-                          ✅ Accept & Fill Form
-                        </button>
-                        <button
-                          onClick={() => setAiResult(null)}
-                          className="flex-1 py-3 bg-gray-200 text-gray-600 rounded-lg font-semibold hover:bg-gray-300"
-                        >
-                          ✏️ Enter Manually
-                        </button>
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={applyAiResult} className="flex-1 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm">Use Details</button>
+                        <button onClick={() => setAiResult(null)} className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Manual</button>
                       </div>
                     </div>
                   )}
                 </div>
               )}
-              
-              {/* Step 1 */}
+
               <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span> Pickup & Drop-off</p>
+
               <div className="space-y-4">
-                {/* Pickup Location */}
+
+              {/* Pickup Location */}
                 <div className="relative">
                   <div className="flex items-start gap-3">
                     <div className="flex flex-col items-center">
@@ -5376,27 +5283,7 @@ Please be punctual and update once completed. Thanks!`;
                       
                       {/* Use My Profile Checkbox */}
                       <div className="mt-2 flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
-                        <input
-                          type="checkbox"
-                          checked={useMyProfile}
-                          onChange={(e) => {
-                            setUseMyProfile(e.target.checked);
-                            if (e.target.checked) {
-                              setJobForm(prev => ({
-                                ...prev,
-                                pickupContact: curr?.name || '',
-                                pickupPhone: curr?.phone || ''
-                              }));
-                            } else {
-                              setJobForm(prev => ({
-                                ...prev,
-                                pickupContact: '',
-                                pickupPhone: ''
-                              }));
-                            }
-                          }}
-                          className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                        />
+                        <input type="checkbox" checked={useMyProfile} onChange={(e) => { setUseMyProfile(e.target.checked); if (e.target.checked) { setJobForm(prev => ({...prev, pickupContact: curr?.name || '', pickupPhone: curr?.phone || ''})); } else { setJobForm(prev => ({...prev, pickupContact: '', pickupPhone: ''})); } }} className="w-5 h-5 text-blue-600 rounded" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-700">Use my profile contact</p>
                           {useMyProfile && <p className="text-xs text-gray-500 truncate">{curr?.name} · {curr?.phone}</p>}
@@ -5405,21 +5292,45 @@ Please be punctual and update once completed. Thanks!`;
 
                       {/* Contact fields - show when not using profile */}
                       {!useMyProfile && (
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          <input 
-                            type="text" 
-                            value={jobForm.pickupContact} 
-                            onChange={(e) => setJobForm({...jobForm, pickupContact: e.target.value})} 
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
-                            placeholder="Contact name" 
-                          />
-                          <input 
-                            type="tel" 
-                            value={jobForm.pickupPhone} 
-                            onChange={(e) => setJobForm({...jobForm, pickupPhone: e.target.value})} 
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
-                            placeholder="Phone number" 
-                          />
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Details</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input 
+                              type="text" 
+                              value={jobForm.pickupContact} 
+                              onChange={(e) => setJobForm({...jobForm, pickupContact: e.target.value})} 
+                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                              placeholder="Contact name" 
+                            />
+                            <input 
+                              type="tel" 
+                              value={jobForm.pickupPhone} 
+                              onChange={(e) => setJobForm({...jobForm, pickupPhone: e.target.value})} 
+                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+                              placeholder="Phone number" 
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Show filled values when using profile */}
+                      {useMyProfile && (
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Contact Details (Auto-filled)</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input 
+                              type="text" 
+                              value={curr?.name || ''} 
+                              disabled
+                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
+                            />
+                            <input 
+                              type="tel" 
+                              value={curr?.phone || ''} 
+                              disabled
+                              className="px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-sm text-green-800" 
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -5543,9 +5454,7 @@ Please be punctual and update once completed. Thanks!`;
                   <span className="text-xl">+</span> Add Stop
                 </button>
 
-                {/* Step 2 */}
                 <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span> Delivery Date & Time</p>
-
                 {/* Delivery Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date <span className="text-red-500">*</span></label>
@@ -5582,50 +5491,11 @@ Please be punctual and update once completed. Thanks!`;
                     Delivery Fee
                   </label>
                   
-                {/* Step 3 */}
-                <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span> Parcel Size</p>
-
-                {/* Parcel Size */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
-                  <select 
-                    value={jobForm.parcelSize} 
-                    onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
-                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
-                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
-                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
-                  </select>
-                </div>
-                
-
-                  {/* Step 4 */}
                   <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span> Price</p>
-
-                  {/* Recommended Price Display */}
-                  <div className="mb-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="text-center mb-3">
-                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-semibold">Recommended</span>
-                      <p className="text-4xl font-bold text-gray-900 mt-1">${formDistance !== null && formDistance > 0 ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2) : jobForm.price || '10.00'}</p>
-                      <p className="text-xs text-gray-500 mt-1">Most jobs matched in 5–10 mins</p>
-                    </div>
-                    
-                    <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 10) + 2; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-full py-2.5 border-2 border-blue-200 rounded-xl text-center hover:bg-blue-100 mb-3">
-                      <p className="text-blue-700 font-bold text-sm">⚡ Boost +$2.00</p>
-                      <p className="text-xs text-gray-500">Get driver faster (2–5 mins)</p>
-                    </button>
-
-                    <div className="flex items-center justify-center gap-4 py-1">
-                      <button type="button" onClick={() => { const p = Math.max(3, (parseFloat(jobForm.price) || 3) - 1); setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">−</button>
-                      <input type="number" value={jobForm.price} onChange={(e) => setJobForm({...jobForm, price: e.target.value})} className="w-28 text-center text-2xl font-bold border-0 focus:ring-0 bg-transparent" min="3" step="0.5" />
-                      <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 3) + 1; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">+</button>
-                    </div>
-
-                    <details className="mt-3">
-                      <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800 text-center">View price breakdown</summary>
-                      <div className="mt-2 text-xs text-gray-600 space-y-1 p-2 bg-white rounded-lg">
+                  {/* Suggested Pricing Breakdown */}
+                  <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs font-semibold text-blue-800 mb-1"><span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">Recommended</span></p>
+                    <p className="text-xs text-gray-500 mb-2">Most jobs matched in 5–10 mins</p>
                     <div className="text-xs text-gray-700 space-y-1">
                       <div className="flex justify-between">
                         <span>Base fee</span>
@@ -5667,90 +5537,96 @@ Please be punctual and update once completed. Thanks!`;
                         Use Suggested Price
                       </button>
                     )}
-
+                  </div>
+                  
+                  <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 10) + 2; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-full py-2 border-2 border-blue-200 rounded-lg text-center hover:bg-blue-50 mb-3">
+                    <p className="text-blue-700 font-bold text-sm">⚡ Boost +$2.00</p>
+                    <p className="text-xs text-gray-500">Get driver faster (2–5 mins)</p>
+                  </button>
+                  <div className="flex items-center justify-center gap-4">
+                    <button type="button" onClick={() => { const p = Math.max(3, (parseFloat(jobForm.price) || 3) - 1); setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">−</button>
+                    <input type="number" value={jobForm.price} onChange={(e) => setJobForm({...jobForm, price: e.target.value})} className="w-28 text-center text-2xl font-bold border-0 focus:ring-0 bg-transparent" min="3" step="0.5" />
+                    <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 3) + 1; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">+</button>
                   </div>
                 </div>
                 
-                {/* More Options (collapsed) */}
+                <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span> Parcel Size</p>
+                {/* Parcel Size */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
+                  <select 
+                    value={jobForm.parcelSize} 
+                    onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
+                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
+                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
+                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
+                  </select>
+                </div>
+                
                 <details className="border border-gray-200 rounded-xl overflow-hidden">
-                  <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-600 flex items-center gap-2 hover:bg-gray-50 bg-gray-50">
-                    🏷️ More options (optional)
-                  </summary>
+                  <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-600 flex items-center gap-2 hover:bg-gray-50 bg-gray-50">🏷️ More options (optional)</summary>
                   <div className="px-4 pb-4 pt-2 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Remarks / Special Instructions</label>
-                      <textarea 
-                        value={jobForm.remarks} 
-                        onChange={(e) => setJobForm({...jobForm, remarks: e.target.value})} 
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                        placeholder="e.g., Fragile items, call before delivery, leave at door..."
-                        rows={2}
-                      />
-                    </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Remarks / Special Instructions</label>
+                  <textarea 
+                    value={jobForm.remarks} 
+                    onChange={(e) => setJobForm({...jobForm, remarks: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                    placeholder="e.g., Fragile items, call before delivery, leave at door..."
+                    rows={3}
+                  />
+                </div>
 
-                    {/* Promo Code */}
-                    <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                      <label className="block text-sm font-medium text-purple-800 mb-2">🎟️ Promo Code</label>
-                      <div className="flex gap-2">
-                        <input 
-                          type="text" 
-                          value={promoCode} 
-                          onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); setPromoDiscount(null); }} 
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm" 
-                          placeholder="Enter promo code"
-                        />
-                        <button 
-                          onClick={redeemPromoCode} 
-                          className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 text-sm"
-                        >
-                          Apply
-                        </button>
-                        {promoDiscount && (
-                          <button 
-                            onClick={() => { setPromoCode(''); setPromoDiscount(null); setPromoError(''); }} 
-                            className="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 text-sm"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                      {promoError && <p className="text-sm text-red-600 mt-2">{promoError}</p>}
-                      {promoDiscount && (
-                        <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
-                          <p className="text-sm text-green-700 font-medium">
-                            ✅ Code "{promoDiscount.code}" applied! 
-                            {promoDiscount.discount_type === 'fixed' 
-                              ? ` $${promoDiscount.discount_value} off` 
-                              : ` ${promoDiscount.discount_value}% off`}
-                          </p>
-                          {jobForm.price && (
-                            <p className="text-xs text-green-600 mt-1">
-                              Original: ${parseFloat(jobForm.price).toFixed(2)} → 
-                              You pay: <strong>${getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2)}</strong>
-                            </p>
-                          )}
-                        </div>
+                {/* Promo Code Section */}
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <label className="block text-sm font-medium text-purple-800 mb-2">🎟️ Promo Code</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={promoCode} 
+                      onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); setPromoDiscount(null); }} 
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" 
+                      placeholder="Enter promo code"
+                    />
+                    <button 
+                      onClick={redeemPromoCode} 
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 text-sm"
+                    >
+                      Apply
+                    </button>
+                    {promoDiscount && (
+                      <button 
+                        onClick={() => { setPromoCode(''); setPromoDiscount(null); setPromoError(''); }} 
+                        className="px-3 py-2 bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 text-sm"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  {promoError && (
+                    <p className="text-sm text-red-600 mt-2">{promoError}</p>
+                  )}
+                  {promoDiscount && (
+                    <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-700 font-medium">
+                        ✅ Code "{promoDiscount.code}" applied! 
+                        {promoDiscount.discount_type === 'fixed' 
+                          ? ` $${promoDiscount.discount_value} off` 
+                          : ` ${promoDiscount.discount_value}% off`}
+                      </p>
+                      {jobForm.price && (
+                        <p className="text-xs text-green-600 mt-1">
+                          Original: ${parseFloat(jobForm.price).toFixed(2)} → 
+                          You pay: <strong>${getDiscountedPrice(parseFloat(jobForm.price)).toFixed(2)}</strong>
+                        </p>
                       )}
                     </div>
+                  )}
+                </div>
 
-                    {/* Delivery Plan */}
-                    <button 
-                      type="button"
-                      onClick={() => setShowDeliveryPlan(true)}
-                      className="w-full bg-blue-50 text-blue-700 px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-100 border border-blue-100"
-                    >
-                      📅 Delivery Plan (Weekly / Monthly)
-                    </button>
-
-                    {/* Bulk Import */}
-                    <button 
-                      type="button"
-                      onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)}
-                      className="w-full bg-gray-50 text-gray-700 px-4 py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-gray-100 border border-gray-200"
-                    >
-                      <Upload size={16} />
-                      {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV/Excel)'}
-                    </button>
                   </div>
                 </details>
 
@@ -5768,6 +5644,17 @@ Please be punctual and update once completed. Thanks!`;
                     {promoDiscount && <span className="text-yellow-300 text-sm ml-1">(promo applied)</span>}</>
                   )}
                 </button>
+                
+                {/* Bulk Import Option */}
+                <div className="mt-4 pt-4 border-t">
+                  <button
+                    onClick={() => setShowCustomerBulkImport(!showCustomerBulkImport)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    <Upload size={18} />
+                    {showCustomerBulkImport ? 'Hide Bulk Import' : 'Bulk Import (CSV/Excel)'}
+                  </button>
+                </div>
               </div>
               
               {/* Customer Bulk Import Section */}
@@ -5875,13 +5762,9 @@ Please be punctual and update once completed. Thanks!`;
 
             {boostStage >= 1 && (
               <div className={`rounded-lg shadow p-4 ${boostStage >= 2 ? 'bg-red-50 border border-red-200' : 'bg-orange-50 border border-orange-200'}`}>
-                <p className={`font-bold text-sm ${boostStage >= 2 ? 'text-red-700' : 'text-orange-700'}`}>
-                  {boostStage >= 2 ? '🔥 High demand now' : '⚡ No driver accepted yet'}
-                </p>
-                <p className="text-xs text-gray-600 my-2">{boostStage >= 2 ? 'Increase price to improve matching speed' : 'Boost +$2 for faster match'}</p>
-                <button onClick={async () => { const amt = boostStage >= 2 ? 4 : 2; const pj = jobs.filter((j: any) => j.customer_id === auth.id && j.status === 'posted'); for (const p of pj) { await api(`jobs?id=eq.${p.id}`, 'PATCH', { price: (parseFloat(p.price) || 0) + amt }); } setBoostStage(0); setJobPostTime(null); await loadData(); alert(`Price boosted by $${amt}!`); }} className={`w-full py-2.5 rounded-lg font-semibold text-sm text-white ${boostStage >= 2 ? 'bg-red-600' : 'bg-orange-500'}`}>
-                  {boostStage >= 2 ? 'Increase Price +$4' : 'Boost Price +$2'}
-                </button>
+                <p className={`font-bold text-sm ${boostStage >= 2 ? 'text-red-700' : 'text-orange-700'}`}>{boostStage >= 2 ? '🔥 High demand now' : '⚡ No driver accepted yet'}</p>
+                <p className="text-xs text-gray-600 my-2">{boostStage >= 2 ? 'Increase price to get matched sooner' : 'Boost +$2 for faster match'}</p>
+                <button onClick={async () => { const amt = boostStage >= 2 ? 4 : 2; const pj = jobs.filter((j: any) => j.customer_id === auth.id && j.status === 'posted'); for (const p of pj) { await api(`jobs?id=eq.${p.id}`, 'PATCH', { price: (parseFloat(p.price) || 0) + amt }); } setBoostStage(0); setJobPostTime(null); await loadData(); alert(`Price boosted by $${amt}!`); }} className={`w-full py-2 rounded-lg font-semibold text-sm text-white ${boostStage >= 2 ? 'bg-red-600' : 'bg-orange-500'}`}>{boostStage >= 2 ? 'Increase Price +$4' : 'Boost Price +$2'}</button>
               </div>
             )}
 
@@ -6275,38 +6158,11 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
             </div>
-
-            {/* Trust Indicators */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-              <div className="grid grid-cols-4 gap-3 text-center">
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center"><Clock size={16} className="text-blue-600" /></div>
-                  <p className="text-xs font-semibold text-gray-800">Save Time</p>
-                  <p className="text-xs text-gray-400">Deliver in minutes</p>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-9 h-9 bg-green-50 rounded-full flex items-center justify-center"><CheckCircle size={16} className="text-green-600" /></div>
-                  <p className="text-xs font-semibold text-gray-800">Best Matches</p>
-                  <p className="text-xs text-gray-400">Smart matching</p>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-9 h-9 bg-purple-50 rounded-full flex items-center justify-center"><MapPin size={16} className="text-purple-600" /></div>
-                  <p className="text-xs font-semibold text-gray-800">Live Tracking</p>
-                  <p className="text-xs text-gray-400">Track in real-time</p>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-9 h-9 bg-orange-50 rounded-full flex items-center justify-center"><Send size={16} className="text-orange-600" /></div>
-                  <p className="text-xs font-semibold text-gray-800">24/7 Support</p>
-                  <p className="text-xs text-gray-400">Here to help</p>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
         {auth.type === 'rider' && curr && (
           <div className="space-y-6">
-            {/* Deactivated Rider Message */}
             {curr.status === 'deactivated' && (
               <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 text-center">
                 <XCircle size={48} className="mx-auto mb-3 text-red-400" />
@@ -6343,13 +6199,9 @@ Please be punctual and update once completed. Thanks!`;
                 </button>
               </div>
               {!riderIsOnline && (
-                <p className="text-xs text-orange-600 mt-2">
-                  ⚠️ GPS must be enabled to go online and accept jobs
-                </p>
+                <p className="text-xs text-orange-600 mt-2">⚠️ GPS must be enabled to go online and accept jobs</p>
               )}
-              {riderIsOnline && (
-                <p className="text-xs text-green-600 mt-2">⚡ Stay online to get more jobs and higher priority</p>
-              )}
+              {riderIsOnline && <p className="text-xs text-green-600 mt-2">⚡ Stay online to get more jobs and higher priority</p>}
               
               {/* Auto-Accept Toggle */}
               {riderIsOnline && (
@@ -6840,49 +6692,30 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             {/* Rider Stats Header */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-green-50 rounded-xl p-3 text-center">
-                  <p className="text-xs font-medium text-green-600 uppercase">Total Earnings</p>
-                  <p className="text-2xl font-bold text-green-700">${(curr.earnings || 0).toFixed(2)}</p>
-                  <p className="text-xs text-green-500">{curr.completed_jobs || 0} Jobs</p>
+            <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <p className="text-green-100 text-sm">Total Earnings</p>
+                  <p className="text-5xl font-bold">${(curr.earnings || 0).toFixed(2)}</p>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-3 text-center">
-                  <p className="text-xs font-medium text-blue-600 uppercase">Weekly Target</p>
-                  <p className="text-2xl font-bold text-blue-700">${(curr.earnings || 0).toFixed(0)}<span className="text-sm font-normal text-blue-400">/${bonusConfig.earningsTarget}</span></p>
-                  <div className="w-full bg-blue-200 rounded-full h-1.5 mt-1">
-                    <div className="bg-blue-600 h-1.5 rounded-full" style={{width: `${Math.min(100, ((curr.earnings || 0) / bonusConfig.earningsTarget) * 100)}%`}}></div>
-                  </div>
-                </div>
-                <div className="bg-purple-50 rounded-xl p-3 text-center">
-                  <p className="text-xs font-medium text-purple-600 uppercase">Status</p>
-                  {(curr.earnings || 0) >= bonusConfig.earningsTarget ? (
-                    <p className="text-sm font-bold text-green-600 mt-1">🎉 Bonus unlocked!</p>
-                  ) : (
-                    <p className="text-sm font-semibold text-purple-700 mt-1">Keep going!</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-0.5">{(curr.earnings || 0) >= bonusConfig.earningsTarget ? `+$${bonusConfig.earningsBonus} bonus` : `$${(bonusConfig.earningsTarget - (curr.earnings || 0)).toFixed(0)} to go`}</p>
+                <div>
+                  <p className="text-green-100 text-sm">Completed Jobs</p>
+                  <p className="text-5xl font-bold">{curr.completed_jobs || 0}</p>
                 </div>
               </div>
               
+              {/* Multi-job indicator - Feature 5 */}
               {getActiveJobsForRider.length > 0 && (
-                <div className="mt-4 bg-yellow-50 rounded-xl p-3 flex justify-between items-center">
-                  <div>
-                    <p className="text-xs font-medium text-yellow-600 uppercase">Active Jobs</p>
-                    <p className="text-lg font-bold text-yellow-700">{getActiveJobsForRider.length} in progress</p>
-                  </div>
-                  <Package size={24} className="text-yellow-400" />
+                <div className="mt-4 pt-4 border-t border-green-400">
+                  <p className="text-green-100 text-sm">Active Jobs</p>
+                  <p className="text-2xl font-bold">{getActiveJobsForRider.length} job(s) in progress</p>
                 </div>
               )}
               
-              <div className="mt-4 bg-orange-50 rounded-xl p-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-xs font-medium text-orange-600 uppercase">Referral Code</p>
-                    <p className="text-lg font-bold text-orange-700">{curr.referral_code}</p>
-                  </div>
-                  <p className="text-xs text-orange-500">Share to grow your team!</p>
-                </div>
+              <div className="mt-4 pt-4 border-t border-green-400">
+                <p className="text-green-100 text-sm">Your Referral Code</p>
+                <p className="text-2xl font-bold">{curr.referral_code}</p>
+                <p className="text-sm text-green-100 mt-1">Share this code to grow your team!</p>
               </div>
             </div>
 
@@ -7800,9 +7633,7 @@ Please be punctual and update once completed. Thanks!`;
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-gray-500">{filteredAvailableJobs.length} job(s) available</p>
-                      {filteredAvailableJobs.length > 0 && (
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">🔥 High demand now</span>
-                      )}
+                      {filteredAvailableJobs.length > 0 && <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">🔥 High demand</span>}
                       {selectedJobsForAccept.length > 0 && (
                         <span className="text-sm font-medium text-green-600">
                           {selectedJobsForAccept.length} selected
@@ -7862,20 +7693,12 @@ Please be punctual and update once completed. Thanks!`;
                               {renderJobDetailCard(job, false)}
                             </div>
                             
-                            {/* Earnings & Value */}
                             <div className="text-right">
                               <p className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                              {job.distance_km && job.distance_km > 0 && <p className="text-xs text-gray-500">{job.distance_km} km</p>}
                               {job.distance_km && job.distance_km > 0 && (
-                                <p className="text-xs text-gray-500">{job.distance_km} km</p>
-                              )}
-                              {job.distance_km && job.distance_km > 0 && (
-                                <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold ${
-                                  (comm.activeRider / job.distance_km) >= 2 ? 'bg-green-100 text-green-700' :
-                                  (comm.activeRider / job.distance_km) >= 1.2 ? 'bg-blue-100 text-blue-700' :
-                                  'bg-gray-100 text-gray-600'
-                                }`}>
-                                  {(comm.activeRider / job.distance_km) >= 2 ? 'High earning' :
-                                   (comm.activeRider / job.distance_km) >= 1.2 ? 'Good deal' : 'Low value'}
+                                <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold ${(comm.activeRider / job.distance_km) >= 2 ? 'bg-green-100 text-green-700' : (comm.activeRider / job.distance_km) >= 1.2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                                  {(comm.activeRider / job.distance_km) >= 2 ? 'High earning' : (comm.activeRider / job.distance_km) >= 1.2 ? 'Good deal' : 'Low value'}
                                 </span>
                               )}
                             </div>
@@ -8152,9 +7975,7 @@ Please be punctual and update once completed. Thanks!`;
                         <div className="flex justify-between items-center">
                           <div>
                             <p className="font-semibold text-lg">{r.name} - Tier {r.tier}
-                              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${r.status === 'deactivated' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                {r.status === 'deactivated' ? 'Inactive' : 'Active'}
-                              </span>
+                              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${r.status === 'deactivated' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{r.status === 'deactivated' ? 'Inactive' : 'Active'}</span>
                             </p>
                             <p className="text-sm text-gray-600">{r.email} | {r.phone}</p>
                             <p className="text-sm text-gray-600 mt-1">Code: <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">{r.referral_code}</span></p>
@@ -8177,22 +7998,7 @@ Please be punctual and update once completed. Thanks!`;
                             </p>
                           </div>
                           <div className="flex gap-2">
-                            <button 
-                              onClick={async () => {
-                                const newStatus = r.status === 'deactivated' ? 'active' : 'deactivated';
-                                const reason = prompt(`Reason for ${newStatus === 'deactivated' ? 'deactivating' : 'activating'} ${r.name}:`);
-                                if (reason !== null) {
-                                  await api(`riders?id=eq.${r.id}`, 'PATCH', { status: newStatus });
-                                  await logAuditAction('rider_status_change', { riderId: r.id, riderName: r.name, newStatus, reason });
-                                  await loadData();
-                                  alert(`${r.name} is now ${newStatus === 'deactivated' ? 'INACTIVE' : 'ACTIVE'}.`);
-                                }
-                              }}
-                              className={`p-2 rounded text-xs font-semibold ${r.status === 'deactivated' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'}`}
-                              title={r.status === 'deactivated' ? 'Activate' : 'Deactivate'}
-                            >
-                              {r.status === 'deactivated' ? '✅ Activate' : '⏸️ Deactivate'}
-                            </button>
+                            <button onClick={async () => { const ns = r.status === 'deactivated' ? 'active' : 'deactivated'; const reason = prompt(`Reason for ${ns === 'deactivated' ? 'deactivating' : 'activating'} ${r.name}:`); if (reason !== null) { await api(`riders?id=eq.${r.id}`, 'PATCH', { status: ns }); await logAuditAction('rider_status_change', { riderId: r.id, riderName: r.name, newStatus: ns, reason }); await loadData(); alert(`${r.name} is now ${ns === 'deactivated' ? 'INACTIVE' : 'ACTIVE'}.`); } }} className={`p-2 rounded text-xs font-semibold ${r.status === 'deactivated' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`} title={r.status === 'deactivated' ? 'Activate' : 'Deactivate'}>{r.status === 'deactivated' ? '✅' : '⏸️'}</button>
                             <button onClick={() => setEditRider({...r, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
                             <button onClick={async () => { if (window.confirm('Delete rider?')) { await api(`riders?id=eq.${r.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
                           </div>
@@ -8238,11 +8044,9 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Bonus Configuration */}
             {adminView === 'riders' && (
               <div className="bg-white rounded-lg shadow p-6 mt-6">
                 <h4 className="text-lg font-bold mb-4">🎯 Bonus Configuration</h4>
-                
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Bonus Period</label>
@@ -8257,51 +8061,30 @@ Please be punctual and update once completed. Thanks!`;
                     <select value={bonusConfig.method} onChange={(e) => setBonusConfig({...bonusConfig, method: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm">
                       <option value="earnings">Earnings Target Only</option>
                       <option value="orders">Orders Target Only</option>
-                      <option value="both">Both (Earnings + Orders)</option>
+                      <option value="both">Both</option>
                     </select>
                   </div>
                 </div>
-
                 {bonusConfig.period === 'custom' && (
                   <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
-                      <input type="date" value={bonusConfig.startDate} onChange={(e) => setBonusConfig({...bonusConfig, startDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
-                      <input type="date" value={bonusConfig.endDate} onChange={(e) => setBonusConfig({...bonusConfig, endDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                    </div>
+                    <div><label className="block text-xs text-gray-600 mb-1">Start Date</label><input type="date" value={bonusConfig.startDate} onChange={(e) => setBonusConfig({...bonusConfig, startDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+                    <div><label className="block text-xs text-gray-600 mb-1">End Date</label><input type="date" value={bonusConfig.endDate} onChange={(e) => setBonusConfig({...bonusConfig, endDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
                   </div>
                 )}
-
                 <div className="grid grid-cols-2 gap-4">
                   {(bonusConfig.method === 'earnings' || bonusConfig.method === 'both') && (
                     <div className="p-4 bg-blue-50 rounded-lg">
                       <p className="text-sm font-semibold text-blue-800 mb-2">Earnings Target</p>
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <span className="text-sm text-gray-600">Earn $</span>
-                        <input type="number" value={bonusConfig.earningsTarget} onChange={(e) => setBonusConfig({...bonusConfig, earningsTarget: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded text-sm" />
-                        <span className="text-sm text-gray-600">→ +$</span>
-                        <input type="number" value={bonusConfig.earningsBonus} onChange={(e) => setBonusConfig({...bonusConfig, earningsBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
-                        <span className="text-sm text-gray-600">bonus</span>
-                      </div>
+                      <div className="flex gap-2 items-center flex-wrap"><span className="text-sm">Earn $</span><input type="number" value={bonusConfig.earningsTarget} onChange={(e) => setBonusConfig({...bonusConfig, earningsTarget: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded text-sm" /><span className="text-sm">→ +$</span><input type="number" value={bonusConfig.earningsBonus} onChange={(e) => setBonusConfig({...bonusConfig, earningsBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">bonus</span></div>
                     </div>
                   )}
                   {(bonusConfig.method === 'orders' || bonusConfig.method === 'both') && (
                     <div className="p-4 bg-green-50 rounded-lg">
                       <p className="text-sm font-semibold text-green-800 mb-2">Orders Target</p>
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <span className="text-sm text-gray-600">Complete</span>
-                        <input type="number" value={bonusConfig.ordersTarget} onChange={(e) => setBonusConfig({...bonusConfig, ordersTarget: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
-                        <span className="text-sm text-gray-600">orders → +$</span>
-                        <input type="number" value={bonusConfig.ordersBonus} onChange={(e) => setBonusConfig({...bonusConfig, ordersBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
-                        <span className="text-sm text-gray-600">bonus</span>
-                      </div>
+                      <div className="flex gap-2 items-center flex-wrap"><span className="text-sm">Complete</span><input type="number" value={bonusConfig.ordersTarget} onChange={(e) => setBonusConfig({...bonusConfig, ordersTarget: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">orders → +$</span><input type="number" value={bonusConfig.ordersBonus} onChange={(e) => setBonusConfig({...bonusConfig, ordersBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">bonus</span></div>
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-3">Period: {bonusConfig.period === 'custom' ? `${bonusConfig.startDate || '?'} to ${bonusConfig.endDate || '?'}` : bonusConfig.period}. Displayed to riders on their portal.</p>
               </div>
             )}
 
@@ -9301,9 +9084,6 @@ Please be punctual and update once completed. Thanks!`;
                               <td className="p-3 text-center">
                                 <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
                                   Tier {rider.tier}
-                                  <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${rider.status === 'deactivated' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                    {rider.status === 'deactivated' ? 'Inactive' : 'Active'}
-                                  </span>
                                 </span>
                               </td>
                               <td className="p-3 text-center">{rider.totalJobs}</td>
@@ -9346,7 +9126,6 @@ Please be punctual and update once completed. Thanks!`;
                       <option value="accept_job">Accept Job</option>
                       <option value="complete_job">Complete Job</option>
                       <option value="edit_rider">Edit Rider</option>
-                      <option value="rider_status_change">Status Change</option>
                       <option value="edit_customer">Edit Customer</option>
                       <option value="assign_rider">Assign Rider</option>
                       <option value="flag_pod">Flag POD</option>
