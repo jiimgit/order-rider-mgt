@@ -403,7 +403,7 @@ const DeliveryPlatform = () => {
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
   const [showDeliveryPlan, setShowDeliveryPlan] = useState(false);
   const [showPasteOrder, setShowPasteOrder] = useState(false);
-  const [bonusConfig, setBonusConfig] = useState({ earningsTarget: 180, earningsBonus: 10, ordersTarget: 10, ordersBonus: 5 });
+  const [bonusConfig, setBonusConfig] = useState({ earningsTarget: 180, earningsBonus: 10, ordersTarget: 10, ordersBonus: 5, period: 'weekly', method: 'both', startDate: '', endDate: '' });
   const [jobPostTime, setJobPostTime] = useState<number | null>(null);
   const [boostStage, setBoostStage] = useState(0);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
@@ -5000,36 +5000,22 @@ Please be punctual and update once completed. Thanks!`;
         
         {auth.type === 'customer' && curr && (
           <div className="space-y-6">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-6 text-white">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-blue-100 text-sm">Available Credits</p>
-                  <p className="text-5xl font-bold">${(curr.credits || 0).toFixed(2)}</p>
-                </div>
-                <div className="flex gap-2">
-                  <a 
-                    href="https://wa.me/6580201980" 
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-green-500 text-white px-4 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-green-600 transition-colors shadow-lg"
-                  >
-                    💬 Contact Us
-                  </a>
-                  <button 
-                    onClick={() => { setShowTopUp(true); setTncAccepted(false); }} 
-                    className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 transition-colors shadow-lg"
-                  >
-                    <CreditCard size={20} />
-                    Top Up
-                  </button>
-                </div>
+            {/* Top Bar - Credits + Contact */}
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => { setShowTopUp(true); setTncAccepted(false); }} 
+                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700"
+                >
+                  <CreditCard size={14} /> Top Up (${(curr.credits || 0).toFixed(2)})
+                </button>
+                <a 
+                  href="https://wa.me/6580201980" target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-green-500 text-white rounded-lg font-medium text-sm hover:bg-green-600"
+                >
+                  💬 Contact Us
+                </a>
               </div>
-              <button 
-                onClick={() => setShowDeliveryPlan(true)}
-                className="mt-3 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-opacity-30 transition-colors border border-white border-opacity-30"
-              >
-                📅 Delivery Plan (Weekly / Monthly)
-              </button>
             </div>
 
             {showTopUp && (
@@ -5346,13 +5332,8 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
               
-              {/* Postal Code Tip */}
-              <div className="bg-blue-50 p-3 rounded-lg mb-4">
-                <p className="text-sm text-blue-800">
-                  💡 <strong>Tip:</strong> Enter a 6-digit Singapore postal code to auto-fill the address!
-                </p>
-              </div>
-
+              {/* Step 1 */}
+              <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span> Pickup & Drop-off</p>
               <div className="space-y-4">
                 {/* Pickup Location */}
                 <div className="relative">
@@ -5562,6 +5543,9 @@ Please be punctual and update once completed. Thanks!`;
                   <span className="text-xl">+</span> Add Stop
                 </button>
 
+                {/* Step 2 */}
+                <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span> Delivery Date & Time</p>
+
                 {/* Delivery Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date <span className="text-red-500">*</span></label>
@@ -5598,10 +5582,50 @@ Please be punctual and update once completed. Thanks!`;
                     Delivery Fee
                   </label>
                   
-                  {/* Suggested Pricing Breakdown */}
-                  <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-xs font-semibold text-blue-800 mb-1">🏷️ Recommended Price <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs ml-1">Fast match</span></p>
-                    <p className="text-xs text-gray-500 mb-2">Most jobs get accepted in 5–10 mins</p>
+                {/* Step 3 */}
+                <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span> Parcel Size</p>
+
+                {/* Parcel Size */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
+                  <select 
+                    value={jobForm.parcelSize} 
+                    onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
+                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
+                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
+                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
+                  </select>
+                </div>
+                
+
+                  {/* Step 4 */}
+                  <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span> Price</p>
+
+                  {/* Recommended Price Display */}
+                  <div className="mb-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="text-center mb-3">
+                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-semibold">Recommended</span>
+                      <p className="text-4xl font-bold text-gray-900 mt-1">${formDistance !== null && formDistance > 0 ? (3 + (formDistance * 0.95) + ((jobForm.stops.filter((s: any) => s.address).length || 1) * 2.50)).toFixed(2) : jobForm.price || '10.00'}</p>
+                      <p className="text-xs text-gray-500 mt-1">Most jobs matched in 5–10 mins</p>
+                    </div>
+                    
+                    <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 10) + 2; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-full py-2.5 border-2 border-blue-200 rounded-xl text-center hover:bg-blue-100 mb-3">
+                      <p className="text-blue-700 font-bold text-sm">⚡ Boost +$2.00</p>
+                      <p className="text-xs text-gray-500">Get driver faster (2–5 mins)</p>
+                    </button>
+
+                    <div className="flex items-center justify-center gap-4 py-1">
+                      <button type="button" onClick={() => { const p = Math.max(3, (parseFloat(jobForm.price) || 3) - 1); setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">−</button>
+                      <input type="number" value={jobForm.price} onChange={(e) => setJobForm({...jobForm, price: e.target.value})} className="w-28 text-center text-2xl font-bold border-0 focus:ring-0 bg-transparent" min="3" step="0.5" />
+                      <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 3) + 1; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">+</button>
+                    </div>
+
+                    <details className="mt-3">
+                      <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800 text-center">View price breakdown</summary>
+                      <div className="mt-2 text-xs text-gray-600 space-y-1 p-2 bg-white rounded-lg">
                     <div className="text-xs text-gray-700 space-y-1">
                       <div className="flex justify-between">
                         <span>Base fee</span>
@@ -5643,33 +5667,8 @@ Please be punctual and update once completed. Thanks!`;
                         Use Suggested Price
                       </button>
                     )}
-                    <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 10) + 2; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="mt-2 w-full py-2 border-2 border-blue-200 rounded-lg text-center hover:bg-blue-50">
-                      <p className="text-blue-700 font-bold text-sm">⚡ Boost +$2.00</p>
-                      <p className="text-xs text-gray-500">Faster match (2–5 mins)</p>
-                    </button>
+
                   </div>
-                  
-                  <div className="flex items-center justify-center gap-4 py-2">
-                    <button type="button" onClick={() => { const p = Math.max(3, (parseFloat(jobForm.price) || 3) - 1); setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">−</button>
-                    <input type="number" value={jobForm.price} onChange={(e) => setJobForm({...jobForm, price: e.target.value})} className="w-32 text-center text-3xl font-bold border-0 focus:ring-0 bg-transparent" min="3" step="0.5" />
-                    <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 3) + 1; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">+</button>
-                  </div>
-                  <p className="text-xs text-gray-400 text-center">💡 You can adjust the price if needed</p>
-                </div>
-                
-                {/* Parcel Size */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
-                  <select 
-                    value={jobForm.parcelSize} 
-                    onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
-                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
-                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
-                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
-                  </select>
                 </div>
                 
                 {/* More Options (collapsed) */}
@@ -8243,29 +8242,66 @@ Please be punctual and update once completed. Thanks!`;
             {adminView === 'riders' && (
               <div className="bg-white rounded-lg shadow p-6 mt-6">
                 <h4 className="text-lg font-bold mb-4">🎯 Bonus Configuration</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm font-semibold text-blue-800 mb-2">Earnings Target</p>
-                    <div className="flex gap-2 items-center">
-                      <span className="text-sm text-gray-600">Earn $</span>
-                      <input type="number" value={bonusConfig.earningsTarget} onChange={(e) => setBonusConfig({...bonusConfig, earningsTarget: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded text-sm" />
-                      <span className="text-sm text-gray-600">→ +$</span>
-                      <input type="number" value={bonusConfig.earningsBonus} onChange={(e) => setBonusConfig({...bonusConfig, earningsBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
-                      <span className="text-sm text-gray-600">bonus</span>
-                    </div>
+                
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bonus Period</label>
+                    <select value={bonusConfig.period} onChange={(e) => setBonusConfig({...bonusConfig, period: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm">
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="custom">Custom Date Range</option>
+                    </select>
                   </div>
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm font-semibold text-green-800 mb-2">Orders Target</p>
-                    <div className="flex gap-2 items-center">
-                      <span className="text-sm text-gray-600">Complete</span>
-                      <input type="number" value={bonusConfig.ordersTarget} onChange={(e) => setBonusConfig({...bonusConfig, ordersTarget: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
-                      <span className="text-sm text-gray-600">orders → +$</span>
-                      <input type="number" value={bonusConfig.ordersBonus} onChange={(e) => setBonusConfig({...bonusConfig, ordersBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
-                      <span className="text-sm text-gray-600">bonus</span>
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bonus Method</label>
+                    <select value={bonusConfig.method} onChange={(e) => setBonusConfig({...bonusConfig, method: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm">
+                      <option value="earnings">Earnings Target Only</option>
+                      <option value="orders">Orders Target Only</option>
+                      <option value="both">Both (Earnings + Orders)</option>
+                    </select>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-3">These targets are displayed to riders on their portal.</p>
+
+                {bonusConfig.period === 'custom' && (
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                      <input type="date" value={bonusConfig.startDate} onChange={(e) => setBonusConfig({...bonusConfig, startDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                      <input type="date" value={bonusConfig.endDate} onChange={(e) => setBonusConfig({...bonusConfig, endDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  {(bonusConfig.method === 'earnings' || bonusConfig.method === 'both') && (
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <p className="text-sm font-semibold text-blue-800 mb-2">Earnings Target</p>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <span className="text-sm text-gray-600">Earn $</span>
+                        <input type="number" value={bonusConfig.earningsTarget} onChange={(e) => setBonusConfig({...bonusConfig, earningsTarget: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded text-sm" />
+                        <span className="text-sm text-gray-600">→ +$</span>
+                        <input type="number" value={bonusConfig.earningsBonus} onChange={(e) => setBonusConfig({...bonusConfig, earningsBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
+                        <span className="text-sm text-gray-600">bonus</span>
+                      </div>
+                    </div>
+                  )}
+                  {(bonusConfig.method === 'orders' || bonusConfig.method === 'both') && (
+                    <div className="p-4 bg-green-50 rounded-lg">
+                      <p className="text-sm font-semibold text-green-800 mb-2">Orders Target</p>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <span className="text-sm text-gray-600">Complete</span>
+                        <input type="number" value={bonusConfig.ordersTarget} onChange={(e) => setBonusConfig({...bonusConfig, ordersTarget: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
+                        <span className="text-sm text-gray-600">orders → +$</span>
+                        <input type="number" value={bonusConfig.ordersBonus} onChange={(e) => setBonusConfig({...bonusConfig, ordersBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" />
+                        <span className="text-sm text-gray-600">bonus</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-3">Period: {bonusConfig.period === 'custom' ? `${bonusConfig.startDate || '?'} to ${bonusConfig.endDate || '?'}` : bonusConfig.period}. Displayed to riders on their portal.</p>
               </div>
             )}
 
