@@ -4909,9 +4909,9 @@ Please be punctual and update once completed. Thanks!`;
   return (
     <div className="min-h-screen bg-gray-100">
       <nav className="bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-lg sm:text-2xl font-bold">
               {auth.type === 'admin' ? 'Admin Dashboard' : auth.type === 'customer' ? 'Customer Portal' : 'Rider Portal'}
             </h1>
             {curr && (
@@ -4997,13 +4997,13 @@ Please be punctual and update once completed. Thanks!`;
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700"
             >
               <LogOut size={16} />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Loading state for customer/rider when data not yet loaded */}
         {(auth.type === 'customer' || auth.type === 'rider') && !curr && !error && (
           <div className="text-center py-12">
@@ -5030,10 +5030,10 @@ Please be punctual and update once completed. Thanks!`;
         
         {auth.type === 'customer' && curr && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div className="flex gap-2">
+            <div className="flex flex-wrap justify-between items-center gap-2">
+              <div className="flex gap-2 flex-wrap justify-center sm:justify-start">
                 <button onClick={() => { setShowTopUp(true); setTncAccepted(false); }} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700">
-                  <CreditCard size={14} /> Top Up (${(curr.credits || 0).toFixed(2)})
+                  <CreditCard size={14} /> <span className="hidden sm:inline">Top Up</span><span className="sm:hidden">+</span> (${(curr.credits || 0).toFixed(2)})
                 </button>
                 <a href="https://wa.me/6580201980" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 bg-green-500 text-white rounded-lg font-medium text-sm hover:bg-green-600">💬 Contact Us</a>
               </div>
@@ -5230,8 +5230,8 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex justify-between items-start mb-4">
+            <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-2 mb-4">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">Create Delivery ⚡</h3>
                   <p className="text-sm text-gray-500">Fast. Simple. Done.</p>
@@ -5266,7 +5266,7 @@ Please be punctual and update once completed. Thanks!`;
                   )}
                 </div>
               )}
-              <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span> Pickup & Drop-off</p>
+              <p className="text-xs sm:text-sm font-bold text-gray-800 flex items-center gap-2 mb-3"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span> Pickup & Drop-off</p>
               <div className="space-y-4">
               {/* Pickup Location */}
                 <div className="relative">
@@ -5460,7 +5460,7 @@ Please be punctual and update once completed. Thanks!`;
                   <span className="text-xl">+</span> Add Stop
                 </button>
 
-                <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span> Delivery Date & Time</p>
+                <p className="text-xs sm:text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span> Delivery Date & Time</p>
                 {/* Delivery Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Date <span className="text-red-500">*</span></label>
@@ -5497,7 +5497,7 @@ Please be punctual and update once completed. Thanks!`;
                     Delivery Fee
                   </label>
                   
-                <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span> Parcel Size</p>
+                <p className="text-xs sm:text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span> Parcel Size</p>
                 {/* Parcel Size */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
@@ -5513,7 +5513,7 @@ Please be punctual and update once completed. Thanks!`;
                   </select>
                 </div>
 
-                  <p className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span> Price</p>
+                  <p className="text-xs sm:text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span> Price</p>
                   {/* Suggested Pricing Breakdown */}
                   <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-xs font-semibold text-blue-800 mb-1"><span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">Recommended</span></p>
@@ -5538,9 +5538,9 @@ Please be punctual and update once completed. Thanks!`;
                     <p className="text-blue-700 font-bold text-sm">⚡ Boost +$2.00</p>
                     <p className="text-xs text-gray-500">Get driver faster (2–5 mins)</p>
                   </button>
-                  <div className="flex items-center justify-center gap-4">
+                  <div className="flex items-center justify-center gap-3 sm:gap-4">
                     <button type="button" onClick={() => { const p = Math.max(3, (parseFloat(jobForm.price) || 3) - 1); setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">−</button>
-                    <input type="number" value={jobForm.price} onChange={(e) => setJobForm({...jobForm, price: e.target.value})} className="w-28 text-center text-2xl font-bold border-0 focus:ring-0 bg-transparent" min="3" step="0.5" />
+                    <input type="number" value={jobForm.price} onChange={(e) => setJobForm({...jobForm, price: e.target.value})} className="w-24 sm:w-28 text-center text-xl sm:text-2xl font-bold border-0 focus:ring-0 bg-transparent" min="3" step="0.5" />
                     <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 3) + 1; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">+</button>
                   </div>
                 </div>
@@ -5563,7 +5563,7 @@ Please be punctual and update once completed. Thanks!`;
                 {/* Promo Code Section */}
                 <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
                   <label className="block text-sm font-medium text-purple-800 mb-2">🎟️ Promo Code</label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <input 
                       type="text" 
                       value={promoCode} 
@@ -5739,9 +5739,9 @@ Please be punctual and update once completed. Thanks!`;
                 <button onClick={async () => { const amt = boostStage >= 2 ? 4 : 2; const pj = jobs.filter((j: any) => j.customer_id === auth.id && j.status === 'posted'); for (const p of pj) { await api(`jobs?id=eq.${p.id}`, 'PATCH', { price: (parseFloat(p.price) || 0) + amt }); } setBoostStage(0); setJobPostTime(null); await loadData(); alert(`Price boosted by $${amt}!`); }} className={`w-full py-2 rounded-lg font-semibold text-sm text-white ${boostStage >= 2 ? 'bg-red-600' : 'bg-orange-500'}`}>{boostStage >= 2 ? 'Increase Price +$4' : 'Boost Price +$2'}</button>
               </div>
             )}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold">My Delivery Jobs</h3>
+            <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 sm:mb-6">
+                <h3 className="text-xl sm:text-2xl font-bold">My Delivery Jobs</h3>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowOrderHistory(!showOrderHistory)}
@@ -6133,7 +6133,7 @@ Please be punctual and update once completed. Thanks!`;
         )}
 
         {auth.type === 'rider' && curr && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 sm:gap-6">
             {curr.status === 'deactivated' && (  /* order-first */
               <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 text-center">
                 <XCircle size={48} className="mx-auto mb-3 text-red-400" />
@@ -6355,7 +6355,7 @@ Please be punctual and update once completed. Thanks!`;
 
             {/* Rider Profile Page */}
             {showRiderProfile && curr && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <User className="text-purple-600" />
                   My Profile
@@ -6458,7 +6458,7 @@ Please be punctual and update once completed. Thanks!`;
 
             {/* Rider Delivery History Page */}
             {showDeliveryHistory && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <FileText className="text-blue-600" />
                   Delivery History
@@ -6538,7 +6538,7 @@ Please be punctual and update once completed. Thanks!`;
 
             {/* Rider Performance Page - Feature 9 */}
             {showRiderPerformance && riderPerformanceStats && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <BarChart3 className="text-green-600" />
                   My Performance
@@ -6598,7 +6598,7 @@ Please be punctual and update once completed. Thanks!`;
 
             {/* Route Optimization - Feature 8 */}
             {showRouteOptimization && getActiveJobsForRider.length > 1 && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
                 <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                   <Navigation className="text-blue-600" />
                   Route Optimization
@@ -6668,10 +6668,10 @@ Please be punctual and update once completed. Thanks!`;
             {/* Earnings/Performance/Referral - Part 3 */}
             <div style={{order: 3}}>
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <div className="bg-green-50 rounded-xl p-3 text-center">
                   <p className="text-xs font-medium text-green-600 uppercase">Earnings</p>
-                  <p className="text-2xl font-bold text-green-700">${(curr.earnings || 0).toFixed(2)}</p>
+                  <p className="text-lg sm:text-2xl font-bold text-green-700">${(curr.earnings || 0).toFixed(2)}</p>
                   <p className="text-xs text-green-500">{curr.completed_jobs || 0} jobs</p>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
@@ -7549,8 +7549,8 @@ Please be punctual and update once completed. Thanks!`;
             {/* Available Jobs - Part 1: Top */}
             {curr.status !== 'deactivated' && (
             <div style={{order: 1}}>
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
+            <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+              <h3 className="text-xl sm:text-2xl font-bold mb-4">Available Jobs</h3>
               
               {!riderIsOnline ? (
                 <div className="text-center py-12">
@@ -7639,7 +7639,7 @@ Please be punctual and update once completed. Thanks!`;
                               <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View full details</summary><div className="mt-1 text-xs">{renderJobDetailCard(job, false)}</div></details>
                             </div>
                             <div className="text-right">
-                              <p className="text-2xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                              <p className="text-xl sm:text-2xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
                               {job.distance_km && job.distance_km > 0 && <p className="text-xs text-gray-500">{job.distance_km} km</p>}
                               {job.distance_km && job.distance_km > 0 && <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold ${(comm.activeRider / job.distance_km) >= 2 ? 'bg-green-100 text-green-700' : (comm.activeRider / job.distance_km) >= 1.2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{(comm.activeRider / job.distance_km) >= 2 ? 'High earning' : (comm.activeRider / job.distance_km) >= 1.2 ? 'Good deal' : 'Low value'}</span>}
                               {parseFloat(job.price) >= 12 && <span className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700 mt-1">🔥 High Demand</span>}
