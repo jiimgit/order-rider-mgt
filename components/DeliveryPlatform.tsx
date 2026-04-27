@@ -6102,8 +6102,8 @@ Please be punctual and update once completed. Thanks!`;
         )}
 
         {auth.type === 'rider' && curr && (
-          <div className="space-y-6">
-            {curr.status === 'deactivated' && (
+          <div className="flex flex-col gap-6">
+            {curr.status === 'deactivated' && (  /* order-first */
               <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 text-center">
                 <XCircle size={48} className="mx-auto mb-3 text-red-400" />
                 <h3 className="text-lg font-bold text-red-700 mb-2">Account Inactive</h3>
@@ -6111,7 +6111,8 @@ Please be punctual and update once completed. Thanks!`;
                 <a href="https://wa.me/6580201980" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 text-sm">💬 Contact Support</a>
               </div>
             )}
-            {/* Online/Offline Status Bar */}
+            {/* Online/Offline - Part 2 */}
+            <div style={{order: 2}}>
             <div className={`p-4 rounded-lg ${riderIsOnline ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -6631,6 +6632,10 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
+            </div>
+
+            {/* Earnings/Performance/Referral - Part 3 */}
+            <div style={{order: 3}}>
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-green-50 rounded-xl p-3 text-center">
@@ -6658,6 +6663,9 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
+            {/* Withdrawal moved to Earnings page */}
+            {showRiderPerformance && (
+            <>
             {/* Withdrawal Notifications - Show status of rider's withdrawal requests */}
             {(() => {
               const myWithdrawals = auditLogs.filter((log: any) => 
@@ -6985,6 +6993,9 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
             </div>
+
+            </>
+            )}
 
             {/* Active Jobs - Grouped by TODAY and UPCOMING */}
             {activeJobsList.length > 0 && (
@@ -7504,8 +7515,9 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            {/* Available Jobs */}
+            {/* Available Jobs - Part 1: Top */}
             {curr.status !== 'deactivated' && (
+            <div style={{order: 1}}>
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-2xl font-bold mb-4">Available Jobs</h3>
               
@@ -7587,21 +7599,21 @@ Please be punctual and update once completed. Thanks!`;
                             
                             <div className="flex-1">
                               <div className="mb-1">
-                                {job.order_id && <span className="text-xs font-bold text-purple-600">#{job.order_id}</span>}
-                                <p className="font-semibold text-sm">{job.pickup?.substring(0, 30)}{job.pickup?.length > 30 ? '...' : ''} → {job.delivery?.substring(0, 30)}{job.delivery?.length > 30 ? '...' : ''}</p>
-                                <div className="flex gap-3 mt-1 text-xs text-gray-500">
+                                <div className="flex gap-3 text-xs text-gray-500">
                                   {job.delivery_date && <span>📅 {job.delivery_date}</span>}
                                   {job.timeframe && <span>🕐 {job.timeframe}</span>}
-                                  {job.parcel_size && <span className="capitalize">📦 {job.parcel_size}</span>}
                                 </div>
+                                {job.remarks && <p className="text-xs text-gray-400 italic mt-1">{job.remarks?.substring(0, 50)}{job.remarks?.length > 50 ? '...' : ''}</p>}
                               </div>
                               <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View full details</summary><div className="mt-1 text-xs">{renderJobDetailCard(job, false)}</div></details>
                             </div>
                             <div className="text-right">
-                              <p className="text-lg font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                              <p className="text-2xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
                               {job.distance_km && job.distance_km > 0 && <p className="text-xs text-gray-500">{job.distance_km} km</p>}
                               {job.distance_km && job.distance_km > 0 && <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-semibold ${(comm.activeRider / job.distance_km) >= 2 ? 'bg-green-100 text-green-700' : (comm.activeRider / job.distance_km) >= 1.2 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{(comm.activeRider / job.distance_km) >= 2 ? 'High earning' : (comm.activeRider / job.distance_km) >= 1.2 ? 'Good deal' : 'Low value'}</span>}
-                              <button onClick={(e) => { e.stopPropagation(); setPendingTnCAction({ type: 'accept', jobId: job.id }); setShowRiderTnC(true); setTncAccepted(false); }} className="mt-2 w-full py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700">Accept</button>
+                              {parseFloat(job.price) >= 12 && <span className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-700 mt-1">🔥 High Demand</span>}
+                              {job.price_increased && <span className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700 mt-1 ml-1">⚡ Boosted</span>}
+                              <button onClick={(e) => { e.stopPropagation(); setPendingTnCAction({ type: 'accept', jobId: job.id }); setShowRiderTnC(true); setTncAccepted(false); }} className="mt-2 w-full py-2.5 bg-green-600 text-white rounded-lg font-bold text-sm hover:bg-green-700">Accept</button>
                             </div>
                           </div>
                         </div>
@@ -7614,7 +7626,9 @@ Please be punctual and update once completed. Thanks!`;
                 </>
               )}
             </div>
+            </div>
             )}
+          </div>
           </div>
         )}
 
