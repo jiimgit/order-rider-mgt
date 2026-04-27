@@ -3317,7 +3317,7 @@ Please be punctual and update once completed. Thanks!`;
   // For backwards compatibility, activeJob is the currently selected one or first one
   const activeJob = selectedJobId ? activeJobsList.find(j => j.id === selectedJobId) : activeJobsList[0];
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); loadBonusConfig(); }, []);
   
   // Timeout to prevent indefinite loading - show login page after 8 seconds even if loading fails
   useEffect(() => {
@@ -3350,6 +3350,37 @@ Please be punctual and update once completed. Thanks!`;
     }, 15000);
     return () => clearInterval(timer);
   }, [auth.type, jobPostTime, boostStage]);
+
+  // Save bonus config to database
+  const saveBonusConfig = async (config: any) => {
+    try {
+      // Store as audit log entry with special action
+      await api('audit_logs', 'POST', {
+        action: 'bonus_config_update',
+        user_id: auth.id,
+        user_type: 'admin',
+        details: JSON.stringify(config),
+        created_at: new Date().toISOString()
+      });
+      setBonusConfig(config);
+      alert('Bonus configuration saved!');
+    } catch (e: any) {
+      alert('Failed to save bonus config: ' + e.message);
+    }
+  };
+
+  // Load bonus config from database
+  const loadBonusConfig = async () => {
+    try {
+      const logs = await api('audit_logs?action=eq.bonus_config_update&order=created_at.desc&limit=1');
+      if (logs && logs.length > 0 && logs[0].details) {
+        const saved = typeof logs[0].details === 'string' ? JSON.parse(logs[0].details) : logs[0].details;
+        setBonusConfig(prev => ({...prev, ...saved}));
+      }
+    } catch (e) {
+      console.log('No saved bonus config found');
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -7959,6 +7990,12 @@ Please be punctual and update once completed. Thanks!`;
                   {(bonusConfig.method === 'earnings' || bonusConfig.method === 'both') && (<div className="p-4 bg-blue-50 rounded-lg"><p className="text-sm font-semibold text-blue-800 mb-2">Earnings Target</p><div className="flex gap-2 items-center flex-wrap"><span className="text-sm">Earn $</span><input type="number" value={bonusConfig.earningsTarget} onChange={(e) => setBonusConfig({...bonusConfig, earningsTarget: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded text-sm" /><span className="text-sm">→ +$</span><input type="number" value={bonusConfig.earningsBonus} onChange={(e) => setBonusConfig({...bonusConfig, earningsBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">bonus</span></div></div>)}
                   {(bonusConfig.method === 'orders' || bonusConfig.method === 'both') && (<div className="p-4 bg-green-50 rounded-lg"><p className="text-sm font-semibold text-green-800 mb-2">Orders Target</p><div className="flex gap-2 items-center flex-wrap"><span className="text-sm">Complete</span><input type="number" value={bonusConfig.ordersTarget} onChange={(e) => setBonusConfig({...bonusConfig, ordersTarget: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">orders → +$</span><input type="number" value={bonusConfig.ordersBonus} onChange={(e) => setBonusConfig({...bonusConfig, ordersBonus: parseInt(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded text-sm" /><span className="text-sm">bonus</span></div></div>)}
                 </div>
+                <button 
+                  onClick={() => saveBonusConfig(bonusConfig)}
+                  className="mt-4 w-full py-2.5 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700"
+                >
+                  💾 Save Bonus Configuration
+                </button>
               </div>
             )}
 
