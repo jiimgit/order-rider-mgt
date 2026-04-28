@@ -6153,7 +6153,7 @@ Please be punctual and update once completed. Thanks!`;
                 <a href="https://wa.me/6580201980" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 text-sm">💬 Contact Support</a>
               </div>
             )}
-            {/* === Available Jobs (First Screen) === */}
+            {/* Available Jobs (First Screen) */}
             {curr.status !== 'deactivated' && (
               <div className="bg-white rounded-lg shadow p-4">
                 <div className="flex justify-between items-center mb-3">
@@ -6161,53 +6161,28 @@ Please be punctual and update once completed. Thanks!`;
                   {filteredAvailableJobs.length > 0 && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">🔥 High demand</span>}
                 </div>
                 {!riderIsOnline ? (
-                  <div className="text-center py-6">
-                    <p className="text-gray-500 text-sm">Go online to see available jobs</p>
-                  </div>
+                  <div className="text-center py-4"><p className="text-gray-500 text-sm">Go online to see available jobs</p></div>
                 ) : filteredAvailableJobs.length === 0 ? (
-                  <div className="text-center py-6">
-                    <p className="text-gray-500 text-sm">No jobs available right now</p>
-                    <p className="text-xs text-gray-400 mt-1">Stay online — new jobs will appear here</p>
-                  </div>
+                  <div className="text-center py-4"><p className="text-gray-500 text-sm">No jobs available</p><p className="text-xs text-gray-400 mt-1">Stay online — new jobs will appear here</p></div>
                 ) : (
-                  <>
-                  <details className="mb-3 border border-gray-200 rounded-lg">
-                    <summary className="px-3 py-2 cursor-pointer text-sm text-gray-600 flex items-center gap-2 hover:bg-gray-50">🔍 Filter Jobs</summary>
-                    <div className="px-3 pb-3 grid grid-cols-3 gap-2">
-                      <input type="text" placeholder="Pickup..." value={riderJobFilter.pickup} onChange={(e) => setRiderJobFilter({...riderJobFilter, pickup: e.target.value})} className="px-2 py-1.5 border rounded text-xs" />
-                      <input type="text" placeholder="Drop-off..." value={riderJobFilter.dropoff} onChange={(e) => setRiderJobFilter({...riderJobFilter, dropoff: e.target.value})} className="px-2 py-1.5 border rounded text-xs" />
-                      <input type="text" placeholder="Customer..." value={riderJobFilter.customer} onChange={(e) => setRiderJobFilter({...riderJobFilter, customer: e.target.value})} className="px-2 py-1.5 border rounded text-xs" />
-                    </div>
-                  </details>
                   <div className="space-y-2">
                     {filteredAvailableJobs.slice(0, 10).map((job: any) => {
                       const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
-                      const pShort = (job.pickup || '').replace(/Singapore\s*\d{6}/gi, '').replace(/S\d{6}/gi, '').trim();
-                      const dShort = (job.delivery || '').replace(/Singapore\s*\d{6}/gi, '').replace(/S\d{6}/gi, '').trim();
                       return (
                         <div key={`pv-${job.id}`} className="border border-gray-200 rounded-lg p-3">
                           <div className="flex justify-between items-start gap-2">
                             <div className="flex-1 min-w-0">
-                              <div className="flex gap-1 flex-wrap mb-1">
-                                {parseFloat(job.price) >= 12 && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-xs font-semibold">🔥 High demand</span>}
-                              </div>
-                              <div className="text-xs text-gray-600 space-y-0.5">
-                                <p className="truncate">🟢 {pShort.substring(0, 40)}</p>
-                                <p className="truncate">🔴 {dShort.substring(0, 40)}</p>
+                              {parseFloat(job.price) >= 12 && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-xs font-semibold">🔥 High demand</span>}
+                              <div className="text-xs text-gray-600 mt-1 space-y-0.5">
+                                <p className="truncate">🟢 {(job.pickup || '').substring(0, 40)}</p>
+                                <p className="truncate">🔴 {(job.delivery || '').substring(0, 40)}</p>
                               </div>
                               <div className="flex gap-3 mt-1 text-xs text-gray-400">
                                 {job.distance_km && <span>{job.distance_km} km</span>}
                                 <span>{job.timeframe || job.delivery_slot || ''}</span>
                               </div>
                               {job.remarks && <p className="text-xs text-gray-400 italic mt-0.5 truncate">{job.remarks}</p>}
-                              <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View details</summary><div className="mt-1 text-xs bg-gray-50 rounded p-2 space-y-0.5">
-                                <p><strong>Pickup:</strong> {job.pickup}</p>
-                                <p><strong>Drop-off:</strong> {job.delivery}</p>
-                                {job.pickup_contact && <p><strong>Contact:</strong> {job.pickup_contact} ({job.pickup_phone})</p>}
-                                {job.recipient_name && <p><strong>Recipient:</strong> {job.recipient_name} ({job.recipient_phone})</p>}
-                                <p><strong>Parcel:</strong> <span className="capitalize">{job.parcel_size}</span></p>
-                                {job.remarks && <p><strong>Remark:</strong> {job.remarks}</p>}
-                              </div></details>
+                              <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View details</summary><div className="mt-1 text-xs bg-gray-50 rounded p-2 space-y-0.5"><p><strong>Pickup:</strong> {job.pickup}</p><p><strong>Drop-off:</strong> {job.delivery}</p>{job.pickup_contact && <p><strong>Contact:</strong> {job.pickup_contact} ({job.pickup_phone})</p>}{job.recipient_name && <p><strong>Recipient:</strong> {job.recipient_name} ({job.recipient_phone})</p>}<p><strong>Parcel:</strong> <span className="capitalize">{job.parcel_size}</span></p>{job.remarks && <p><strong>Remark:</strong> {job.remarks}</p>}</div></details>
                             </div>
                             <div className="text-right flex-shrink-0">
                               <p className="text-2xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
@@ -6219,7 +6194,6 @@ Please be punctual and update once completed. Thanks!`;
                       );
                     })}
                   </div>
-                  </>
                 )}
               </div>
             )}
@@ -6744,7 +6718,6 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            </div>
 
             {/* Earnings/Performance/Referral - Part 3 */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
@@ -6786,12 +6759,9 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
-            {/* Earnings & Bonus Progress */}
+            {/* Earnings & Bonus */}
             <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="font-bold text-gray-800">Earnings & Bonus</h4>
-                <span className="text-xs text-gray-500">{bonusConfig.period === 'daily' ? 'Daily' : 'Weekly'}</span>
-              </div>
+              <h4 className="font-bold text-gray-800 mb-3">Earnings & Bonus</h4>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-green-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-green-600">Total Earnings</p>
@@ -6801,7 +6771,7 @@ Please be punctual and update once completed. Thanks!`;
                 <div className="bg-blue-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-blue-600">Bonus Progress</p>
                   <p className="text-lg font-bold text-blue-700">{curr.completed_jobs || 0} / {bonusConfig.ordersTarget}</p>
-                  <p className="text-xs text-blue-500">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? '🎉 Bonus earned!' : `${bonusConfig.ordersTarget - (curr.completed_jobs || 0)} more to get $${bonusConfig.ordersBonus}`}</p>
+                  <p className="text-xs text-blue-500">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? '🎉 Bonus earned!' : `${bonusConfig.ordersTarget - (curr.completed_jobs || 0)} more for $${bonusConfig.ordersBonus}`}</p>
                 </div>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
@@ -6811,8 +6781,6 @@ Please be punctual and update once completed. Thanks!`;
             </div>
 
             {/* Withdrawal moved to Earnings page */}
-            {showRiderPerformance && (
-            <>
             {showRiderPerformance && (
             <>
             {/* Withdrawal Notifications - Show status of rider's withdrawal requests */}
@@ -7142,9 +7110,6 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
             </div>
-
-            </>
-            )}
 
             </>
             )}
@@ -7776,7 +7741,6 @@ Please be punctual and update once completed. Thanks!`;
                 )}
                 </>
               )}
-            </div>
             </div>
             )}
           </div>
@@ -11206,69 +11170,28 @@ Please be punctual and update once completed. Thanks!`;
                 );
               })()}
               
-              {/* Transaction History with Date Filter */}
-              <div className="flex justify-between items-center mb-3">
+              {/* Transaction History */}
+              <div className="flex justify-between items-center mb-2">
                 <h4 className="font-semibold text-gray-800">📜 Transaction History</h4>
-                <button
-                  onClick={() => {
-                    const customerJobs = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                    const relevantLogs = auditLogs.filter((log: any) => {
-                      if (log.action !== 'customer_topup' && log.action !== 'admin_job_cancel_refund') return false;
-                      const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
-                      return details?.customerId === showCustomerWallet.id;
-                    });
-                    const txns: any[] = [];
-                    relevantLogs.forEach((log: any) => {
-                      const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
-                      if (log.action === 'customer_topup') txns.push({ type: 'Top-up', amount: details?.amount || 0, date: log.timestamp, description: details?.status === 'stripe_payment' ? 'Top-up via Stripe' : 'Top-up via PayNow' });
-                    });
-                    customerJobs.forEach((j: any) => {
-                      if (j.status === 'cancelled') txns.push({ type: 'Refund', amount: parseFloat(j.price) || 0, date: j.cancelled_at || j.created_at, description: `Refund - ${j.order_id || 'Cancelled'}` });
-                      else txns.push({ type: 'Order', amount: parseFloat(j.price) || 0, date: j.created_at, description: `Order ${j.order_id || ''} - ${extractAreaName(j.pickup)} → ${extractAreaName(j.delivery)}` });
-                    });
-                    txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                    const filtered = txns.filter((t: any) => {
-                      if (walletDateFrom && new Date(t.date) < new Date(walletDateFrom)) return false;
-                      if (walletDateTo && new Date(t.date) > new Date(walletDateTo + 'T23:59:59')) return false;
-                      return true;
-                    });
-                    const csvRows = ['Date,Type,Description,Amount'];
-                    filtered.forEach((t: any) => {
-                      const d = new Date(t.date).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' });
-                      const sign = t.type === 'Order' ? '-' : '+';
-                      csvRows.push(`"${d}","${t.type}","${t.description.replace(/"/g, '""')}","${sign}$${t.amount.toFixed(2)}"`);
-                    });
-                    csvRows.push('');
-                    csvRows.push(`"","","Current Balance","$${(showCustomerWallet.credits || 0).toFixed(2)}"`);
-                    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${showCustomerWallet.name}_transactions_${new Date().toISOString().split('T')[0]}.csv`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-semibold hover:bg-green-200"
-                >
-                  <Download size={14} /> Export CSV
-                </button>
+                <button onClick={() => {
+                  const cJobs = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id);
+                  const rLogs = auditLogs.filter((l: any) => { if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false; const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {}); return d?.customerId === showCustomerWallet.id; });
+                  const txns: any[] = [];
+                  rLogs.forEach((l: any) => { const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {}); if (l.action === 'customer_topup') txns.push({ type: 'Top-up', amount: d?.amount || 0, date: l.timestamp, desc: d?.status === 'stripe_payment' ? 'Stripe' : 'PayNow' }); });
+                  cJobs.forEach((j: any) => { if (j.status === 'cancelled') txns.push({ type: 'Refund', amount: parseFloat(j.price) || 0, date: j.cancelled_at || j.created_at, desc: `Refund ${j.order_id || ''}` }); else txns.push({ type: 'Order', amount: parseFloat(j.price) || 0, date: j.created_at, desc: `${j.order_id || ''} ${extractAreaName(j.pickup)}→${extractAreaName(j.delivery)}` }); });
+                  txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                  const ft = txns.filter((t: any) => { if (walletDateFrom && new Date(t.date) < new Date(walletDateFrom)) return false; if (walletDateTo && new Date(t.date) > new Date(walletDateTo + 'T23:59:59')) return false; return true; });
+                  const rows = ['Date,Type,Description,Amount'];
+                  ft.forEach((t: any) => { rows.push(`"${new Date(t.date).toLocaleDateString('en-SG',{timeZone:'Asia/Singapore'})}","${t.type}","${t.desc.replace(/"/g,'""')}","${t.type==='Order'?'-':'+'}$${t.amount.toFixed(2)}"`); });
+                  rows.push(`"","","Balance","$${(showCustomerWallet.credits||0).toFixed(2)}"`);
+                  const b = new Blob([rows.join('\n')],{type:'text/csv'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download=`${showCustomerWallet.name}_transactions.csv`; a.click();
+                }} className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200"><Download size={12} /> Export CSV</button>
               </div>
-              
-              {/* Date Filter */}
-              <div className="flex gap-2 mb-3">
-                <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-1">From</label>
-                  <input type="date" value={walletDateFrom} onChange={(e) => setWalletDateFrom(e.target.value)} className="w-full px-2 py-1.5 border rounded-lg text-xs" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-1">To</label>
-                  <input type="date" value={walletDateTo} onChange={(e) => setWalletDateTo(e.target.value)} className="w-full px-2 py-1.5 border rounded-lg text-xs" />
-                </div>
-                {(walletDateFrom || walletDateTo) && (
-                  <button onClick={() => { setWalletDateFrom(''); setWalletDateTo(''); }} className="self-end px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700">Clear</button>
-                )}
+              <div className="flex gap-2 mb-2">
+                <input type="date" value={walletDateFrom} onChange={(e) => setWalletDateFrom(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" placeholder="From" />
+                <input type="date" value={walletDateTo} onChange={(e) => setWalletDateTo(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" placeholder="To" />
+                {(walletDateFrom || walletDateTo) && <button onClick={() => { setWalletDateFrom(''); setWalletDateTo(''); }} className="px-2 py-1 text-xs text-gray-500">Clear</button>}
               </div>
-
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {(() => {
                   const customerJobs = jobs
@@ -11322,8 +11245,6 @@ Please be punctual and update once completed. Thanks!`;
                   });
                   
                   transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                  
-                  // Apply date filter
                   const filteredTransactions = transactions.filter((t: any) => {
                     if (walletDateFrom && new Date(t.date) < new Date(walletDateFrom)) return false;
                     if (walletDateTo && new Date(t.date) > new Date(walletDateTo + 'T23:59:59')) return false;
@@ -11331,7 +11252,7 @@ Please be punctual and update once completed. Thanks!`;
                   });
                   
                   return filteredTransactions.length === 0 ? (
-                    <p className="text-center text-gray-500 py-4">{transactions.length > 0 ? 'No transactions in selected date range' : 'No transactions yet'}</p>
+                    <p className="text-center text-gray-500 py-4">{transactions.length > 0 ? 'No transactions in selected range' : 'No transactions yet'}</p>
                   ) : filteredTransactions.slice(0, 50).map((t: any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded border">
                       <div>
