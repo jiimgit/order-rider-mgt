@@ -11114,17 +11114,16 @@ Please be punctual and update once completed. Thanks!`;
               <div className="flex justify-between items-center mb-2">
                 <h4 className="font-semibold text-gray-800">📜 Transaction History</h4>
                 <button onClick={() => {
-                  const cJobs = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id);
-                  const rLogs = auditLogs.filter((l: any) => { if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false; const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {}); return d?.customerId === showCustomerWallet.id; });
-                  const txns: any[] = [];
-                  rLogs.forEach((l: any) => { const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {}); if (l.action === 'customer_topup') txns.push({ type: 'Top-up', amount: d?.amount || 0, date: l.timestamp, desc: d?.status === 'stripe_payment' ? 'Stripe' : 'PayNow' }); });
-                  cJobs.forEach((j: any) => { if (j.status === 'cancelled') txns.push({ type: 'Refund', amount: parseFloat(j.price) || 0, date: j.cancelled_at || j.created_at, desc: 'Refund ' + (j.order_id || '') }); else txns.push({ type: 'Order', amount: parseFloat(j.price) || 0, date: j.created_at, desc: (j.order_id || '') + ' ' + extractAreaName(j.pickup) + ' to ' + extractAreaName(j.delivery) }); });
-                  txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                  const ft = txns.filter((t: any) => { if (walletDateFrom && new Date(t.date) < new Date(walletDateFrom)) return false; if (walletDateTo && new Date(t.date) > new Date(walletDateTo + 'T23:59:59')) return false; return true; });
-                  const rows = ['Date,Type,Description,Amount'];
-                  ft.forEach((t: any) => { rows.push(new Date(t.date).toLocaleDateString('en-SG',{timeZone:'Asia/Singapore'}) + ',' + t.type + ',"' + t.desc.replace(/"/g,'') + '",' + (t.type==='Order'?'-':'+') + '$' + t.amount.toFixed(2)); });
-                  rows.push(',,,Balance: $' + (showCustomerWallet.credits||0).toFixed(2));
-                  const blob = new Blob([rows.join('\n')],{type:'text/csv'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download=showCustomerWallet.name+'_transactions.csv'; a.click();
+                  const cJ = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id);
+                  const rL = auditLogs.filter((l: any) => { if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false; const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {}); return d?.customerId === showCustomerWallet.id; });
+                  const t: any[] = [];
+                  rL.forEach((l: any) => { const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {}); if (l.action === 'customer_topup') t.push({type:'Top-up',amount:d?.amount||0,date:l.timestamp,desc:d?.status==='stripe_payment'?'Stripe':'PayNow'}); });
+                  cJ.forEach((j: any) => { if (j.status==='cancelled') t.push({type:'Refund',amount:parseFloat(j.price)||0,date:j.cancelled_at||j.created_at,desc:'Refund '+(j.order_id||'')}); else t.push({type:'Order',amount:parseFloat(j.price)||0,date:j.created_at,desc:(j.order_id||'')+' '+extractAreaName(j.pickup)+' to '+extractAreaName(j.delivery)}); });
+                  t.sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());
+                  const f=t.filter((x: any)=>{if(walletDateFrom&&new Date(x.date)<new Date(walletDateFrom))return false;if(walletDateTo&&new Date(x.date)>new Date(walletDateTo+'T23:59:59'))return false;return true;});
+                  const r=['Date,Type,Description,Amount'];f.forEach((x: any)=>{r.push(new Date(x.date).toLocaleDateString('en-SG',{timeZone:'Asia/Singapore'})+','+x.type+',"'+x.desc.replace(/"/g,'')+'",'+(x.type==='Order'?'-':'+')+x.amount.toFixed(2));});
+                  r.push(',,,Balance: '+(showCustomerWallet.credits||0).toFixed(2));
+                  const bl=new Blob([r.join('\n')],{type:'text/csv'});const u=URL.createObjectURL(bl);const a=document.createElement('a');a.href=u;a.download=showCustomerWallet.name+'_transactions.csv';a.click();
                 }} className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200"><Download size={12} /> Export</button>
               </div>
               <div className="flex gap-2 mb-2">
