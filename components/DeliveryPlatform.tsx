@@ -6748,8 +6748,6 @@ Please be punctual and update once completed. Thanks!`;
               </div>
             )}
 
-            </div>
-
             {/* Earnings/Performance/Referral - Part 3 */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
