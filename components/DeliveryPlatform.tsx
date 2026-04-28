@@ -348,6 +348,8 @@ const DeliveryPlatform = () => {
   const [riderIsOnline, setRiderIsOnline] = useState(false);
   const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false);
   const [showCustomerWallet, setShowCustomerWallet] = useState<any>(null);
+  const [walletDateFrom, setWalletDateFrom] = useState('');
+  const [walletDateTo, setWalletDateTo] = useState('');
   const [riderHasGPS, setRiderHasGPS] = useState(false);
   const [newJobNotifications, setNewJobNotifications] = useState<any[]>([]);
   const [lastJobCheck, setLastJobCheck] = useState<string | null>(null);
@@ -7932,7 +7934,7 @@ Please be punctual and update once completed. Thanks!`;
                           <div>
                             <p className="font-semibold text-lg">{c.name}</p>
                             <p className="text-sm text-gray-600">{c.email} | {c.phone}</p>
-                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => setShowCustomerWallet(c)}>
+                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => setShowCustomerWallet(c); setWalletDateFrom(''); setWalletDateTo('')}>
                               Credits: ${(c.credits || 0).toFixed(2)} 👁️
                             </p>
                             <p className="text-xs text-gray-400 mt-1">📅 Registered: {c.created_at ? formatSGT(c.created_at) : 'N/A'}</p>
@@ -11208,8 +11210,69 @@ Please be punctual and update once completed. Thanks!`;
                 );
               })()}
               
-              {/* Transaction History */}
-              <h4 className="font-semibold text-gray-800 mb-3">📜 Transaction History</h4>
+              {/* Transaction History with Date Filter */}
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-semibold text-gray-800">📜 Transaction History</h4>
+                <button
+                  onClick={() => {
+                    const customerJobs = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                    const relevantLogs = auditLogs.filter((log: any) => {
+                      if (log.action !== 'customer_topup' && log.action !== 'admin_job_cancel_refund') return false;
+                      const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
+                      return details?.customerId === showCustomerWallet.id;
+                    });
+                    const txns: any[] = [];
+                    relevantLogs.forEach((log: any) => {
+                      const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
+                      if (log.action === 'customer_topup') txns.push({ type: 'Top-up', amount: details?.amount || 0, date: log.timestamp, description: details?.status === 'stripe_payment' ? 'Top-up via Stripe' : 'Top-up via PayNow' });
+                    });
+                    customerJobs.forEach((j: any) => {
+                      if (j.status === 'cancelled') txns.push({ type: 'Refund', amount: parseFloat(j.price) || 0, date: j.cancelled_at || j.created_at, description: `Refund - ${j.order_id || 'Cancelled'}` });
+                      else txns.push({ type: 'Order', amount: parseFloat(j.price) || 0, date: j.created_at, description: `Order ${j.order_id || ''} - ${extractAreaName(j.pickup)} → ${extractAreaName(j.delivery)}` });
+                    });
+                    txns.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                    const filtered = txns.filter((t: any) => {
+                      if (walletDateFrom && new Date(t.date) < new Date(walletDateFrom)) return false;
+                      if (walletDateTo && new Date(t.date) > new Date(walletDateTo + 'T23:59:59')) return false;
+                      return true;
+                    });
+                    const csvRows = ['Date,Type,Description,Amount'];
+                    filtered.forEach((t: any) => {
+                      const d = new Date(t.date).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' });
+                      const sign = t.type === 'Order' ? '-' : '+';
+                      csvRows.push(`"${d}","${t.type}","${t.description.replace(/"/g, '""')}","${sign}$${t.amount.toFixed(2)}"`);
+                    });
+                    csvRows.push('');
+                    csvRows.push(`"","","Current Balance","$${(showCustomerWallet.credits || 0).toFixed(2)}"`);
+                    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${showCustomerWallet.name}_transactions_${new Date().toISOString().split('T')[0]}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-semibold hover:bg-green-200"
+                >
+                  <Download size={14} /> Export CSV
+                </button>
+              </div>
+              
+              {/* Date Filter */}
+              <div className="flex gap-2 mb-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">From</label>
+                  <input type="date" value={walletDateFrom} onChange={(e) => setWalletDateFrom(e.target.value)} className="w-full px-2 py-1.5 border rounded-lg text-xs" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-500 mb-1">To</label>
+                  <input type="date" value={walletDateTo} onChange={(e) => setWalletDateTo(e.target.value)} className="w-full px-2 py-1.5 border rounded-lg text-xs" />
+                </div>
+                {(walletDateFrom || walletDateTo) && (
+                  <button onClick={() => { setWalletDateFrom(''); setWalletDateTo(''); }} className="self-end px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700">Clear</button>
+                )}
+              </div>
+
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {(() => {
                   const customerJobs = jobs
@@ -11264,9 +11327,16 @@ Please be punctual and update once completed. Thanks!`;
                   
                   transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
                   
-                  return transactions.length === 0 ? (
-                    <p className="text-center text-gray-500 py-4">No transactions yet</p>
-                  ) : transactions.slice(0, 30).map((t: any, idx: number) => (
+                  // Apply date filter
+                  const filteredTransactions = transactions.filter((t: any) => {
+                    if (walletDateFrom && new Date(t.date) < new Date(walletDateFrom)) return false;
+                    if (walletDateTo && new Date(t.date) > new Date(walletDateTo + 'T23:59:59')) return false;
+                    return true;
+                  });
+                  
+                  return filteredTransactions.length === 0 ? (
+                    <p className="text-center text-gray-500 py-4">{transactions.length > 0 ? 'No transactions in selected date range' : 'No transactions yet'}</p>
+                  ) : filteredTransactions.slice(0, 50).map((t: any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded border">
                       <div>
                         <p className="text-sm text-gray-700">{t.description}</p>
