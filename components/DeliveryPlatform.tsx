@@ -6163,7 +6163,7 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
                 <div className="space-y-3">
                   {filteredAvailableJobs.slice(0, 10).map((job: any) => {
-                    const comm = calculateCommission(job);
+                    const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
                     const pickupShort = job.pickup?.replace(/Singapore\s*\d{6}/gi, '').replace(/S\d{6}/gi, '').trim().substring(0, 35) || '';
                     const dropoffShort = job.delivery?.replace(/Singapore\s*\d{6}/gi, '').replace(/S\d{6}/gi, '').trim().substring(0, 35) || '';
                     return (
