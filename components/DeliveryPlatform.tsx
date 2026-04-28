@@ -6153,6 +6153,77 @@ Please be punctual and update once completed. Thanks!`;
                 <a href="https://wa.me/6580201980" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 text-sm">💬 Contact Support</a>
               </div>
             )}
+            {/* === Available Jobs (First Screen) === */}
+            {curr.status !== 'deactivated' && (
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-lg font-bold">Available Jobs</h3>
+                  {filteredAvailableJobs.length > 0 && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">🔥 High demand</span>}
+                </div>
+                {!riderIsOnline ? (
+                  <div className="text-center py-6">
+                    <p className="text-gray-500 text-sm">Go online to see available jobs</p>
+                  </div>
+                ) : filteredAvailableJobs.length === 0 ? (
+                  <div className="text-center py-6">
+                    <p className="text-gray-500 text-sm">No jobs available right now</p>
+                    <p className="text-xs text-gray-400 mt-1">Stay online — new jobs will appear here</p>
+                  </div>
+                ) : (
+                  <>
+                  <details className="mb-3 border border-gray-200 rounded-lg">
+                    <summary className="px-3 py-2 cursor-pointer text-sm text-gray-600 flex items-center gap-2 hover:bg-gray-50">🔍 Filter Jobs</summary>
+                    <div className="px-3 pb-3 grid grid-cols-3 gap-2">
+                      <input type="text" placeholder="Pickup..." value={riderJobFilter.pickup} onChange={(e) => setRiderJobFilter({...riderJobFilter, pickup: e.target.value})} className="px-2 py-1.5 border rounded text-xs" />
+                      <input type="text" placeholder="Drop-off..." value={riderJobFilter.dropoff} onChange={(e) => setRiderJobFilter({...riderJobFilter, dropoff: e.target.value})} className="px-2 py-1.5 border rounded text-xs" />
+                      <input type="text" placeholder="Customer..." value={riderJobFilter.customer} onChange={(e) => setRiderJobFilter({...riderJobFilter, customer: e.target.value})} className="px-2 py-1.5 border rounded text-xs" />
+                    </div>
+                  </details>
+                  <div className="space-y-2">
+                    {filteredAvailableJobs.slice(0, 10).map((job: any) => {
+                      const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
+                      const pShort = (job.pickup || '').replace(/Singapore\s*\d{6}/gi, '').replace(/S\d{6}/gi, '').trim();
+                      const dShort = (job.delivery || '').replace(/Singapore\s*\d{6}/gi, '').replace(/S\d{6}/gi, '').trim();
+                      return (
+                        <div key={`pv-${job.id}`} className="border border-gray-200 rounded-lg p-3">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex gap-1 flex-wrap mb-1">
+                                {parseFloat(job.price) >= 12 && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-xs font-semibold">🔥 High demand</span>}
+                              </div>
+                              <div className="text-xs text-gray-600 space-y-0.5">
+                                <p className="truncate">🟢 {pShort.substring(0, 40)}</p>
+                                <p className="truncate">🔴 {dShort.substring(0, 40)}</p>
+                              </div>
+                              <div className="flex gap-3 mt-1 text-xs text-gray-400">
+                                {job.distance_km && <span>{job.distance_km} km</span>}
+                                <span>{job.timeframe || job.delivery_slot || ''}</span>
+                              </div>
+                              {job.remarks && <p className="text-xs text-gray-400 italic mt-0.5 truncate">{job.remarks}</p>}
+                              <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View details</summary><div className="mt-1 text-xs bg-gray-50 rounded p-2 space-y-0.5">
+                                <p><strong>Pickup:</strong> {job.pickup}</p>
+                                <p><strong>Drop-off:</strong> {job.delivery}</p>
+                                {job.pickup_contact && <p><strong>Contact:</strong> {job.pickup_contact} ({job.pickup_phone})</p>}
+                                {job.recipient_name && <p><strong>Recipient:</strong> {job.recipient_name} ({job.recipient_phone})</p>}
+                                <p><strong>Parcel:</strong> <span className="capitalize">{job.parcel_size}</span></p>
+                                {job.remarks && <p><strong>Remark:</strong> {job.remarks}</p>}
+                              </div></details>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-2xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
+                              {job.distance_km > 0 && <p className="text-xs font-semibold text-blue-600">${(comm.activeRider / job.distance_km).toFixed(2)}/km</p>}
+                              <button onClick={() => { setPendingTnCAction({ type: 'accept', jobId: job.id }); setShowRiderTnC(true); setTncAccepted(false); }} className="mt-1 px-5 py-2 bg-green-600 text-white rounded-lg font-bold text-sm hover:bg-green-700">Accept</button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Online/Offline - Part 2 */}
             <div style={{order: 2}}>
             <div className={`p-4 rounded-lg ${riderIsOnline ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
@@ -6717,7 +6788,33 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
+            {/* Earnings & Bonus Progress */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-bold text-gray-800">Earnings & Bonus</h4>
+                <span className="text-xs text-gray-500">{bonusConfig.period === 'daily' ? 'Daily' : 'Weekly'}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-green-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-green-600">Total Earnings</p>
+                  <p className="text-xl font-bold text-green-700">${(curr.earnings || 0).toFixed(2)}</p>
+                  <p className="text-xs text-green-500">{curr.completed_jobs || 0} jobs</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-blue-600">Bonus Progress</p>
+                  <p className="text-lg font-bold text-blue-700">{curr.completed_jobs || 0} / {bonusConfig.ordersTarget}</p>
+                  <p className="text-xs text-blue-500">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? '🎉 Bonus earned!' : `${bonusConfig.ordersTarget - (curr.completed_jobs || 0)} more to get $${bonusConfig.ordersBonus}`}</p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                <div className="bg-green-500 h-2 rounded-full" style={{width: `${Math.min(100, ((curr.completed_jobs || 0) / Math.max(bonusConfig.ordersTarget, 1)) * 100)}%`}}></div>
+              </div>
+              <p className="text-xs text-gray-500">🎁 {bonusConfig.ordersTarget} orders → ${bonusConfig.ordersBonus} bonus</p>
+            </div>
+
             {/* Withdrawal moved to Earnings page */}
+            {showRiderPerformance && (
+            <>
             {showRiderPerformance && (
             <>
             {/* Withdrawal Notifications - Show status of rider's withdrawal requests */}
@@ -7047,6 +7144,9 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
             </div>
+
+            </>
+            )}
 
             </>
             )}
@@ -7834,7 +7934,7 @@ Please be punctual and update once completed. Thanks!`;
                           <div>
                             <p className="font-semibold text-lg">{c.name}</p>
                             <p className="text-sm text-gray-600">{c.email} | {c.phone}</p>
-                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => setShowCustomerWallet(c); setWalletDateFrom(''); setWalletDateTo('')}>
+                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => setShowCustomerWallet(c); setWalletDateFrom(""); setWalletDateTo("")}>
                               Credits: ${(c.credits || 0).toFixed(2)} 👁️
                             </p>
                             <p className="text-xs text-gray-400 mt-1">📅 Registered: {c.created_at ? formatSGT(c.created_at) : 'N/A'}</p>
@@ -11111,26 +11211,7 @@ Please be punctual and update once completed. Thanks!`;
               })()}
               
               {/* Transaction History */}
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="font-semibold text-gray-800">📜 Transaction History</h4>
-                <button onClick={() => {
-                  const cJ = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id);
-                  const rL = auditLogs.filter((l: any) => { if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false; const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {}); return d?.customerId === showCustomerWallet.id; });
-                  const t: any[] = [];
-                  rL.forEach((l: any) => { const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {}); if (l.action === 'customer_topup') t.push({type:'Top-up',amount:d?.amount||0,date:l.timestamp,desc:d?.status==='stripe_payment'?'Stripe':'PayNow'}); });
-                  cJ.forEach((j: any) => { if (j.status==='cancelled') t.push({type:'Refund',amount:parseFloat(j.price)||0,date:j.cancelled_at||j.created_at,desc:'Refund '+(j.order_id||'')}); else t.push({type:'Order',amount:parseFloat(j.price)||0,date:j.created_at,desc:(j.order_id||'')+' '+extractAreaName(j.pickup)+' to '+extractAreaName(j.delivery)}); });
-                  t.sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());
-                  const f=t.filter((x: any)=>{if(walletDateFrom&&new Date(x.date)<new Date(walletDateFrom))return false;if(walletDateTo&&new Date(x.date)>new Date(walletDateTo+'T23:59:59'))return false;return true;});
-                  const r=['Date,Type,Description,Amount'];f.forEach((x: any)=>{r.push(new Date(x.date).toLocaleDateString('en-SG',{timeZone:'Asia/Singapore'})+','+x.type+',"'+x.desc.replace(/"/g,'')+'",'+(x.type==='Order'?'-':'+')+x.amount.toFixed(2));});
-                  r.push(',,,Balance: '+(showCustomerWallet.credits||0).toFixed(2));
-                  const bl=new Blob([r.join('\n')],{type:'text/csv'});const u=URL.createObjectURL(bl);const a=document.createElement('a');a.href=u;a.download=showCustomerWallet.name+'_transactions.csv';a.click();
-                }} className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200"><Download size={12} /> Export</button>
-              </div>
-              <div className="flex gap-2 mb-2">
-                <input type="date" value={walletDateFrom} onChange={(e) => setWalletDateFrom(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" />
-                <input type="date" value={walletDateTo} onChange={(e) => setWalletDateTo(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" />
-                {(walletDateFrom || walletDateTo) && <button onClick={() => { setWalletDateFrom(''); setWalletDateTo(''); }} className="px-2 text-xs text-gray-500">Clear</button>}
-              </div>
+              <div className="flex justify-between items-center mb-2"><h4 className="font-semibold text-gray-800">📜 Transaction History</h4><button onClick={() => { const cJ=jobs.filter((j: any)=>j.customer_id===showCustomerWallet.id); const rL=auditLogs.filter((l: any)=>{if(l.action!=="customer_topup"&&l.action!=="admin_job_cancel_refund")return false;const d=typeof l.details==="string"?(()=>{try{return JSON.parse(l.details)}catch{return{}}})():(l.details||{});return d?.customerId===showCustomerWallet.id}); const tx: any[]=[]; rL.forEach((l: any)=>{const d=typeof l.details==="string"?(()=>{try{return JSON.parse(l.details)}catch{return{}}})():(l.details||{});if(l.action==="customer_topup")tx.push({tp:"Top-up",am:d?.amount||0,dt:l.timestamp,ds:d?.status==="stripe_payment"?"Stripe":"PayNow"})}); cJ.forEach((j: any)=>{if(j.status==="cancelled")tx.push({tp:"Refund",am:parseFloat(j.price)||0,dt:j.cancelled_at||j.created_at,ds:"Refund "+(j.order_id||"")});else tx.push({tp:"Order",am:parseFloat(j.price)||0,dt:j.created_at,ds:(j.order_id||"")+" "+extractAreaName(j.pickup)+" to "+extractAreaName(j.delivery)})}); tx.sort((a,b)=>new Date(b.dt).getTime()-new Date(a.dt).getTime()); const ft=tx.filter((x: any)=>{if(walletDateFrom&&new Date(x.dt)<new Date(walletDateFrom))return false;if(walletDateTo&&new Date(x.dt)>new Date(walletDateTo+"T23:59:59"))return false;return true}); const rows=["Date,Type,Description,Amount"]; ft.forEach((x: any)=>{rows.push(new Date(x.dt).toLocaleDateString("en-SG",{timeZone:"Asia/Singapore"})+","+x.tp+","+x.ds.replace(/,/g," ")+","+(x.tp==="Order"?"-":"+")+x.am.toFixed(2))}); rows.push(",,,Balance: "+(showCustomerWallet.credits||0).toFixed(2)); const bl=new Blob([rows.join("\n")],{type:"text/csv"});const u=URL.createObjectURL(bl);const el=document.createElement("a");el.href=u;el.download=showCustomerWallet.name+"_transactions.csv";el.click() }} className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200"><Download size={12} /> Export</button></div><div className="flex gap-2 mb-2"><input type="date" value={walletDateFrom} onChange={(e) => setWalletDateFrom(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" /><input type="date" value={walletDateTo} onChange={(e) => setWalletDateTo(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" />{(walletDateFrom || walletDateTo) && <button onClick={() => { setWalletDateFrom(""); setWalletDateTo(""); }} className="px-2 text-xs text-gray-500">Clear</button>}</div>
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {(() => {
                   const customerJobs = jobs
