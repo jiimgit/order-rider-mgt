@@ -6144,7 +6144,7 @@ Please be punctual and update once completed. Thanks!`;
         )}
 
         {auth.type === 'rider' && curr && (
-          <div className="flex flex-col gap-4 sm:gap-6">
+          <div className="space-y-4 sm:space-y-6">
             {curr.status === 'deactivated' && (  /* order-first */
               <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 text-center">
                 <XCircle size={48} className="mx-auto mb-3 text-red-400" />
@@ -6225,7 +6225,6 @@ Please be punctual and update once completed. Thanks!`;
             )}
 
             {/* Online/Offline - Part 2 */}
-            <div style={{order: 2}}>
             <div className={`p-4 rounded-lg ${riderIsOnline ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -6748,7 +6747,6 @@ Please be punctual and update once completed. Thanks!`;
             </div>
 
             {/* Earnings/Performance/Referral - Part 3 */}
-            <div style={{order: 3}}>
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <div className="bg-green-50 rounded-xl p-3 text-center">
@@ -7671,7 +7669,6 @@ Please be punctual and update once completed. Thanks!`;
 
             {/* Available Jobs - Part 1: Top */}
             {curr.status !== 'deactivated' && (
-            <div style={{order: 1}}>
             <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
               <h3 className="text-xl sm:text-2xl font-bold mb-4">Available Jobs</h3>
               
@@ -7782,7 +7779,6 @@ Please be punctual and update once completed. Thanks!`;
             </div>
             </div>
             )}
-          </div>
           </div>
         )}
 
