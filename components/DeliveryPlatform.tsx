@@ -348,6 +348,8 @@ const DeliveryPlatform = () => {
   const [riderIsOnline, setRiderIsOnline] = useState(false);
   const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false);
   const [showCustomerWallet, setShowCustomerWallet] = useState<any>(null);
+  const [walletDateFrom, setWalletDateFrom] = useState('');
+  const [walletDateTo, setWalletDateTo] = useState('');
   const [riderHasGPS, setRiderHasGPS] = useState(false);
   const [newJobNotifications, setNewJobNotifications] = useState<any[]>([]);
   const [lastJobCheck, setLastJobCheck] = useState<string | null>(null);
@@ -1288,6 +1290,39 @@ const DeliveryPlatform = () => {
   }, [jobs, riders, reportDateFrom, reportDateTo]);
 
   // Audit Log helper function (Feature 15)
+  const exportWalletCSV = (w: any) => {
+    if (!w) return;
+    const NL = String.fromCharCode(10);
+    const cJ = jobs.filter((j: any) => j.customer_id === w.id);
+    const rL = auditLogs.filter((l: any) => {
+      if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false;
+      const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
+      return d?.customerId === w.id;
+    });
+    const tx: any[] = [];
+    rL.forEach((l: any) => {
+      const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
+      if (l.action === 'customer_topup') tx.push({ tp: 'Top-up', am: d?.amount || 0, dt: l.timestamp, ds: d?.status === 'stripe_payment' ? 'Stripe' : 'PayNow' });
+    });
+    cJ.forEach((j: any) => {
+      if (j.status === 'cancelled') tx.push({ tp: 'Refund', am: parseFloat(j.price) || 0, dt: j.cancelled_at || j.created_at, ds: 'Refund ' + (j.order_id || '') });
+      else tx.push({ tp: 'Order', am: parseFloat(j.price) || 0, dt: j.created_at, ds: (j.order_id || '') + ' ' + extractAreaName(j.pickup) + ' to ' + extractAreaName(j.delivery) });
+    });
+    tx.sort((a, b) => new Date(b.dt).getTime() - new Date(a.dt).getTime());
+    const wF = walletDateFrom ? new Date(walletDateFrom) : null;
+    const wT = walletDateTo ? new Date(walletDateTo + 'T23:59:59') : null;
+    const ft = tx.filter((x) => { const xd = new Date(x.dt); if (wF && xd < wF) return false; if (wT && xd > wT) return false; return true; });
+    let csv = 'Date,Type,Description,Amount' + NL;
+    ft.forEach((x) => { csv += new Date(x.dt).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' }) + ',' + x.tp + ',' + String(x.ds).replace(/,/g, ' ') + ',' + (x.tp === 'Order' ? '-' : '+') + x.am.toFixed(2) + NL; });
+    csv += ',,,Balance: ' + (w.credits || 0).toFixed(2) + NL;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const el = document.createElement('a');
+    el.href = url;
+    el.download = w.name + '_transactions.csv';
+    el.click();
+  };
+
   const logAuditAction = async (action: string, details: any) => {
     const logEntry = {
       action,
@@ -7932,7 +7967,7 @@ Please be punctual and update once completed. Thanks!`;
                           <div>
                             <p className="font-semibold text-lg">{c.name}</p>
                             <p className="text-sm text-gray-600">{c.email} | {c.phone}</p>
-                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => setShowCustomerWallet(c)}>
+                            <p className="text-sm font-bold text-green-600 mt-1 cursor-pointer hover:underline" onClick={() => { setShowCustomerWallet(c); setWalletDateFrom(""); setWalletDateTo(""); }}>
                               Credits: ${(c.credits || 0).toFixed(2)} 👁️
                             </p>
                             <p className="text-xs text-gray-400 mt-1">📅 Registered: {c.created_at ? formatSGT(c.created_at) : 'N/A'}</p>
@@ -11209,7 +11244,14 @@ Please be punctual and update once completed. Thanks!`;
               })()}
               
               {/* Transaction History */}
-              <h4 className="font-semibold text-gray-800 mb-3">📜 Transaction History</h4>
+              <div className="flex justify-between items-center mb-2"><h4 className="font-semibold text-gray-800">📜 Transaction History</h4><button onClick={() => exportWalletCSV(showCustomerWallet)} className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200"><Download size={12} /> Export</button></div>
+              <div className="flex gap-2 mb-2">
+                <input type="date" value={walletDateFrom} onChange={(e) => setWalletDateFrom(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" />
+                <input type="date" value={walletDateTo} onChange={(e) => setWalletDateTo(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" />
+                {(walletDateFrom || walletDateTo) && (
+                  <button onClick={() => { setWalletDateFrom(""); setWalletDateTo(""); }} className="px-2 text-xs text-gray-500">Clear</button>
+                )}
+              </div>
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {(() => {
                   const customerJobs = jobs
@@ -11263,10 +11305,13 @@ Please be punctual and update once completed. Thanks!`;
                   });
                   
                   transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                  const wF = walletDateFrom ? new Date(walletDateFrom) : null;
+                  const wT = walletDateTo ? new Date(walletDateTo + "T23:59:59") : null;
+                  const filteredTxns = transactions.filter((t: any) => { const td = new Date(t.date); if (wF && td < wF) return false; if (wT && td > wT) return false; return true; });
                   
-                  return transactions.length === 0 ? (
+                  return filteredTxns.length === 0 ? (
                     <p className="text-center text-gray-500 py-4">No transactions yet</p>
-                  ) : transactions.slice(0, 30).map((t: any, idx: number) => (
+                  ) : filteredTxns.slice(0, 50).map((t: any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded border">
                       <div>
                         <p className="text-sm text-gray-700">{t.description}</p>
