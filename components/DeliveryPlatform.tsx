@@ -691,41 +691,7 @@ const DeliveryPlatform = () => {
 
   // Cleanup interval on unmount
   useEffect(() => {
-    const exportWalletTransactions = () => {
-    if (!showCustomerWallet) return;
-    const cJ = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id);
-    const rL = auditLogs.filter((l: any) => {
-      if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false;
-      const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
-      return d?.customerId === showCustomerWallet.id;
-    });
-    const tx: any[] = [];
-    rL.forEach((l: any) => {
-      const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
-      if (l.action === 'customer_topup') tx.push({ tp: 'Top-up', am: d?.amount || 0, dt: l.timestamp, ds: d?.status === 'stripe_payment' ? 'Stripe' : 'PayNow' });
-    });
-    cJ.forEach((j: any) => {
-      if (j.status === 'cancelled') tx.push({ tp: 'Refund', am: parseFloat(j.price) || 0, dt: j.cancelled_at || j.created_at, ds: 'Refund ' + (j.order_id || '') });
-      else tx.push({ tp: 'Order', am: parseFloat(j.price) || 0, dt: j.created_at, ds: (j.order_id || '') + ' ' + extractAreaName(j.pickup) + ' to ' + extractAreaName(j.delivery) });
-    });
-    tx.sort((a, b) => new Date(b.dt).getTime() - new Date(a.dt).getTime());
-    const ft = tx.filter((x) => {
-      if (walletDateFrom && new Date(x.dt) < new Date(walletDateFrom)) return false;
-      if (walletDateTo && new Date(x.dt) > new Date(walletDateTo + 'T23:59:59')) return false;
-      return true;
-    });
-    const rows = ['Date,Type,Description,Amount'];
-    ft.forEach((x) => { rows.push(new Date(x.dt).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' }) + ',' + x.tp + ',' + x.ds.replace(/,/g, ' ') + ',' + (x.tp === 'Order' ? '-' : '+') + x.am.toFixed(2)); });
-    rows.push(',,,Balance: ' + (showCustomerWallet.credits || 0).toFixed(2));
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const el = document.createElement('a');
-    el.href = url;
-    el.download = showCustomerWallet.name + '_transactions.csv';
-    el.click();
-  };
-
-  return () => {
+    return () => {
       if (publicRefreshIntervalRef.current) {
         clearInterval(publicRefreshIntervalRef.current);
       }
@@ -1324,6 +1290,40 @@ const DeliveryPlatform = () => {
   }, [jobs, riders, reportDateFrom, reportDateTo]);
 
   // Audit Log helper function (Feature 15)
+  const exportWalletCSV = (wallet: any) => {
+    const cJ = jobs.filter((j: any) => j.customer_id === wallet.id);
+    const rL = auditLogs.filter((l: any) => {
+      if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false;
+      const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
+      return d?.customerId === wallet.id;
+    });
+    const tx: any[] = [];
+    rL.forEach((l: any) => {
+      const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
+      if (l.action === 'customer_topup') tx.push({ tp: 'Top-up', am: d?.amount || 0, dt: l.timestamp, ds: d?.status === 'stripe_payment' ? 'Stripe' : 'PayNow' });
+    });
+    cJ.forEach((j: any) => {
+      if (j.status === 'cancelled') tx.push({ tp: 'Refund', am: parseFloat(j.price) || 0, dt: j.cancelled_at || j.created_at, ds: 'Refund ' + (j.order_id || '') });
+      else tx.push({ tp: 'Order', am: parseFloat(j.price) || 0, dt: j.created_at, ds: (j.order_id || '') + ' ' + extractAreaName(j.pickup) + ' to ' + extractAreaName(j.delivery) });
+    });
+    tx.sort((a, b) => new Date(b.dt).getTime() - new Date(a.dt).getTime());
+    const ft = tx.filter((x) => {
+      if (walletDateFrom && new Date(x.dt) < new Date(walletDateFrom)) return false;
+      if (walletDateTo && new Date(x.dt) > new Date(walletDateTo + 'T23:59:59')) return false;
+      return true;
+    });
+    const rows = ['Date,Type,Description,Amount'];
+    ft.forEach((x) => rows.push(new Date(x.dt).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' }) + ',' + x.tp + ',' + String(x.ds).replace(/,/g, ' ') + ',' + (x.tp === 'Order' ? '-' : '+') + x.am.toFixed(2)));
+    rows.push(',,,Balance: ' + (wallet.credits || 0).toFixed(2));
+    const csvStr = rows.join(String.fromCharCode(10));
+    const blob = new Blob([csvStr], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const el = document.createElement('a');
+    el.href = url;
+    el.download = wallet.name + '_transactions.csv';
+    el.click();
+  };
+
   const logAuditAction = async (action: string, details: any) => {
     const logEntry = {
       action,
@@ -11247,7 +11247,7 @@ Please be punctual and update once completed. Thanks!`;
               {/* Transaction History */}
               <div className="flex justify-between items-center mb-2">
                 <h4 className="font-semibold text-gray-800">📜 Transaction History</h4>
-                <button onClick={exportWalletTransactions} className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200">
+                <button onClick={() => exportWalletCSV(showCustomerWallet)} className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200">
                   <Download size={12} /> Export
                 </button>
               </div>
