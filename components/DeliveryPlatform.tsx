@@ -6168,6 +6168,15 @@ Please be punctual and update once completed. Thanks!`;
                     <p className="text-xs text-gray-400 mt-1">Stay online — new jobs will appear here</p>
                   </div>
                 ) : (
+                  <>
+                  <details className="mb-3 border border-gray-200 rounded-lg">
+                    <summary className="px-3 py-2 cursor-pointer text-sm text-gray-600 flex items-center gap-2 hover:bg-gray-50">🔍 Filter Jobs</summary>
+                    <div className="px-3 pb-3 grid grid-cols-3 gap-2">
+                      <input type="text" placeholder="Pickup..." value={riderJobFilter.pickup} onChange={(e) => setRiderJobFilter({...riderJobFilter, pickup: e.target.value})} className="px-2 py-1.5 border rounded text-xs" />
+                      <input type="text" placeholder="Drop-off..." value={riderJobFilter.dropoff} onChange={(e) => setRiderJobFilter({...riderJobFilter, dropoff: e.target.value})} className="px-2 py-1.5 border rounded text-xs" />
+                      <input type="text" placeholder="Customer..." value={riderJobFilter.customer} onChange={(e) => setRiderJobFilter({...riderJobFilter, customer: e.target.value})} className="px-2 py-1.5 border rounded text-xs" />
+                    </div>
+                  </details>
                   <div className="space-y-2">
                     {filteredAvailableJobs.slice(0, 10).map((job: any) => {
                       const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
@@ -6208,6 +6217,7 @@ Please be punctual and update once completed. Thanks!`;
                       );
                     })}
                   </div>
+                  </>
                 )}
               </div>
             )}
@@ -6776,7 +6786,33 @@ Please be punctual and update once completed. Thanks!`;
               )}
             </div>
 
+            {/* Earnings & Bonus Progress */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-bold text-gray-800">Earnings & Bonus</h4>
+                <span className="text-xs text-gray-500">{bonusConfig.period === 'daily' ? 'Daily' : 'Weekly'}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-green-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-green-600">Total Earnings</p>
+                  <p className="text-xl font-bold text-green-700">${(curr.earnings || 0).toFixed(2)}</p>
+                  <p className="text-xs text-green-500">{curr.completed_jobs || 0} jobs</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-blue-600">Bonus Progress</p>
+                  <p className="text-lg font-bold text-blue-700">{curr.completed_jobs || 0} / {bonusConfig.ordersTarget}</p>
+                  <p className="text-xs text-blue-500">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? '🎉 Bonus earned!' : `${bonusConfig.ordersTarget - (curr.completed_jobs || 0)} more to get $${bonusConfig.ordersBonus}`}</p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                <div className="bg-green-500 h-2 rounded-full" style={{width: `${Math.min(100, ((curr.completed_jobs || 0) / Math.max(bonusConfig.ordersTarget, 1)) * 100)}%`}}></div>
+              </div>
+              <p className="text-xs text-gray-500">🎁 {bonusConfig.ordersTarget} orders → ${bonusConfig.ordersBonus} bonus</p>
+            </div>
+
             {/* Withdrawal moved to Earnings page */}
+            {showRiderPerformance && (
+            <>
             {showRiderPerformance && (
             <>
             {/* Withdrawal Notifications - Show status of rider's withdrawal requests */}
@@ -7106,6 +7142,9 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
               )}
             </div>
+
+            </>
+            )}
 
             </>
             )}
