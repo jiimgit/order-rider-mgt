@@ -29,36 +29,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         max_tokens: 1000,
         messages: [{
           role: 'user',
-          content: `You are a Singapore delivery order analyzer. Analyze the following delivery details and return ONLY a JSON object with no extra text, no markdown, no backticks.
-
-The JSON must have this exact structure:
-{
-  "pickup": "full pickup address with postal code if available",
-  "pickupUnitNo": "unit number or N/A",
-  "pickupContact": "pickup contact name or empty string",
-  "pickupPhone": "pickup phone or empty string",
-  "stops": [
-    {
-      "address": "full drop-off address with postal code if available",
-      "unitNo": "unit number or N/A",
-      "recipientName": "recipient name or empty string",
-      "recipientPhone": "recipient phone or empty string"
-    }
-  ],
-  "parcelSize": "small or medium or large or extra-large",
-  "remarks": "any special instructions mentioned",
-  "suggestedPrice": number (minimum $3 base + $2 per extra stop, consider distance in Singapore),
-  "suggestedDrivers": 1 or more (suggest 2+ only if more than 5 stops or very heavy items),
-  "deliveryDate": "YYYY-MM-DD if mentioned, otherwise empty string",
-  "deliverySlot": "6am-11am or 12pm-5pm or 6pm-11pm based on time mentioned, or empty string",
-  "analysis": "brief summary of the delivery in 1-2 sentences"
-}
-
-Delivery details:
-${deliveryDetails}`
+          content: 'You are a Singapore delivery order analyzer. Analyze the following delivery details and return ONLY a JSON object with no extra text, no markdown, no backticks.\n\nThe JSON must have this exact structure:\n{\n  "pickup": "full pickup address with postal code if available",\n  "pickupUnitNo": "unit number or N/A",\n  "pickupContact": "pickup contact name or empty string",\n  "pickupPhone": "pickup phone or empty string",\n  "stops": [\n    {\n      "address": "full drop-off address with postal code if available",\n      "unitNo": "unit number or N/A",\n      "recipientName": "recipient name or empty string",\n      "recipientPhone": "recipient phone or empty string"\n    }\n  ],\n  "parcelSize": "small or medium or large or extra-large",\n  "remarks": "any special instructions mentioned",\n  "suggestedPrice": number (minimum $3 base + $2 per extra stop),\n  "suggestedDrivers": 1,\n  "deliveryDate": "YYYY-MM-DD if mentioned, otherwise empty string",\n  "deliverySlot": "6am-11am or 12pm-5pm or 6pm-11pm based on time mentioned, or empty string",\n  "analysis": "brief summary of the delivery in 1-2 sentences"\n}\n\nDelivery details:\n' + deliveryDetails
         }]
       })
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Anthropic API error:', response.status, errorText);
+      return res.status(500).json({ error: 'AI service error. Status: ' + response.status });
+    }
 
     const data = await response.json();
     
@@ -67,15 +47,17 @@ ${deliveryDetails}`
     }
 
     const text = data.content?.[0]?.text || '';
-    const clean = text.replace(/\`\`\`json|\`\`\`/g, '').trim();
+    const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
     try {
       const parsed = JSON.parse(clean);
       return res.status(200).json(parsed);
     } catch {
-      return res.status(500).json({ error: 'Failed to parse AI response', raw: clean });
+      console.error('Failed to parse AI response:', clean.substring(0, 200));
+      return res.status(500).json({ error: 'Failed to parse AI response. Please try again.' });
     }
   } catch (error: any) {
+    console.error('AI analyze error:', error);
     return res.status(500).json({ error: error.message || 'AI analysis failed' });
   }
 }
