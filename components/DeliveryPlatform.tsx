@@ -11305,7 +11305,7 @@ Please be punctual and update once completed. Thanks!`;
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {(() => {
                   const customerJobs = jobs
-                    .filter((j: any) => j.customer_id === showCustomerWallet.id)
+                    .filter((j: any) => j.customer_id === showCustomerWallet.id || (j.customer_name && j.customer_name.trim() === showCustomerWallet.name.trim()))
                     .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                   
                   // Get top-up and refund audit logs for this customer
