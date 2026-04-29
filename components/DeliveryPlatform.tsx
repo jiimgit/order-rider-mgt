@@ -1295,14 +1295,14 @@ const DeliveryPlatform = () => {
     const NL = String.fromCharCode(10);
     const cJ = jobs.filter((j: any) => j.customer_id === w.id || (j.customer_name && j.customer_name.trim() === w.name.trim()));
     const rL = auditLogs.filter((l: any) => {
-      if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false;
+      if (l.action !== 'customer_topup' && l.action !== 'stripe_topup_success' && l.action !== 'admin_job_cancel_refund') return false;
       const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
       return d?.customerId === w.id || l.user_id === w.id;
     });
     const tx: any[] = [];
     rL.forEach((l: any) => {
       const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
-      if (l.action === 'customer_topup') tx.push({ tp: 'Top-up', am: d?.amount || 0, dt: l.timestamp, ds: d?.status === 'stripe_payment' ? 'Stripe' : 'PayNow' });
+      if (l.action === 'customer_topup' || l.action === 'stripe_topup_success') tx.push({ tp: 'Top-up', am: d?.amount || 0, dt: l.timestamp, ds: d?.status === 'stripe_payment' ? 'Stripe' : 'PayNow' });
     });
     cJ.forEach((j: any) => {
       if (j.status === 'cancelled') tx.push({ tp: 'Refund', am: parseFloat(j.price) || 0, dt: j.cancelled_at || j.created_at, ds: 'Refund ' + (j.order_id || '') });
@@ -11226,7 +11226,7 @@ Please be punctual and update once completed. Thanks!`;
                 const cancelledJobs = customerJobs.filter((j: any) => j.status === 'cancelled');
                 const totalRefunded = cancelledJobs.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
                 const topupLogs = auditLogs.filter((log: any) => {
-                  if (log.action !== 'customer_topup') return false;
+                  if (log.action !== 'customer_topup' && log.action !== 'stripe_topup_success') return false;
                   const d = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
                   return d?.customerId === showCustomerWallet.id || log.user_id === showCustomerWallet.id;
                 });
@@ -11311,7 +11311,7 @@ Please be punctual and update once completed. Thanks!`;
                   // Get top-up and refund audit logs for this customer
                   const relevantLogs = auditLogs
                     .filter((log: any) => {
-                      if (log.action !== 'customer_topup' && log.action !== 'admin_job_cancel_refund') return false;
+                      if (log.action !== 'customer_topup' && log.action !== 'stripe_topup_success' && log.action !== 'admin_job_cancel_refund') return false;
                       const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
                       return details?.customerId === showCustomerWallet.id;
                     });
@@ -11321,7 +11321,7 @@ Please be punctual and update once completed. Thanks!`;
                   // Add top-up logs (NOT refund logs — refunds will be shown from cancelled jobs)
                   relevantLogs.forEach((log: any) => {
                     const details = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
-                    if (log.action === 'customer_topup') {
+                    if (log.action === 'customer_topup' || log.action === 'stripe_topup_success') {
                       transactions.push({
                         type: 'topup',
                         amount: details?.amount || 0,
