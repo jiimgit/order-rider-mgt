@@ -96,17 +96,19 @@ async function logTransaction(data: any) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        action: 'stripe_topup_success',
+        action: 'customer_topup',
         user_id: data.customerId,
-        details: {
+        user_type: 'customer',
+        details: JSON.stringify({
           customerId: data.customerId,
           customerEmail: data.customerEmail,
           customerName: data.customerName,
           amount: data.amount,
-          stripeSessionId: data.sessionId,
+          sessionId: data.sessionId,
           stripePaymentIntentId: data.paymentIntentId,
-          timestamp: new Date().toISOString(),
-        },
+          status: 'stripe_payment',
+        }),
+        timestamp: new Date().toISOString(),
       }),
     });
     console.log('[Webhook] Transaction logged to audit_logs');
