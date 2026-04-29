@@ -11333,6 +11333,7 @@ Please be punctual and update once completed. Thanks!`;
                         type: 'topup',
                         amount: details?.amount || 0,
                         date: log.timestamp,
+                        logId: log.id,
                         description: details?.status === 'stripe_payment' 
                           ? `💳 Top-up via Stripe` 
                           : `📱 Top-up via PayNow${details?.refNumber ? ` (Ref: ${details.refNumber})` : ''}`
@@ -11379,10 +11380,13 @@ Please be punctual and update once completed. Thanks!`;
                     <p className="text-center text-gray-500 py-4">No transactions yet</p>
                   ) : filteredTxns.slice(0, 50).map((t: any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded border">
-                      <div>
-                        <p className="text-sm text-gray-700">{t.description}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 truncate">{t.description}</p>
                         <p className="text-xs text-gray-400">{formatSGT(t.date)}</p>
                       </div>
+                      {t.logId && (
+                        <button onClick={async () => { if (!window.confirm("Delete this record?")) return; try { await api("audit_logs?id=eq." + t.logId, "DELETE"); await loadData(); const fr = await api("customers?id=eq." + showCustomerWallet.id); if (fr && fr.length > 0) setShowCustomerWallet(fr[0]); } catch (e: any) { alert("Error: " + e.message); } }} className="text-red-400 hover:text-red-600 px-1" title="Delete"><Trash2 size={14} /></button>
+                      )}
                       <p className={`font-bold text-sm whitespace-nowrap ml-2 ${
                         t.type === 'topup' || t.type === 'refund' ? 'text-green-600' : 'text-red-600'
                       }`}>
