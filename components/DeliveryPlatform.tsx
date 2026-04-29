@@ -1309,9 +1309,11 @@ const DeliveryPlatform = () => {
       else tx.push({ tp: 'Order', am: parseFloat(j.price) || 0, dt: j.created_at, ds: (j.order_id || '') + ' ' + extractAreaName(j.pickup) + ' to ' + extractAreaName(j.delivery) });
     });
     tx.sort((a, b) => new Date(b.dt).getTime() - new Date(a.dt).getTime());
+    const seenE = new Set();
+    const dedupTx = tx.filter((x) => { if (x.tp !== 'Top-up') return true; const k = x.am.toFixed(2) + '_' + new Date(x.dt).toISOString().substring(0, 16); if (seenE.has(k)) return false; seenE.add(k); return true; });
     const wF = walletDateFrom ? new Date(walletDateFrom) : null;
     const wT = walletDateTo ? new Date(walletDateTo + 'T23:59:59') : null;
-    const ft = tx.filter((x) => { const xd = new Date(x.dt); if (wF && xd < wF) return false; if (wT && xd > wT) return false; return true; });
+    const ft = dedupTx.filter((x) => { const xd = new Date(x.dt); if (wF && xd < wF) return false; if (wT && xd > wT) return false; return true; });
     let csv = 'Date,Type,Description,Amount' + NL;
     ft.forEach((x) => { csv += new Date(x.dt).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' }) + ',' + x.tp + ',' + String(x.ds).replace(/,/g, ' ') + ',' + (x.tp === 'Order' ? '-' : '+') + x.am.toFixed(2) + NL; });
     csv += ',,,Balance: ' + (w.credits || 0).toFixed(2) + NL;
@@ -11230,9 +11232,14 @@ Please be punctual and update once completed. Thanks!`;
                   const d = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
                   return d?.customerId === showCustomerWallet.id || log.user_id === showCustomerWallet.id;
                 });
+                const seenTopups = new Set();
                 const totalTopUps = topupLogs.reduce((sum: number, log: any) => {
                   const d = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
-                  return sum + (d?.amount || 0);
+                  const amt = d?.amount || 0;
+                  const key = amt.toFixed(2) + '_' + new Date(log.timestamp).toISOString().substring(0, 16);
+                  if (seenTopups.has(key)) return sum;
+                  seenTopups.add(key);
+                  return sum + amt;
                 }, 0);
                 
                 return (
@@ -11355,9 +11362,18 @@ Please be punctual and update once completed. Thanks!`;
                   });
                   
                   transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                  // Deduplicate top-ups (webhook + frontend may both log)
+                  const seen = new Set();
+                  const dedupedTxns = transactions.filter((t: any) => {
+                    if (t.type !== 'topup') return true;
+                    const key = t.amount.toFixed(2) + '_' + new Date(t.date).toISOString().substring(0, 16);
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                  });
                   const wF = walletDateFrom ? new Date(walletDateFrom) : null;
                   const wT = walletDateTo ? new Date(walletDateTo + "T23:59:59") : null;
-                  const filteredTxns = transactions.filter((t: any) => { const td = new Date(t.date); if (wF && td < wF) return false; if (wT && td > wT) return false; return true; });
+                  const filteredTxns = dedupedTxns.filter((t: any) => { const td = new Date(t.date); if (wF && td < wF) return false; if (wT && td > wT) return false; return true; });
                   
                   return filteredTxns.length === 0 ? (
                     <p className="text-center text-gray-500 py-4">No transactions yet</p>
