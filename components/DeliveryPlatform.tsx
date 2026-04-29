@@ -1297,7 +1297,7 @@ const DeliveryPlatform = () => {
     const rL = auditLogs.filter((l: any) => {
       if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false;
       const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
-      return d?.customerId === w.id;
+      return d?.customerId === w.id || l.user_id === w.id;
     });
     const tx: any[] = [];
     rL.forEach((l: any) => {
@@ -1346,7 +1346,7 @@ const DeliveryPlatform = () => {
   // Load audit logs
   const loadAuditLogs = async () => {
     try {
-      const logs = await api('audit_logs?order=timestamp.desc&limit=50');
+      const logs = await api('audit_logs?order=timestamp.desc&limit=500');
       setAuditLogs(Array.isArray(logs) ? logs : []);
     } catch (e) {
       console.error('Failed to load audit logs:', e);
@@ -3442,7 +3442,7 @@ Please be punctual and update once completed. Thanks!`;
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
       // Also load audit logs for withdrawal notifications
-      const logs = await api('audit_logs?order=timestamp.desc&limit=50');
+      const logs = await api('audit_logs?order=timestamp.desc&limit=500');
       console.log('[LoadData] Audit logs loaded:', logs?.length || 0);
       
       // Load all rider locations for admin (to check GPS status)
