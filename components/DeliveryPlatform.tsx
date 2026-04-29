@@ -3438,7 +3438,7 @@ Please be punctual and update once completed. Thanks!`;
       const c = await api('customers?select=*');
       console.log('[LoadData] Customers loaded:', c?.length || 0);
       
-      const j = await api('jobs?select=*&order=created_at.desc&limit=100');
+      const j = await api('jobs?select=*&order=created_at.desc&limit=500');
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
       // Also load audit logs for withdrawal notifications
