@@ -5998,8 +5998,8 @@ Please be punctual and update once completed. Thanks!`;
                     <div key={job.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
                       {renderJobDetailCard(job)}
                       
-                      {/* Rider Info - when assigned */}
-                      {job.rider_name && job.status !== 'posted' && (
+                      {/* Rider Info - only show when in progress */}
+                      {job.rider_name && (job.status === 'accepted' || job.status === 'picked_up' || job.status === 'in_transit') && (
                         <div className="bg-blue-50 p-3 rounded-lg mb-3">
                           <p className="text-sm font-medium text-blue-800 mb-1">🏍️ Assigned Rider</p>
                           <div className="flex justify-between items-center">
