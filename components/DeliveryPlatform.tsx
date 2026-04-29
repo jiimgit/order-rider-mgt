@@ -1293,7 +1293,7 @@ const DeliveryPlatform = () => {
   const exportWalletCSV = (w: any) => {
     if (!w) return;
     const NL = String.fromCharCode(10);
-    const cJ = jobs.filter((j: any) => j.customer_id === w.id || (j.customer_name && j.customer_name === w.name));
+    const cJ = jobs.filter((j: any) => j.customer_id === w.id || (j.customer_name && j.customer_name.trim() === w.name.trim()));
     const rL = auditLogs.filter((l: any) => {
       if (l.action !== 'customer_topup' && l.action !== 'admin_job_cancel_refund') return false;
       const d = typeof l.details === 'string' ? (() => { try { return JSON.parse(l.details); } catch { return {}; } })() : (l.details || {});
@@ -11220,7 +11220,7 @@ Please be punctual and update once completed. Thanks!`;
               
               {/* Wallet Summary */}
               {(() => {
-                const customerJobs = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id || (j.customer_name && j.customer_name === showCustomerWallet.name));
+                const customerJobs = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id || (j.customer_name && j.customer_name.trim() === showCustomerWallet.name.trim()));
                 const completedAndActiveJobs = customerJobs.filter((j: any) => j.status !== 'cancelled');
                 const amountUsed = completedAndActiveJobs.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
                 const totalTopUps = amountUsed + (showCustomerWallet.credits || 0);
