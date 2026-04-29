@@ -10548,33 +10548,39 @@ Please be punctual and update once completed. Thanks!`;
               )}
 
               <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800">⚠️ Only <strong>online</strong> riders with <strong>GPS enabled</strong> are shown below.</p>
+                <p className="text-sm text-yellow-800">⚠️ <strong>Online</strong> riders with <strong>GPS</strong> are shown first. Offline riders are also available below.</p>
               </div>
 
               <h4 className="font-semibold text-gray-700 mb-3">Select a Rider:</h4>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+              <div className="space-y-2 max-h-72 overflow-y-auto">
                 {(() => {
-                  // Filter riders: only online and with recent GPS location (within last 30 minutes)
+                  // Show ALL riders - online with GPS first, then others
                   const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-                  const onlineRidersWithGPS = riders.filter((r: any) => {
+                  const allAvailableRiders = riders.filter((r: any) => {
+                    const isCurrentRider = showAssignRider.rider_id === r.id;
+                    return !isCurrentRider;
+                  }).map((r: any) => {
                     const riderLoc = allRiderLocations?.find((loc: any) => loc.rider_id === r.id);
                     const isOnline = r.is_online === true;
                     const hasRecentGPS = riderLoc && riderLoc.updated_at > thirtyMinsAgo;
-                    // Exclude the currently assigned rider from the list when reassigning
-                    const isCurrentRider = showAssignRider.rider_id === r.id;
-                    return isOnline && hasRecentGPS && !isCurrentRider;
+                    return { ...r, isOnline, hasRecentGPS };
+                  }).sort((a: any, b: any) => {
+                    if (a.isOnline && a.hasRecentGPS && !(b.isOnline && b.hasRecentGPS)) return -1;
+                    if (!(a.isOnline && a.hasRecentGPS) && b.isOnline && b.hasRecentGPS) return 1;
+                    if (a.isOnline && !b.isOnline) return -1;
+                    if (!a.isOnline && b.isOnline) return 1;
+                    return a.name.localeCompare(b.name);
                   });
                   
-                  if (onlineRidersWithGPS.length === 0) {
+                  if (allAvailableRiders.length === 0) {
                     return (
                       <div className="text-center py-6">
                         <p className="text-gray-500 mb-2">No other riders available</p>
-                        <p className="text-sm text-gray-400">Riders must be online with GPS enabled to be assigned jobs.</p>
                       </div>
                     );
                   }
                   
-                  return onlineRidersWithGPS.map((r: any) => (
+                  return allAvailableRiders.map((r: any) => (
                     <button
                       key={r.id}
                       onClick={async () => {
@@ -10592,7 +10598,7 @@ Please be punctual and update once completed. Thanks!`;
                           alert('Error assigning rider: ' + e.message);
                         }
                       }}
-                      className="w-full p-3 border rounded-lg hover:border-green-500 hover:bg-green-50 text-left transition-colors"
+                      className={`w-full p-3 border rounded-lg text-left transition-colors ${r.isOnline && r.hasRecentGPS ? 'hover:border-green-500 hover:bg-green-50' : 'hover:border-yellow-500 hover:bg-yellow-50 opacity-80'}`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -10600,8 +10606,22 @@ Please be punctual and update once completed. Thanks!`;
                           <p className="text-sm text-gray-600">{r.phone} | Tier {r.tier} | {r.completed_jobs || 0} jobs</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse" title="Online"></span>
-                          <span className="text-green-600 text-xs font-medium">GPS ✓</span>
+                          {r.isOnline && r.hasRecentGPS ? (
+                            <>
+                              <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse" title="Online"></span>
+                              <span className="text-green-600 text-xs font-medium">Online</span>
+                            </>
+                          ) : r.isOnline ? (
+                            <>
+                              <span className="w-3 h-3 bg-yellow-500 rounded-full" title="Online, no GPS"></span>
+                              <span className="text-yellow-600 text-xs font-medium">No GPS</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-3 h-3 bg-gray-400 rounded-full" title="Offline"></span>
+                              <span className="text-gray-500 text-xs font-medium">Offline</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </button>
