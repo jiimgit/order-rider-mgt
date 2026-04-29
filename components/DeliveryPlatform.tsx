@@ -11223,7 +11223,17 @@ Please be punctual and update once completed. Thanks!`;
                 const customerJobs = jobs.filter((j: any) => j.customer_id === showCustomerWallet.id || (j.customer_name && j.customer_name.trim() === showCustomerWallet.name.trim()));
                 const completedAndActiveJobs = customerJobs.filter((j: any) => j.status !== 'cancelled');
                 const amountUsed = completedAndActiveJobs.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
-                const totalTopUps = amountUsed + (showCustomerWallet.credits || 0);
+                const cancelledJobs = customerJobs.filter((j: any) => j.status === 'cancelled');
+                const totalRefunded = cancelledJobs.reduce((sum: number, j: any) => sum + (parseFloat(j.price) || 0), 0);
+                const topupLogs = auditLogs.filter((log: any) => {
+                  if (log.action !== 'customer_topup') return false;
+                  const d = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
+                  return d?.customerId === showCustomerWallet.id || log.user_id === showCustomerWallet.id;
+                });
+                const totalTopUps = topupLogs.reduce((sum: number, log: any) => {
+                  const d = typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return {}; } })() : (log.details || {});
+                  return sum + (d?.amount || 0);
+                }, 0);
                 
                 return (
                   <div className="grid grid-cols-3 gap-3 mb-6">
