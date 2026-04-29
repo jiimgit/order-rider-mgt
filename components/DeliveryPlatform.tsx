@@ -11302,7 +11302,7 @@ Please be punctual and update once completed. Thanks!`;
                   <button onClick={() => { setWalletDateFrom(""); setWalletDateTo(""); }} className="px-2 text-xs text-gray-500">Clear</button>
                 )}
               </div>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+              <div className="space-y-2 max-h-96 overflow-y-auto">
                 {(() => {
                   const customerJobs = jobs
                     .filter((j: any) => j.customer_id === showCustomerWallet.id)
