@@ -11253,6 +11253,46 @@ Please be punctual and update once completed. Thanks!`;
                 );
               })()}
               
+              {/* Manual Top-up Entry */}
+              <details className="mb-3 border border-blue-200 rounded-lg">
+                <summary className="px-3 py-2 cursor-pointer text-sm font-medium text-blue-700 hover:bg-blue-50">+ Add Manual Top-up Record</summary>
+                <div className="px-3 pb-3 pt-1">
+                  <div className="flex gap-2 mb-2">
+                    <input type="number" id="manual-topup-amount" placeholder="Amount" className="flex-1 px-2 py-1.5 border rounded text-sm" min="1" step="0.01" />
+                    <input type="date" id="manual-topup-date" className="flex-1 px-2 py-1.5 border rounded text-sm" />
+                  </div>
+                  <select id="manual-topup-method" className="w-full px-2 py-1.5 border rounded text-sm mb-2">
+                    <option value="stripe_payment">Stripe Payment</option>
+                    <option value="paynow">PayNow</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="cash">Cash</option>
+                  </select>
+                  <input type="text" id="manual-topup-note" placeholder="Note (optional)" className="w-full px-2 py-1.5 border rounded text-sm mb-2" />
+                  <button onClick={async () => {
+                    const amtEl = document.getElementById("manual-topup-amount") as HTMLInputElement;
+                    const dateEl = document.getElementById("manual-topup-date") as HTMLInputElement;
+                    const methodEl = document.getElementById("manual-topup-method") as HTMLSelectElement;
+                    const noteEl = document.getElementById("manual-topup-note") as HTMLInputElement;
+                    const amt = parseFloat(amtEl?.value || "0");
+                    const date = dateEl?.value || new Date().toISOString().split("T")[0];
+                    const method = methodEl?.value || "stripe_payment";
+                    const note = noteEl?.value || "";
+                    if (amt <= 0) return alert("Please enter a valid amount");
+                    if (!window.confirm("Add top-up record of $" + amt.toFixed(2) + " for " + showCustomerWallet.name + "?")) return;
+                    try {
+                      await api("audit_logs", "POST", { action: "customer_topup", user_id: showCustomerWallet.id, user_type: "admin", details: JSON.stringify({ customerId: showCustomerWallet.id, customerName: showCustomerWallet.name, amount: amt, status: method, note: note, manual: true }), timestamp: new Date(date + "T00:00:00").toISOString() });
+                      await loadData();
+                      const fresh = await api("customers?id=eq." + showCustomerWallet.id);
+                      if (fresh && fresh.length > 0) setShowCustomerWallet(fresh[0]);
+                      amtEl.value = "";
+                      noteEl.value = "";
+                      alert("Top-up record added!");
+                    } catch (e: any) { alert("Error: " + e.message); }
+                  }} className="w-full py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700">Add Record</button>
+                  <p className="text-xs text-gray-400 mt-1">Adds record to history only. Edit customer credits separately to adjust balance.</p>
+                </div>
+              </details>
+
               {/* Transaction History */}
               <div className="flex justify-between items-center mb-2"><h4 className="font-semibold text-gray-800">📜 Transaction History</h4><button onClick={() => exportWalletCSV(showCustomerWallet)} className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200"><Download size={12} /> Export</button></div>
               <div className="flex gap-2 mb-2">
