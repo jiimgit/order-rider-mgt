@@ -6847,17 +6847,7 @@ Please be punctual and update once completed. Thanks!`;
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex justify-between items-center mb-3">
                 <h4 className="font-bold text-gray-800">Earnings & Bonus</h4>
-                <span className="text-xs text-gray-500">{(() => {
-                  const now = new Date();
-                  const fmt = (d: Date) => d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
-                  if (bonusConfig.period === 'daily') return 'Today: ' + fmt(now);
-                  if (bonusConfig.period === 'custom' && bonusConfig.startDate && bonusConfig.endDate) return fmt(new Date(bonusConfig.startDate)) + ' – ' + fmt(new Date(bonusConfig.endDate));
-                  const day = now.getDay();
-                  const mo = day === 0 ? -6 : 1 - day;
-                  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mo);
-                  const sun = new Date(mon.getTime() + 6 * 24 * 60 * 60 * 1000);
-                  return fmt(mon) + ' – ' + fmt(sun);
-                })()}</span>
+
               </div>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-green-50 rounded-lg p-3 text-center">
@@ -6874,7 +6864,18 @@ Please be punctual and update once completed. Thanks!`;
               <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                 <div className="bg-green-500 h-2 rounded-full" style={{width: `${Math.min(100, ((bonusPeriodCount) / Math.max(bonusConfig.ordersTarget, 1)) * 100)}%`}}></div>
               </div>
-              <p className="text-xs text-gray-500">🎁 {bonusConfig.ordersTarget} orders → ${bonusConfig.ordersBonus} bonus</p>
+              <p className="text-sm text-gray-700 font-medium">🎁 {bonusConfig.ordersTarget} orders → ${bonusConfig.ordersBonus} bonus</p>
+              <p className="text-sm text-blue-600 font-semibold mt-2">{(() => {
+                const now = new Date();
+                const fmt = (d: Date) => d.toLocaleDateString('en-SG', { day: 'numeric', month: 'long', year: 'numeric' });
+                if (bonusConfig.period === 'daily') return 'Today: ' + fmt(now);
+                if (bonusConfig.period === 'custom' && bonusConfig.startDate && bonusConfig.endDate) return fmt(new Date(bonusConfig.startDate)) + ' to ' + fmt(new Date(bonusConfig.endDate));
+                const day = now.getDay();
+                const mo = day === 0 ? -6 : 1 - day;
+                const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mo);
+                const sun = new Date(mon.getTime() + 6 * 24 * 60 * 60 * 1000);
+                return fmt(mon) + ' to ' + fmt(sun);
+              })()}</p>
             </div>
 
             {/* Withdrawal moved to Earnings page */}
