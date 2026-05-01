@@ -6858,24 +6858,24 @@ Please be punctual and update once completed. Thanks!`;
                 <div className="bg-blue-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-blue-600">Orders in Bonus Period</p>
                   <p className="text-lg font-bold text-blue-700">{bonusPeriodCount} / {bonusConfig.ordersTarget}</p>
-                  <p className="text-xs text-blue-500">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? '🎉 Bonus earned!' : `${bonusConfig.ordersTarget - (curr.completed_jobs || 0)} more to get $${bonusConfig.ordersBonus}`}</p>
+                  <p className="text-xs text-blue-500">{bonusPeriodCount >= bonusConfig.ordersTarget ? '🎉 Bonus earned!' : `${bonusConfig.ordersTarget - bonusPeriodCount} more to get $${bonusConfig.ordersBonus}`}</p>
+                  <p className="text-sm text-blue-700 font-semibold mt-1">{(() => {
+                    const now = new Date();
+                    const fmt = (d: Date) => d.toLocaleDateString('en-SG', { day: 'numeric', month: 'long', year: 'numeric' });
+                    if (bonusConfig.period === 'daily') return fmt(now);
+                    if (bonusConfig.period === 'custom' && bonusConfig.startDate && bonusConfig.endDate) return fmt(new Date(bonusConfig.startDate)) + ' to ' + fmt(new Date(bonusConfig.endDate));
+                    const day = now.getDay();
+                    const mo = day === 0 ? -6 : 1 - day;
+                    const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mo);
+                    const sun = new Date(mon.getTime() + 6 * 24 * 60 * 60 * 1000);
+                    return fmt(mon) + ' to ' + fmt(sun);
+                  })()}</p>
                 </div>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                 <div className="bg-green-500 h-2 rounded-full" style={{width: `${Math.min(100, ((bonusPeriodCount) / Math.max(bonusConfig.ordersTarget, 1)) * 100)}%`}}></div>
               </div>
               <p className="text-sm text-gray-700 font-medium">🎁 {bonusConfig.ordersTarget} orders → ${bonusConfig.ordersBonus} bonus</p>
-              <p className="text-sm text-blue-600 font-semibold mt-2">{(() => {
-                const now = new Date();
-                const fmt = (d: Date) => d.toLocaleDateString('en-SG', { day: 'numeric', month: 'long', year: 'numeric' });
-                if (bonusConfig.period === 'daily') return 'Today: ' + fmt(now);
-                if (bonusConfig.period === 'custom' && bonusConfig.startDate && bonusConfig.endDate) return fmt(new Date(bonusConfig.startDate)) + ' to ' + fmt(new Date(bonusConfig.endDate));
-                const day = now.getDay();
-                const mo = day === 0 ? -6 : 1 - day;
-                const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mo);
-                const sun = new Date(mon.getTime() + 6 * 24 * 60 * 60 * 1000);
-                return fmt(mon) + ' to ' + fmt(sun);
-              })()}</p>
             </div>
 
             {/* Withdrawal moved to Earnings page */}
