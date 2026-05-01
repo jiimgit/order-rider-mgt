@@ -6812,7 +6812,7 @@ Please be punctual and update once completed. Thanks!`;
                   <p className="text-xs text-green-500">{curr.completed_jobs || 0} jobs</p>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
-                  <p className="text-xs font-medium text-blue-600 uppercase">{bonusConfig.period === 'daily' ? 'Daily' : 'Weekly'} Target</p>
+                  <p className="text-xs font-medium text-blue-600 uppercase">{bonusConfig.period === 'daily' ? 'Daily' : bonusConfig.period === 'custom' ? 'Bonus' : 'Weekly'} Target</p>
                   {(bonusConfig.method === 'earnings' || bonusConfig.method === 'both') && bonusConfig.earningsTarget > 0 ? (
                     <>
                       <p className="text-lg font-bold text-blue-700">${(curr.earnings || 0).toFixed(0)}<span className="text-xs font-normal text-blue-400">/${bonusConfig.earningsTarget}</span></p>
@@ -6847,7 +6847,17 @@ Please be punctual and update once completed. Thanks!`;
             <div className="bg-white rounded-lg shadow p-4">
               <div className="flex justify-between items-center mb-3">
                 <h4 className="font-bold text-gray-800">Earnings & Bonus</h4>
-                <span className="text-xs text-gray-500">{bonusConfig.period === 'daily' ? 'Daily' : 'Weekly'}</span>
+                <span className="text-xs text-gray-500">{(() => {
+                  const now = new Date();
+                  const fmt = (d: Date) => d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
+                  if (bonusConfig.period === 'daily') return 'Today: ' + fmt(now);
+                  if (bonusConfig.period === 'custom' && bonusConfig.startDate && bonusConfig.endDate) return fmt(new Date(bonusConfig.startDate)) + ' – ' + fmt(new Date(bonusConfig.endDate));
+                  const day = now.getDay();
+                  const mo = day === 0 ? -6 : 1 - day;
+                  const mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mo);
+                  const sun = new Date(mon.getTime() + 6 * 24 * 60 * 60 * 1000);
+                  return fmt(mon) + ' – ' + fmt(sun);
+                })()}</span>
               </div>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-green-50 rounded-lg p-3 text-center">
@@ -6856,7 +6866,7 @@ Please be punctual and update once completed. Thanks!`;
                   <p className="text-xs text-green-500">{curr.completed_jobs || 0} jobs</p>
                 </div>
                 <div className="bg-blue-50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-blue-600">Bonus Progress</p>
+                  <p className="text-xs text-blue-600">Orders in Bonus Period</p>
                   <p className="text-lg font-bold text-blue-700">{bonusPeriodCount} / {bonusConfig.ordersTarget}</p>
                   <p className="text-xs text-blue-500">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? '🎉 Bonus earned!' : `${bonusConfig.ordersTarget - (curr.completed_jobs || 0)} more to get $${bonusConfig.ordersBonus}`}</p>
                 </div>
