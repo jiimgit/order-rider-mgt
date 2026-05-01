@@ -3137,6 +3137,26 @@ Thank you for your order! 🙏`;
     );
   }, [riders, riderSearch]);
 
+  const bonusPeriodCount = useMemo(() => {
+    if (auth.type !== 'rider') return 0;
+    const now = new Date();
+    let pStart: Date;
+    let pEnd: Date;
+    if (bonusConfig.period === 'daily') {
+      pStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      pEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    } else if (bonusConfig.period === 'custom' && bonusConfig.startDate && bonusConfig.endDate) {
+      pStart = new Date(bonusConfig.startDate);
+      pEnd = new Date(bonusConfig.endDate + 'T23:59:59');
+    } else {
+      const day = now.getDay();
+      const mo = day === 0 ? -6 : 1 - day;
+      pStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mo);
+      pEnd = new Date(pStart.getTime() + 6 * 24 * 60 * 60 * 1000 + 23 * 60 * 60 * 1000 + 59 * 60 * 1000 + 59 * 1000);
+    }
+    return jobs.filter((j: any) => j.rider_id === auth.id && j.status === 'completed' && new Date(j.updated_at || j.created_at) >= pStart && new Date(j.updated_at || j.created_at) <= pEnd).length;
+  }, [auth.type, auth.id, jobs, bonusConfig.period, bonusConfig.startDate, bonusConfig.endDate]);
+
   const paginatedRiders = useMemo(() => {
     const start = (riderPage - 1) * ITEMS_PER_PAGE;
     return filteredRiders.slice(start, start + ITEMS_PER_PAGE);
@@ -6801,8 +6821,8 @@ Please be punctual and update once completed. Thanks!`;
                     </>
                   ) : (bonusConfig.method === 'orders') && bonusConfig.ordersTarget > 0 ? (
                     <>
-                      <p className="text-lg font-bold text-blue-700">{curr.completed_jobs || 0}<span className="text-xs font-normal text-blue-400">/{bonusConfig.ordersTarget}</span></p>
-                      <div className="w-full bg-blue-200 rounded-full h-1.5 mt-1"><div className="bg-blue-600 h-1.5 rounded-full" style={{width: `${Math.min(100, ((curr.completed_jobs || 0) / bonusConfig.ordersTarget) * 100)}%`}}></div></div>
+                      <p className="text-lg font-bold text-blue-700">{bonusPeriodCount}<span className="text-xs font-normal text-blue-400">/{bonusConfig.ordersTarget}</span></p>
+                      <div className="w-full bg-blue-200 rounded-full h-1.5 mt-1"><div className="bg-blue-600 h-1.5 rounded-full" style={{width: `${Math.min(100, ((bonusPeriodCount) / Math.max(bonusConfig.ordersTarget, 1)) * 100)}%`}}></div></div>
                       <p className="text-xs mt-1">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? <span className="text-green-600 font-semibold">🎉 +${bonusConfig.ordersBonus} Bonus!</span> : <span className="text-blue-500">{bonusConfig.ordersTarget - (curr.completed_jobs || 0)} orders to go</span>}</p>
                     </>
                   ) : (
@@ -6837,12 +6857,12 @@ Please be punctual and update once completed. Thanks!`;
                 </div>
                 <div className="bg-blue-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-blue-600">Bonus Progress</p>
-                  <p className="text-lg font-bold text-blue-700">{curr.completed_jobs || 0} / {bonusConfig.ordersTarget}</p>
+                  <p className="text-lg font-bold text-blue-700">{bonusPeriodCount} / {bonusConfig.ordersTarget}</p>
                   <p className="text-xs text-blue-500">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? '🎉 Bonus earned!' : `${bonusConfig.ordersTarget - (curr.completed_jobs || 0)} more to get $${bonusConfig.ordersBonus}`}</p>
                 </div>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                <div className="bg-green-500 h-2 rounded-full" style={{width: `${Math.min(100, ((curr.completed_jobs || 0) / Math.max(bonusConfig.ordersTarget, 1)) * 100)}%`}}></div>
+                <div className="bg-green-500 h-2 rounded-full" style={{width: `${Math.min(100, ((bonusPeriodCount) / Math.max(bonusConfig.ordersTarget, 1)) * 100)}%`}}></div>
               </div>
               <p className="text-xs text-gray-500">🎁 {bonusConfig.ordersTarget} orders → ${bonusConfig.ordersBonus} bonus</p>
             </div>
