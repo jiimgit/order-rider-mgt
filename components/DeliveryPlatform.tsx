@@ -6823,7 +6823,7 @@ Please be punctual and update once completed. Thanks!`;
                     <>
                       <p className="text-lg font-bold text-blue-700">{bonusPeriodCount}<span className="text-xs font-normal text-blue-400">/{bonusConfig.ordersTarget}</span></p>
                       <div className="w-full bg-blue-200 rounded-full h-1.5 mt-1"><div className="bg-blue-600 h-1.5 rounded-full" style={{width: `${Math.min(100, ((bonusPeriodCount) / Math.max(bonusConfig.ordersTarget, 1)) * 100)}%`}}></div></div>
-                      <p className="text-xs mt-1">{(curr.completed_jobs || 0) >= bonusConfig.ordersTarget ? <span className="text-green-600 font-semibold">🎉 +${bonusConfig.ordersBonus} Bonus!</span> : <span className="text-blue-500">{bonusConfig.ordersTarget - (curr.completed_jobs || 0)} orders to go</span>}</p>
+                      <p className="text-xs mt-1">{bonusPeriodCount >= bonusConfig.ordersTarget ? <span className="text-green-600 font-semibold">🎉 +${bonusConfig.ordersBonus} Bonus!</span> : <span className="text-blue-500">{bonusConfig.ordersTarget - bonusPeriodCount} orders to go</span>}</p>
                     </>
                   ) : (
                     <p className="text-xs text-gray-400 mt-2">No target set</p>
@@ -7825,7 +7825,13 @@ Please be punctual and update once completed. Thanks!`;
                                 </div>
                                 {job.remarks && <p className="text-xs text-gray-400 italic mt-1">{job.remarks?.substring(0, 50)}{job.remarks?.length > 50 ? '...' : ''}</p>}
                               </div>
-                              <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View full details</summary><div className="mt-1 text-xs">{renderJobDetailCard(job, false)}</div></details>
+                              <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View details</summary><div className="mt-1 text-xs bg-gray-50 rounded p-2 space-y-0.5">
+                                <p><strong>Parcel:</strong> <span className="capitalize">{job.parcel_size}</span></p>
+                                {job.distance_km && <p><strong>Distance:</strong> {job.distance_km} km</p>}
+                                <p><strong>Delivery:</strong> {job.delivery_date} {job.timeframe || ''}</p>
+                                {job.remarks && <p><strong>Remark:</strong> {job.remarks}</p>}
+                                <p className="text-gray-400 italic mt-1">Full address and contact shown after accepting</p>
+                              </div></details>
                             </div>
                             <div className="text-right">
                               <p className="text-xl sm:text-2xl font-bold text-green-600">${comm.activeRider.toFixed(2)}</p>
