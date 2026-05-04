@@ -1361,11 +1361,11 @@ const DeliveryPlatform = () => {
   const loadWithdrawalRequests = async () => {
     try {
       const logs = await api('audit_logs?action=eq.withdrawal_request&order=timestamp.desc');
-      // Parse details if it's a string
+      // Parse details if it's a string, filter out blank/invalid records
       const parsed = (Array.isArray(logs) ? logs : []).map((log: any) => ({
         ...log,
-        details: typeof log.details === 'string' ? JSON.parse(log.details) : log.details
-      }));
+        details: typeof log.details === 'string' ? (() => { try { return JSON.parse(log.details); } catch { return log.details; } })() : log.details
+      })).filter((log: any) => log.details && log.details.riderName && log.details.amount > 0);
       setWithdrawalRequests(parsed);
     } catch (e) {
       console.error('Failed to load withdrawal requests:', e);
