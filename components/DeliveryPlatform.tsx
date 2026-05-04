@@ -1374,7 +1374,7 @@ const DeliveryPlatform = () => {
   };
 
   // Approve/Reject withdrawal request
-  const processWithdrawalRequest = async (requestId: string, action: 'approved' | 'rejected' | 'completed', request: any) => {
+  const processWithdrawalRequest = async (requestId: string, action: 'approved' | 'rejected' | 'completed' | 'pending', request: any) => {
     try {
       // Update the withdrawal request status
       await api(`audit_logs?id=eq.${requestId}`, 'PATCH', {
@@ -1392,6 +1392,17 @@ const DeliveryPlatform = () => {
         const rider = riders.find(r => r.id === request.details.riderId);
         if (rider) {
           const newEarnings = (rider.earnings || 0) + request.details.amount;
+          await api(`riders?id=eq.${request.details.riderId}`, 'PATCH', {
+            earnings: newEarnings
+          });
+        }
+      }
+
+      // If restoring from rejected to pending, deduct the earnings again
+      if (action === 'pending') {
+        const rider = riders.find(r => r.id === request.details.riderId);
+        if (rider) {
+          const newEarnings = (rider.earnings || 0) - request.details.amount;
           await api(`riders?id=eq.${request.details.riderId}`, 'PATCH', {
             earnings: newEarnings
           });
@@ -1418,6 +1429,8 @@ const DeliveryPlatform = () => {
         alert(`Withdrawal request REJECTED.\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\n\nThe balance has been returned to the rider. The rider will be notified to resubmit if needed.`);
       } else if (action === 'completed') {
         alert(`Payment COMPLETED!\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\n\nThe rider will be notified that payment has been received.`);
+      } else if (action === 'pending') {
+        alert(`Withdrawal request RESTORED to pending.\n\nRider: ${request.details.riderName}\nAmount: $${request.details.amount?.toFixed(2)}\n\nYou can now Approve or Reject it again.`);
       }
       
       loadWithdrawalRequests();
@@ -8833,7 +8846,15 @@ Please be punctual and update once completed. Thanks!`;
                                 </div>
                               )}
                               {req.details?.status === 'rejected' && (
-                                <span className="text-xs text-red-500">Rejected</span>
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-xs text-red-500">Rejected</span>
+                                  <button
+                                    onClick={() => processWithdrawalRequest(req.id, 'pending', req)}
+                                    className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600"
+                                  >
+                                    ↩ Restore
+                                  </button>
+                                </div>
                               )}
                             </td>
                           </tr>
