@@ -9988,6 +9988,55 @@ Please be punctual and update once completed. Thanks!`;
               </div>
 
               <div className="space-y-4">
+                {/* AI Analyze - Paste Order */}
+                <details className="border border-purple-200 rounded-lg">
+                  <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-purple-700 hover:bg-purple-50 flex items-center gap-2">📋 Paste Order (AI Analyze)</summary>
+                  <div className="px-4 pb-4 pt-1">
+                    <textarea
+                      id="admin-ai-input"
+                      className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm bg-white"
+                      rows={3}
+                      placeholder='e.g. "Pickup from Bedok 460456 #05-123, contact Ali 91234567, deliver to Jurong 600123 #12-456, recipient Sarah 98765432, small parcel, today 2pm"'
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        id="admin-ai-btn"
+                        onClick={async () => {
+                          const input = (document.getElementById("admin-ai-input") as HTMLTextAreaElement)?.value || "";
+                          if (input.trim().length < 20) return alert("Please enter at least 20 characters");
+                          const btn = document.getElementById("admin-ai-btn") as HTMLButtonElement;
+                          if (btn) btn.textContent = "Analyzing...";
+                          try {
+                            const resp = await fetch("/api/ai-analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deliveryDetails: input }) });
+                            const result = await resp.json();
+                            if (result.error) { alert(result.error); return; }
+                            setAdminJobForm((prev: any) => ({
+                              ...prev,
+                              pickup: result.pickup || prev.pickup,
+                              pickupUnit: result.pickupUnitNo || prev.pickupUnit,
+                              pickupContact: result.pickupContact || prev.pickupContact,
+                              pickupPhone: result.pickupPhone || prev.pickupPhone,
+                              delivery: result.stops?.[0]?.address || prev.delivery,
+                              deliveryUnit: result.stops?.[0]?.unitNo || prev.deliveryUnit,
+                              recipientName: result.stops?.[0]?.recipientName || prev.recipientName,
+                              recipientPhone: result.stops?.[0]?.recipientPhone || prev.recipientPhone,
+                              parcelSize: result.parcelSize || prev.parcelSize,
+                              remarks: result.remarks || prev.remarks,
+                              price: result.suggestedPrice?.toString() || prev.price,
+                              deliveryDate: result.deliveryDate || prev.deliveryDate,
+                              deliverySlot: result.deliverySlot || prev.deliverySlot,
+                            }));
+                            alert("AI analysis applied! Please review the auto-filled fields.");
+                          } catch (e: any) { alert("AI analysis failed: " + e.message); }
+                          finally { if (btn) btn.textContent = "Analyze"; }
+                        }}
+                        className="flex-1 py-2 bg-purple-600 text-white rounded-lg font-semibold text-sm hover:bg-purple-700"
+                      >Analyze</button>
+                      <button onClick={() => { const el = document.getElementById("admin-ai-input") as HTMLTextAreaElement; if (el) el.value = ""; }} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Clear</button>
+                    </div>
+                  </div>
+                </details>
+
                 {/* Customer Information */}
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-blue-900 mb-3">👤 Customer Information</h4>
