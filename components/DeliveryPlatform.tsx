@@ -8144,7 +8144,7 @@ Please be punctual and update once completed. Thanks!`;
                           </div>
                           <div className="flex gap-2">
                             <button onClick={async () => { const ns = r.status === 'deactivated' ? 'active' : 'deactivated'; const reason = prompt(`${ns === 'deactivated' ? 'Deactivate' : 'Activate'} ${r.name}? Reason:`); if (reason !== null) { await api(`riders?id=eq.${r.id}`, 'PATCH', { status: ns }); await logAuditAction('rider_status_change', { riderId: r.id, riderName: r.name, newStatus: ns, reason }); await loadData(); } }} className={`p-2 rounded text-xs font-semibold ${r.status === 'deactivated' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{r.status === 'deactivated' ? '✅' : '⏸️'}</button>
-                            <button onClick={() => { setShowRiderEarnings(r); setRiderEarnFrom(""); setRiderEarnTo(""); }} className="p-2 bg-green-100 rounded hover:bg-green-200" title="Earnings"><DollarSign size={18} /></button>
+                            <button onClick={() => { setShowRiderEarnings(r); setRiderEarnFrom(""); setRiderEarnTo(""); }} className="p-2 bg-green-100 rounded hover:bg-green-200" title="Earnings"><CreditCard size={18} /></button>
                             <button onClick={() => setEditRider({...r, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
                             <button onClick={async () => { if (window.confirm('Delete rider?')) { await api(`riders?id=eq.${r.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
                           </div>
