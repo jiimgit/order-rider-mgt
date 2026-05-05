@@ -349,6 +349,9 @@ const DeliveryPlatform = () => {
   const [autoAcceptEnabled, setAutoAcceptEnabled] = useState(false);
   const [showCustomerWallet, setShowCustomerWallet] = useState<any>(null);
   const [walletDateFrom, setWalletDateFrom] = useState('');
+  const [showRiderEarnings, setShowRiderEarnings] = useState<any>(null);
+  const [riderEarnFrom, setRiderEarnFrom] = useState('');
+  const [riderEarnTo, setRiderEarnTo] = useState('');
   const [walletDateTo, setWalletDateTo] = useState('');
   const [riderHasGPS, setRiderHasGPS] = useState(false);
   const [newJobNotifications, setNewJobNotifications] = useState<any[]>([]);
@@ -8141,6 +8144,7 @@ Please be punctual and update once completed. Thanks!`;
                           </div>
                           <div className="flex gap-2">
                             <button onClick={async () => { const ns = r.status === 'deactivated' ? 'active' : 'deactivated'; const reason = prompt(`${ns === 'deactivated' ? 'Deactivate' : 'Activate'} ${r.name}? Reason:`); if (reason !== null) { await api(`riders?id=eq.${r.id}`, 'PATCH', { status: ns }); await logAuditAction('rider_status_change', { riderId: r.id, riderName: r.name, newStatus: ns, reason }); await loadData(); } }} className={`p-2 rounded text-xs font-semibold ${r.status === 'deactivated' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{r.status === 'deactivated' ? '✅' : '⏸️'}</button>
+                            <button onClick={() => { setShowRiderEarnings(r); setRiderEarnFrom(""); setRiderEarnTo(""); }} className="p-2 bg-green-100 rounded hover:bg-green-200" title="Earnings"><DollarSign size={18} /></button>
                             <button onClick={() => setEditRider({...r, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
                             <button onClick={async () => { if (window.confirm('Delete rider?')) { await api(`riders?id=eq.${r.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
                           </div>
@@ -11263,6 +11267,98 @@ Please be punctual and update once completed. Thanks!`;
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rider Earnings Modal */}
+        {showRiderEarnings && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold">💰 Rider Earnings</h3>
+                <button onClick={() => setShowRiderEarnings(null)} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                <p className="font-semibold text-lg">{showRiderEarnings.name}</p>
+                <p className="text-sm text-gray-600">{showRiderEarnings.email} | {showRiderEarnings.phone}</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">${(showRiderEarnings.earnings || 0).toFixed(2)}</p>
+                <p className="text-xs text-gray-500">{showRiderEarnings.completed_jobs || 0} completed jobs</p>
+              </div>
+
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-semibold text-gray-800">📜 Earning Transactions</h4>
+                <button onClick={() => {
+                  const riderJobs = jobs.filter((j: any) => j.rider_id === showRiderEarnings.id && (j.status === 'completed' || j.status === 'delivered'));
+                  const filtered = riderJobs.filter((j: any) => {
+                    const jd = new Date(j.updated_at || j.created_at);
+                    if (riderEarnFrom && jd < new Date(riderEarnFrom)) return false;
+                    if (riderEarnTo && jd > new Date(riderEarnTo + 'T23:59:59')) return false;
+                    return true;
+                  }).sort((a: any, b: any) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+                  const NL = String.fromCharCode(10);
+                  let csv = 'Date,Order ID,Pickup,Dropoff,Price,Commission' + NL;
+                  filtered.forEach((j: any) => {
+                    const d = new Date(j.updated_at || j.created_at).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' });
+                    const comm = calculateCommissions(j.price, showRiderEarnings.tier, showRiderEarnings.upline_chain || [], j.total_stops || 1);
+                    csv += d + ',' + (j.order_id || '') + ',' + String(j.pickup || '').replace(/,/g, ' ').substring(0, 40) + ',' + String(j.delivery || '').replace(/,/g, ' ').substring(0, 40) + ',' + j.price + ',' + comm.activeRider.toFixed(2) + NL;
+                  });
+                  csv += ',,,,Total,' + filtered.reduce((s: number, j: any) => { const c = calculateCommissions(j.price, showRiderEarnings.tier, showRiderEarnings.upline_chain || [], j.total_stops || 1); return s + c.activeRider; }, 0).toFixed(2) + NL;
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const el = document.createElement('a');
+                  el.href = url;
+                  el.download = showRiderEarnings.name + '_earnings.csv';
+                  el.click();
+                }} className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold hover:bg-green-200"><Download size={12} /> Export</button>
+              </div>
+
+              <div className="flex gap-2 mb-3">
+                <input type="date" value={riderEarnFrom} onChange={(e) => setRiderEarnFrom(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" />
+                <input type="date" value={riderEarnTo} onChange={(e) => setRiderEarnTo(e.target.value)} className="flex-1 px-2 py-1 border rounded text-xs" />
+                {(riderEarnFrom || riderEarnTo) && (
+                  <button onClick={() => { setRiderEarnFrom(""); setRiderEarnTo(""); }} className="px-2 text-xs text-gray-500">Clear</button>
+                )}
+              </div>
+
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {(() => {
+                  const riderJobs = jobs.filter((j: any) => j.rider_id === showRiderEarnings.id && (j.status === 'completed' || j.status === 'delivered'));
+                  const filtered = riderJobs.filter((j: any) => {
+                    const jd = new Date(j.updated_at || j.created_at);
+                    if (riderEarnFrom && jd < new Date(riderEarnFrom)) return false;
+                    if (riderEarnTo && jd > new Date(riderEarnTo + 'T23:59:59')) return false;
+                    return true;
+                  }).sort((a: any, b: any) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+
+                  if (filtered.length === 0) return <p className="text-center text-gray-500 py-4">No earning transactions found</p>;
+
+                  const totalEarnings = filtered.reduce((s: number, j: any) => { const c = calculateCommissions(j.price, showRiderEarnings.tier, showRiderEarnings.upline_chain || [], j.total_stops || 1); return s + c.activeRider; }, 0);
+
+                  return (
+                    <>
+                      <div className="bg-green-50 p-2 rounded text-center mb-2">
+                        <p className="text-xs text-green-600">{filtered.length} jobs | Total: <strong>${totalEarnings.toFixed(2)}</strong></p>
+                      </div>
+                      {filtered.map((j: any, idx: number) => {
+                        const comm = calculateCommissions(j.price, showRiderEarnings.tier, showRiderEarnings.upline_chain || [], j.total_stops || 1);
+                        return (
+                          <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded border">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-gray-700 truncate">{j.order_id} - {extractAreaName(j.pickup)} → {extractAreaName(j.delivery)}</p>
+                              <p className="text-xs text-gray-400">{formatSGT(j.updated_at || j.created_at)}</p>
+                            </div>
+                            <p className="font-bold text-sm text-green-600 ml-2">+${comm.activeRider.toFixed(2)}</p>
+                          </div>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+              </div>
+
+              <button onClick={() => setShowRiderEarnings(null)} className="w-full mt-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300">Close</button>
             </div>
           </div>
         )}
