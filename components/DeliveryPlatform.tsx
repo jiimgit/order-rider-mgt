@@ -2573,7 +2573,119 @@ The MoveIt Logistics App reserves full rights to: Suspend or terminate accounts,
 • Customers agree not to file chargebacks or disputes after service is completed
 
 16. System / Technical Issues
-The MoveIt Logistics App is not responsible for: App errors, Payment processing delays, Network or connectivity issues.`;
+The MoveIt Logistics App is not responsible for: App errors, Payment processing delays, Network or connectivity issues.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GOODS PROTECTION PROMISES
+
+1. SERVICE SCOPE
+"Goods" referred to in these Goods Protection Promises ("Promises") shall mean any items, parcels, documents, products, or cargo transported through the MoveIt App platform ("Shipment").
+
+Subject strictly to the terms herein, MoveIt App may, at its sole and absolute discretion, provide a goodwill compensation to selected users for direct physical loss or direct physical damage to Shipments caused solely and directly by a Delivery Partner during the active transportation period.
+
+The Promises shall only apply from the moment the Delivery Partner confirms collection of the Shipment in the MoveIt App system until the Shipment is marked as delivered within the MoveIt App system.
+
+For avoidance of doubt:
+a. The Promises is not an insurance policy;
+b. Compensation is ex gratia and discretionary in nature;
+c. MoveIt App is a technology platform and is not a carrier, freight forwarder, warehouseman, insurer, or logistics operator;
+d. The burden of proof rests entirely on the User at all times.
+
+2. GOODS NOT COVERED
+The following Goods are strictly excluded from coverage under the Promises:
+a. Cash, coins, bank notes, negotiable instruments, securities, cryptocurrency wallets, vouchers, prepaid cards, tickets, or any item representing stored value;
+b. Jewellery, watches, gemstones, precious metals, luxury goods, collectibles, antiques, artwork, rare items, or sentimental items;
+c. Mobile phones, tablets, laptops, cameras, drones, gaming devices, storage devices, computer components, semiconductors, or electronic products unless factory-sealed in original manufacturer packaging;
+d. Perishable goods, frozen products, chilled products, flowers, plants, live seafood, livestock, pets, biological samples, or temperature-sensitive items;
+e. Fragile items including but not limited to glassware, ceramics, marble, mirrors, screens, monitors, televisions, lighting fixtures, musical instruments, sculptures, or items prone to cosmetic damage;
+f. Documents, passports, certificates, licenses, contracts, tenders, legal papers, examination materials, or time-sensitive documents;
+g. Medicines, supplements, controlled substances, tobacco, alcohol, or regulated products;
+h. Hazardous, flammable, corrosive, explosive, radioactive, toxic, or restricted materials;
+i. Used goods without valid original purchase documentation;
+j. Goods with a declared or estimated value exceeding SGD 500 per individual item or SGD 1,000 per order;
+k. Improperly packed Goods or Goods not packed according to commercially reasonable transportation standards as determined solely by MoveIt App;
+l. Bulk commercial shipments, palletized cargo, industrial machinery, construction materials, or oversized items;
+m. Any item prohibited under applicable law or under the MoveIt App Terms of Service.
+
+3. COMPENSATION CAP
+Any compensation approved by MoveIt App shall be limited to the lowest of the following amounts:
+a. The documented original purchase value of the Goods, subject to depreciation as determined solely by MoveIt App;
+b. The fair market resale value of the Goods immediately before the incident, as determined solely by MoveIt App;
+c. The documented repair cost approved by MoveIt App;
+d. Up to SGD 2,000 per Shipment for motorcycles and passenger vehicles;
+e. Up to SGD 2,000 per Shipment for car or van deliveries;
+f. The actual delivery fee paid for the relevant order.
+
+Under no circumstances shall the compensation exceed SGD 2,000 per order unless otherwise expressly approved in writing by MoveIt App.
+
+MoveIt App reserves the right to require proof of ownership, proof of value, proof of condition before transportation, and proof that the alleged damage occurred solely during transit.
+
+No compensation shall be payable for:
+a. indirect loss;
+b. consequential loss;
+c. emotional distress;
+d. business interruption;
+e. loss of profits;
+f. reputational damage;
+g. future revenue loss;
+h. loss of use;
+i. depreciation;
+j. cosmetic defects not affecting functionality.
+
+4. EXCLUDED CIRCUMSTANCES
+Without limitation, the following circumstances are excluded from the Promises:
+a. Delay in pickup or delivery for any reason;
+b. Incorrect, incomplete, inaccessible, unsafe, or changed addresses;
+c. Failure of recipient to answer calls, messages, or receive Goods;
+d. User-requested unattended delivery or third-party collection;
+e. Weather conditions, floods, haze, traffic congestion, road closures, ERP delays, vehicle breakdowns, accidents, or force majeure events;
+f. Inherent defects, latent defects, wear and tear, oxidation, leakage, spoilage, melting, deterioration, or natural changes in condition;
+g. Insufficient, unsuitable, reused, damaged, or inadequate packaging;
+h. Scratches, dents, compression marks, bending, creasing, cosmetic imperfections, or minor external damage deemed commercially acceptable by MoveIt App;
+i. Theft without conclusive evidence directly implicating the Delivery Partner;
+j. Fraudulent, exaggerated, misleading, incomplete, or unverifiable claims;
+k. Claims unsupported by timestamped photographic or video evidence taken immediately before pickup and immediately upon delivery;
+l. Any Shipment left unattended before pickup or after delivery;
+m. Seizure, confiscation, inspection, or detention by authorities;
+n. Cyber incidents, software failures, GPS inaccuracies, telecommunications disruptions, or app outages;
+o. Any incident where the User fails to cooperate fully with MoveIt App investigations.
+
+5. CLAIMS PROCEDURE
+All claims must strictly comply with the following procedures, failing which the claim shall be automatically rejected without further review:
+a. Claims must be submitted within 6 hours from the marked delivery time in the MoveIt App system;
+b. Users must provide:
+   i. Clear timestamped photographs of the Goods before pickup;
+   ii. Clear timestamped photographs immediately upon delivery;
+   iii. Full unedited video evidence of unboxing where applicable;
+   iv. Original purchase invoices or receipts;
+   v. Repair quotations from licensed vendors approved by MoveIt App;
+   vi. Police reports where requested;
+   vii. Any further documentation requested by MoveIt App.
+c. MoveIt App may inspect, retain, or request surrender of the Goods before reviewing the claim;
+d. Failure to preserve the Goods in their post-incident condition may result in automatic rejection;
+e. Users must not dispose of, repair, alter, or modify the Goods before written approval from MoveIt App;
+f. MoveIt App reserves the sole right to appoint independent assessors, investigators, repairers, or valuers;
+g. Claims may take up to 90 working days or longer where additional investigation is required;
+h. Submission of a claim does not guarantee acceptance, review, or payment.
+
+6. MISCELLANEOUS
+Any goodwill compensation paid by MoveIt App shall not constitute any admission of liability, negligence, fault, agency relationship, or legal responsibility.
+
+Upon receipt of any compensation, the User irrevocably agrees to fully release and discharge MoveIt App, its affiliates, directors, employees, Delivery Partners, and service providers from all present and future claims arising out of the incident.
+
+MoveIt App reserves the absolute right to:
+a. reject any claim;
+b. request additional evidence;
+c. determine the value of any Goods;
+d. interpret these Promises;
+e. amend, suspend, or terminate these Promises at any time without prior notice.
+
+MoveIt App's determination on all matters relating to the Promises shall be final, conclusive, and binding.
+
+These Promises do not create any contractual guarantee, insurance arrangement, bailment relationship, fiduciary duty, or carrier liability obligation.
+
+In the event of any inconsistency between language versions, the English version shall prevail.`;
 
   const RIDER_TNC = `Terms and Conditions
 
