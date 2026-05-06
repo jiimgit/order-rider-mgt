@@ -3285,11 +3285,11 @@ Thank you for your order! 🙏` },
   // Generate WhatsApp Click-to-Chat URL
   const generateWhatsAppLink = (phone: string, message: string): string => {
     let cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('8') || cleanPhone.startsWith('9')) {
-      cleanPhone = '65' + cleanPhone;
-    } else if (!cleanPhone.startsWith('65')) {
+    // Only add 65 for Singapore local numbers (8 digits starting with 8 or 9)
+    if (cleanPhone.length === 8 && (cleanPhone.startsWith('8') || cleanPhone.startsWith('9'))) {
       cleanPhone = '65' + cleanPhone;
     }
+    // Don't add country code if number already has one (> 8 digits)
     const encodedMessage = encodeURIComponent(message);
     return `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
   };
@@ -6058,7 +6058,7 @@ Please be punctual and update once completed. Thanks!`;
                                   📞
                                 </a>
                                 <a
-                                  href={`https://wa.me/65${job.rider_phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${job.rider_name},\n\nCustomer: ${curr?.name || ''}\nOrder ID: ${job.order_id || 'N/A'}\nPickup: ${job.pickup}\nDrop-off: ${job.delivery}\n\nThank you!`)}`}
+                                  href={`https://wa.me/${job.rider_phone.replace(/\D/g, '').length > 8 ? job.rider_phone.replace(/\D/g, '') : '65' + job.rider_phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${job.rider_name},\n\nCustomer: ${curr?.name || ''}\nOrder ID: ${job.order_id || 'N/A'}\nPickup: ${job.pickup}\nDrop-off: ${job.delivery}\n\nThank you!`)}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
@@ -10796,7 +10796,7 @@ Please be punctual and update once completed. Thanks!`;
                       📞 Call
                     </a>
                     <a
-                      href={`https://wa.me/65${showRiderTracking.rider_phone.replace(/\D/g, '')}?text=Hi ${showRiderTracking.rider_name}, checking on the delivery status for order to ${showRiderTracking.delivery}`}
+                      href={`https://wa.me/${showRiderTracking.rider_phone.replace(/\D/g, '').length > 8 ? showRiderTracking.rider_phone.replace(/\D/g, '') : '65' + showRiderTracking.rider_phone.replace(/\D/g, '')}?text=Hi ${showRiderTracking.rider_name}, checking on the delivery status for order to ${showRiderTracking.delivery}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 p-2 bg-green-100 text-green-700 rounded-lg text-center font-medium hover:bg-green-200"
