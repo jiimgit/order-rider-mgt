@@ -292,8 +292,10 @@ const DeliveryPlatform = () => {
 
   // Admin search, pagination and filter states
   const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSort, setCustomerSort] = useState('name');
   const [customerPage, setCustomerPage] = useState(1);
   const [riderSearch, setRiderSearch] = useState('');
+  const [riderSort, setRiderSort] = useState('name');
   const [riderPage, setRiderPage] = useState(1);
   const [jobSearch, setJobSearch] = useState('');
   const [jobPage, setJobPage] = useState(1);
@@ -3241,12 +3243,20 @@ Thank you for your order! 🙏`;
 
   // Filter and paginate customers
   const filteredCustomers = useMemo(() => {
-    return customers.filter((c: any) => 
+    const filtered = customers.filter((c: any) => 
       c.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
       c.email?.toLowerCase().includes(customerSearch.toLowerCase()) ||
       c.phone?.includes(customerSearch)
     );
-  }, [customers, customerSearch]);
+    return filtered.sort((a: any, b: any) => {
+      if (customerSort === 'name') return (a.name || '').localeCompare(b.name || '');
+      if (customerSort === 'registered_asc') return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      if (customerSort === 'registered_desc') return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      if (customerSort === 'login_asc') return new Date(a.last_login || 0).getTime() - new Date(b.last_login || 0).getTime();
+      if (customerSort === 'login_desc') return new Date(b.last_login || 0).getTime() - new Date(a.last_login || 0).getTime();
+      return 0;
+    });
+  }, [customers, customerSearch, customerSort]);
 
   const paginatedCustomers = useMemo(() => {
     const start = (customerPage - 1) * ITEMS_PER_PAGE;
@@ -3257,13 +3267,23 @@ Thank you for your order! 🙏`;
 
   // Filter and paginate riders
   const filteredRiders = useMemo(() => {
-    return riders.filter((r: any) => 
+    const filtered = riders.filter((r: any) => 
       r.name?.toLowerCase().includes(riderSearch.toLowerCase()) ||
       r.email?.toLowerCase().includes(riderSearch.toLowerCase()) ||
       r.phone?.includes(riderSearch) ||
       r.referral_code?.toLowerCase().includes(riderSearch.toLowerCase())
     );
-  }, [riders, riderSearch]);
+    return filtered.sort((a: any, b: any) => {
+      if (riderSort === 'name') return (a.name || '').localeCompare(b.name || '');
+      if (riderSort === 'registered_asc') return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      if (riderSort === 'registered_desc') return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      if (riderSort === 'login_asc') return new Date(a.last_login || 0).getTime() - new Date(b.last_login || 0).getTime();
+      if (riderSort === 'login_desc') return new Date(b.last_login || 0).getTime() - new Date(a.last_login || 0).getTime();
+      if (riderSort === 'tier_asc') return (a.tier || 0) - (b.tier || 0);
+      if (riderSort === 'tier_desc') return (b.tier || 0) - (a.tier || 0);
+      return 0;
+    });
+  }, [riders, riderSearch, riderSort]);
 
   const bonusPeriodCount = useMemo(() => {
     if (auth.type !== 'rider') return 0;
@@ -8096,6 +8116,13 @@ Please be punctual and update once completed. Thanks!`;
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                   <h3 className="text-2xl font-bold">All Customers ({filteredCustomers.length})</h3>
+                  <select value={customerSort} onChange={(e) => { setCustomerSort(e.target.value); setCustomerPage(1); }} className="px-3 py-1.5 border rounded-lg text-sm">
+                    <option value="name">Sort by Name</option>
+                    <option value="registered_desc">Registered (Newest)</option>
+                    <option value="registered_asc">Registered (Oldest)</option>
+                    <option value="login_desc">Last Login (Recent)</option>
+                    <option value="login_asc">Last Login (Oldest)</option>
+                  </select>
                   <div className="flex flex-wrap gap-2">
                     <button 
                       onClick={() => exportToCSV(filteredCustomers, 'customers', ['Name', 'Email', 'Phone', 'Credits', 'Created_at'])}
@@ -8191,6 +8218,15 @@ Please be punctual and update once completed. Thanks!`;
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                   <h3 className="text-2xl font-bold">All Riders ({filteredRiders.length})</h3>
+                  <select value={riderSort} onChange={(e) => { setRiderSort(e.target.value); setRiderPage(1); }} className="px-3 py-1.5 border rounded-lg text-sm">
+                    <option value="name">Sort by Name</option>
+                    <option value="registered_desc">Registered (Newest)</option>
+                    <option value="registered_asc">Registered (Oldest)</option>
+                    <option value="login_desc">Last Login (Recent)</option>
+                    <option value="login_asc">Last Login (Oldest)</option>
+                    <option value="tier_desc">Tier (Highest)</option>
+                    <option value="tier_asc">Tier (Lowest)</option>
+                  </select>
                   <div className="flex flex-wrap gap-2">
                     <button 
                       onClick={() => exportToCSV(filteredRiders, 'riders', ['Name', 'Email', 'Phone', 'Tier', 'Referral_code', 'Earnings', 'Completed_jobs', 'Created_at'])}
