@@ -5468,10 +5468,46 @@ Please be punctual and update once completed. Thanks!`;
                       <p className="font-semibold text-green-800 text-sm mb-2">AI Result</p>
                       <div className="space-y-1 text-xs">
                         <div className="p-1.5 bg-orange-50 rounded"><span className="text-orange-600 font-medium">Pickup:</span> {aiResult.pickup}</div>
-                        {aiResult.stops?.map((stop: any, idx: number) => (<div key={idx} className="p-1.5 bg-green-50 rounded"><span className="text-green-600 font-medium">Drop-off {idx+1}:</span> {stop.address}</div>))}
+                        {aiResult.stops?.map((stop: any, idx: number) => (<div key={idx} className="p-1.5 bg-green-50 rounded"><span className="text-green-600 font-medium">Drop-off {idx+1}:</span> {stop.address} {stop.region && <span className="text-gray-400">({stop.region})</span>}</div>))}
                         <div className="p-1.5 bg-blue-50 rounded"><span className="text-blue-600 font-medium">Parcel:</span> <span className="capitalize">{aiResult.parcelSize}</span></div>
                         {aiResult.remarks && <div className="p-1.5 bg-yellow-50 rounded"><span className="text-yellow-600 font-medium">Remarks:</span> {aiResult.remarks}</div>}
                       </div>
+
+                      {aiResult.routePlan && (
+                        <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                          <p className="font-semibold text-purple-800 text-sm mb-2">🗺️ Route Plan</p>
+                          <div className="grid grid-cols-3 gap-2 mb-2 text-center">
+                            <div className="bg-white p-2 rounded">
+                              <p className="text-lg font-bold text-purple-700">{aiResult.routePlan.totalStops}</p>
+                              <p className="text-xs text-gray-500">Stops</p>
+                            </div>
+                            <div className="bg-white p-2 rounded">
+                              <p className="text-lg font-bold text-purple-700">{aiResult.routePlan.totalDrivers}</p>
+                              <p className="text-xs text-gray-500">Drivers</p>
+                            </div>
+                            <div className="bg-white p-2 rounded">
+                              <p className="text-sm font-bold text-purple-700">{aiResult.routePlan.estimatedTime}</p>
+                              <p className="text-xs text-gray-500">Est. Time</p>
+                            </div>
+                          </div>
+                          {aiResult.routePlan.routes?.map((route: any, idx: number) => (
+                            <div key={idx} className="mb-2 p-2 bg-white rounded border">
+                              <p className="font-semibold text-sm text-gray-700">{route.driver} — {route.region} Region</p>
+                              <p className="text-xs text-gray-500">{route.stops?.length} stops | {route.estimatedDistance} | {route.estimatedTime}</p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {route.stops?.map((sIdx: number) => (
+                                  <span key={sIdx} className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">#{sIdx + 1} {aiResult.stops?.[sIdx]?.address?.substring(0, 20)}...</span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                          {aiResult.routePlan.reasoning && <p className="text-xs text-gray-500 mt-1">{aiResult.routePlan.reasoning}</p>}
+                        </div>
+                      )}
+
+                      {aiResult.analysis && <p className="text-xs text-gray-600 mt-2 italic">{aiResult.analysis}</p>}
+                      {aiResult.suggestedDrivers > 1 && <p className="text-xs text-purple-600 font-semibold mt-1">💡 Suggested: {aiResult.suggestedDrivers} drivers for this delivery</p>}
+
                       <div className="flex gap-2 mt-2">
                         <button onClick={applyAiResult} className="flex-1 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm">Use Details</button>
                         <button onClick={() => setAiResult(null)} className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Manual</button>
