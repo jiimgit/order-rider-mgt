@@ -5475,33 +5475,53 @@ Please be punctual and update once completed. Thanks!`;
 
                       {aiResult.routePlan && (
                         <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                          <p className="font-semibold text-purple-800 text-sm mb-2">🗺️ Route Plan</p>
-                          <div className="grid grid-cols-3 gap-2 mb-2 text-center">
+                          <p className="font-semibold text-purple-800 text-sm mb-2">🗺️ AI Dispatch Analysis</p>
+                          <div className="grid grid-cols-3 gap-2 mb-3 text-center">
                             <div className="bg-white p-2 rounded">
                               <p className="text-lg font-bold text-purple-700">{aiResult.routePlan.totalStops}</p>
-                              <p className="text-xs text-gray-500">Stops</p>
+                              <p className="text-xs text-gray-500">Total Stops</p>
                             </div>
                             <div className="bg-white p-2 rounded">
-                              <p className="text-lg font-bold text-purple-700">{aiResult.routePlan.totalDrivers}</p>
-                              <p className="text-xs text-gray-500">Drivers</p>
+                              <p className="text-lg font-bold text-green-600">{aiResult.routePlan.totalDrivers}</p>
+                              <p className="text-xs text-gray-500">Recommended Drivers</p>
                             </div>
                             <div className="bg-white p-2 rounded">
-                              <p className="text-sm font-bold text-purple-700">{aiResult.routePlan.estimatedTime}</p>
-                              <p className="text-xs text-gray-500">Est. Time</p>
+                              <p className="text-sm font-bold text-blue-600">{typeof aiResult.routePlan.estimatedTime === 'object' ? aiResult.routePlan.estimatedTime.withRecommendedDrivers : aiResult.routePlan.estimatedTime}</p>
+                              <p className="text-xs text-gray-500">Est. Completion</p>
                             </div>
                           </div>
+                          {typeof aiResult.routePlan.estimatedTime === 'object' && (
+                            <div className="bg-white rounded p-2 mb-3 text-xs">
+                              <p className="font-medium text-gray-700 mb-1">Completion Time Estimates:</p>
+                              <p className="text-green-600">✅ {aiResult.routePlan.totalDrivers} Drivers: {aiResult.routePlan.estimatedTime.withRecommendedDrivers}</p>
+                              {aiResult.routePlan.estimatedTime.withFewerDrivers && <p className="text-yellow-600">⚠️ Fewer Drivers: {aiResult.routePlan.estimatedTime.withFewerDrivers}</p>}
+                              {aiResult.routePlan.estimatedTime.withOneDriver && <p className="text-red-600">❌ 1 Driver: {aiResult.routePlan.estimatedTime.withOneDriver}</p>}
+                            </div>
+                          )}
+                          <p className="text-xs font-semibold text-purple-700 mb-2">Driver Assignments:</p>
                           {aiResult.routePlan.routes?.map((route: any, idx: number) => (
-                            <div key={idx} className="mb-2 p-2 bg-white rounded border">
-                              <p className="font-semibold text-sm text-gray-700">{route.driver} — {route.region} Region</p>
-                              <p className="text-xs text-gray-500">{route.stops?.length} stops | {route.estimatedDistance} | {route.estimatedTime}</p>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {route.stops?.map((sIdx: number) => (
-                                  <span key={sIdx} className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">#{sIdx + 1} {aiResult.stops?.[sIdx]?.address?.substring(0, 20)}...</span>
-                                ))}
+                            <div key={idx} className="mb-2 p-2 bg-white rounded border border-purple-100">
+                              <div className="flex justify-between items-center">
+                                <p className="font-semibold text-sm text-gray-700">{route.driver} → {route.cluster || route.region}</p>
+                                <span className="text-xs text-gray-500">{route.stopCount || route.stops?.length} stops</span>
                               </div>
+                              <p className="text-xs text-gray-500">{route.estimatedDistance} | {route.estimatedTime}</p>
+                              {route.stopDetails && (
+                                typeof route.stopDetails === 'string'
+                                  ? <p className="text-xs text-blue-600 mt-1">{route.stopDetails}</p>
+                                  : <div className="mt-1 space-y-0.5">{route.stopDetails.map((detail: string, dIdx: number) => (<p key={dIdx} className="text-xs text-gray-600">• {detail}</p>))}</div>
+                              )}
                             </div>
                           ))}
-                          {aiResult.routePlan.reasoning && <p className="text-xs text-gray-500 mt-1">{aiResult.routePlan.reasoning}</p>}
+                          {((aiResult.routePlan.alternatives && aiResult.routePlan.alternatives.length > 0) || (aiResult.routePlan.alternativeOptions && aiResult.routePlan.alternativeOptions.length > 0)) && (
+                            <div className="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                              <p className="text-xs font-semibold text-yellow-700 mb-1">Other Options:</p>
+                              {(aiResult.routePlan.alternatives || aiResult.routePlan.alternativeOptions || []).map((alt: any, idx: number) => (
+                                <p key={idx} className="text-xs text-gray-600">• {alt.drivers} driver{alt.drivers > 1 ? 's' : ''}: {alt.estimatedTime} — {alt.feasibility || alt.note || ''}</p>
+                              ))}
+                            </div>
+                          )}
+                          {aiResult.routePlan.reasoning && <p className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded">{aiResult.routePlan.reasoning}</p>}
                         </div>
                       )}
 
