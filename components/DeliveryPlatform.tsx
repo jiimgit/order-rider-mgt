@@ -3916,7 +3916,87 @@ Please be punctual and update once completed. Thanks!`;
     setShowAiInput(false);
     setShowPasteOrder(false);
     setAiInput('');
-    alert('✅ AI recommendations applied to the form! Please review and adjust if needed.');
+    alert('All stops assigned to 1 rider. Please review and submit.');
+  };
+
+  const applyAiDispatch = async () => {
+    if (!aiResult || !aiResult.routePlan?.routes) return;
+    if (!curr) return alert('Please log in first');
+
+    const routes = aiResult.routePlan.routes;
+    const totalOrders = routes.length;
+    const allStops = aiResult.stops || [];
+    
+    const totalPrice = allStops.length * 2.50 + 3 * totalOrders;
+    
+    const freshCust = await api('customers?id=eq.' + curr.id);
+    const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : (curr.credits || 0);
+    
+    if (freshCredits < totalPrice) {
+      return alert('Insufficient credits. Total for ' + totalOrders + ' orders: $' + totalPrice.toFixed(2) + '. Your balance: $' + freshCredits.toFixed(2));
+    }
+
+    const confirmMsg = 'AI Dispatch will create ' + totalOrders + ' separate orders:' + String.fromCharCode(10) + String.fromCharCode(10) + routes.map((r: any, i: number) => {
+      const stopCount = r.stops?.length || 0;
+      return (r.driver || 'Driver ' + (i + 1)) + ' - ' + (r.cluster || r.region || 'Cluster ' + (i + 1)) + ' (' + stopCount + ' stops)';
+    }).join(String.fromCharCode(10)) + String.fromCharCode(10) + String.fromCharCode(10) + 'Total cost: $' + totalPrice.toFixed(2) + String.fromCharCode(10) + 'Proceed?';
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      let deducted = 0;
+      const pickupContactName = useMyProfile ? curr.name : (aiResult.pickupContact || curr.name);
+      const pickupContactPhone = useMyProfile ? curr.phone : (aiResult.pickupPhone || curr.phone);
+      const deliveryDate = aiResult.deliveryDate || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
+      const timeframe = aiResult.deliverySlot || jobForm.timeframe || '6am-11am';
+
+      for (let i = 0; i < routes.length; i++) {
+        const route = routes[i];
+        const stopIndices = route.stops || [];
+        const routeStops = stopIndices.map((idx: number) => allStops[idx]).filter(Boolean);
+        if (routeStops.length === 0) continue;
+
+        const orderPrice = 3 + routeStops.length * 2.50;
+        const orderId = generateOrderId();
+        const deliveryAddresses = routeStops.map((s: any) => (s.address || '') + ' ' + (s.unitNo || '')).join(' -> ');
+        const clusterName = route.cluster || route.region || 'Cluster ' + (i + 1);
+
+        await api('jobs', 'POST', {
+          order_id: orderId,
+          customer_id: curr.id,
+          customer_name: curr.name,
+          customer_phone: curr.phone,
+          pickup: (aiResult.pickup || '') + ' ' + (aiResult.pickupUnitNo || ''),
+          pickup_contact: pickupContactName,
+          pickup_phone: pickupContactPhone,
+          delivery: deliveryAddresses,
+          stops: routeStops.map((s: any) => ({ address: s.address || '', unitNo: s.unitNo || 'N/A', recipientName: s.recipientName || '', recipientPhone: s.recipientPhone || '' })),
+          total_stops: routeStops.length,
+          timeframe: timeframe,
+          delivery_slot: timeframe,
+          delivery_date: deliveryDate,
+          price: orderPrice,
+          status: 'posted',
+          recipient_name: routeStops[0]?.recipientName || null,
+          recipient_phone: routeStops[0]?.recipientPhone || null,
+          parcel_size: aiResult.parcelSize || 'small',
+          remarks: (aiResult.remarks || '') + ' [AI Cluster: ' + clusterName + ']',
+          original_price: null,
+          discount_amount: null
+        });
+        deducted += orderPrice;
+      }
+
+      await api('customers?id=eq.' + curr.id, 'PATCH', { credits: freshCredits - deducted });
+      await loadData();
+      setAiResult(null);
+      setShowPasteOrder(false);
+      setShowAiInput(false);
+      setAiInput('');
+      alert('AI Dispatch created ' + totalOrders + ' orders successfully!' + String.fromCharCode(10) + 'Total: $' + deducted.toFixed(2) + String.fromCharCode(10) + 'Remaining balance: $' + (freshCredits - deducted).toFixed(2));
+    } catch (e: any) {
+      alert('Error creating orders: ' + e.message);
+    }
   };
 
   // Validate job form fields before showing T&C
@@ -5537,14 +5617,14 @@ Please be punctual and update once completed. Thanks!`;
                             <p className="font-bold text-sm text-gray-800">Follow AI Suggestion</p>
                             <p className="text-xs text-green-700 font-medium">{aiResult.routePlan?.totalDrivers || aiResult.suggestedDrivers || 1} Riders</p>
                             <p className="text-xs text-gray-500 mt-1">Auto-assign stops using AI-optimized clusters.</p>
-                            <button onClick={applyAiResult} className="mt-2 w-full py-1.5 bg-green-600 text-white rounded-lg font-semibold text-xs hover:bg-green-700">Use AI Allocation ({aiResult.routePlan?.totalDrivers || aiResult.suggestedDrivers || 1} Riders)</button>
+                            <button onClick={applyAiDispatch} className="mt-2 w-full py-1.5 bg-green-600 text-white rounded-lg font-semibold text-xs hover:bg-green-700">Use AI Allocation ({aiResult.routePlan?.totalDrivers || aiResult.suggestedDrivers || 1} Riders)</button>
                           </div>
                           <div className="border border-gray-200 rounded-lg p-3 text-center">
                             <p className="text-2xl mb-1">👤</p>
                             <p className="font-bold text-sm text-gray-800">Use 1 Rider</p>
                             <p className="text-xs text-gray-600 font-medium">All {aiResult.stops?.length || 1} Stops</p>
                             <p className="text-xs text-gray-500 mt-1">Assign all stops to a single rider. Longer completion time.</p>
-                            <button onClick={() => { applyAiResult(); }} className="mt-2 w-full py-1.5 bg-orange-500 text-white rounded-lg font-semibold text-xs hover:bg-orange-600">1 Rider for All Stops</button>
+                            <button onClick={applyAiResult} className="mt-2 w-full py-1.5 bg-orange-500 text-white rounded-lg font-semibold text-xs hover:bg-orange-600">1 Rider for All Stops</button>
                           </div>
                           <div className="border border-gray-200 rounded-lg p-3 text-center">
                             <p className="text-2xl mb-1">✏️</p>
