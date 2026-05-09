@@ -5526,11 +5526,34 @@ Please be punctual and update once completed. Thanks!`;
                       )}
 
                       {aiResult.analysis && <p className="text-xs text-gray-600 mt-2 italic">{aiResult.analysis}</p>}
-                      {aiResult.suggestedDrivers > 1 && <p className="text-xs text-purple-600 font-semibold mt-1">💡 Suggested: {aiResult.suggestedDrivers} drivers for this delivery</p>}
 
-                      <div className="flex gap-2 mt-2">
-                        <button onClick={applyAiResult} className="flex-1 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm">Use Details</button>
-                        <button onClick={() => setAiResult(null)} className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Manual</button>
+                      <div className="mt-4 border-t pt-4">
+                        <p className="font-semibold text-gray-800 text-sm mb-1">Choose Dispatch Option</p>
+                        <p className="text-xs text-gray-500 mb-3">Select how you would like to assign riders for this delivery.</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="border-2 border-green-500 rounded-lg p-3 text-center bg-green-50 relative">
+                            <span className="absolute -top-2 right-2 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">Recommended</span>
+                            <p className="text-2xl mb-1">🤖</p>
+                            <p className="font-bold text-sm text-gray-800">Follow AI Suggestion</p>
+                            <p className="text-xs text-green-700 font-medium">{aiResult.routePlan?.totalDrivers || aiResult.suggestedDrivers || 1} Riders</p>
+                            <p className="text-xs text-gray-500 mt-1">Auto-assign stops using AI-optimized clusters.</p>
+                            <button onClick={applyAiResult} className="mt-2 w-full py-1.5 bg-green-600 text-white rounded-lg font-semibold text-xs hover:bg-green-700">Use AI Allocation ({aiResult.routePlan?.totalDrivers || aiResult.suggestedDrivers || 1} Riders)</button>
+                          </div>
+                          <div className="border border-gray-200 rounded-lg p-3 text-center">
+                            <p className="text-2xl mb-1">👤</p>
+                            <p className="font-bold text-sm text-gray-800">Use 1 Rider</p>
+                            <p className="text-xs text-gray-600 font-medium">All {aiResult.stops?.length || 1} Stops</p>
+                            <p className="text-xs text-gray-500 mt-1">Assign all stops to a single rider. Longer completion time.</p>
+                            <button onClick={() => { applyAiResult(); }} className="mt-2 w-full py-1.5 bg-orange-500 text-white rounded-lg font-semibold text-xs hover:bg-orange-600">1 Rider for All Stops</button>
+                          </div>
+                          <div className="border border-gray-200 rounded-lg p-3 text-center">
+                            <p className="text-2xl mb-1">✏️</p>
+                            <p className="font-bold text-sm text-gray-800">Custom Manual Assign</p>
+                            <p className="text-xs text-gray-600 font-medium">Your Own Setup</p>
+                            <p className="text-xs text-gray-500 mt-1">Manually choose riders and assign stops as you prefer.</p>
+                            <button onClick={() => setAiResult(null)} className="mt-2 w-full py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg font-semibold text-xs hover:bg-gray-50">Custom Manual Assign</button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
