@@ -8957,7 +8957,15 @@ Please be punctual and update once completed. Thanks!`;
                 <details className="mb-4 border border-blue-200 rounded-lg">
                   <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-blue-700 hover:bg-blue-50">+ Add Rider Withdrawal</summary>
                   <div className="px-4 pb-4 pt-2 space-y-3">
-                    <select id="admin-wd-rider" className="w-full px-3 py-2 border rounded-lg text-sm">
+                    <select id="admin-wd-rider" className="w-full px-3 py-2 border rounded-lg text-sm" onChange={(e) => {
+                      const r = riders.find((x: any) => x.id === e.target.value);
+                      if (r) {
+                        const nameEl = document.getElementById("admin-wd-fullname") as HTMLInputElement;
+                        const mobileEl = document.getElementById("admin-wd-mobile") as HTMLInputElement;
+                        if (nameEl) nameEl.value = r.name || "";
+                        if (mobileEl) mobileEl.value = r.phone || "";
+                      }
+                    }}>
                       <option value="">Select Rider</option>
                       {riders.map((r: any) => (
                         <option key={r.id} value={r.id}>{r.name} - ${(r.earnings || 0).toFixed(2)} | {r.phone}</option>
