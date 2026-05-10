@@ -9050,7 +9050,14 @@ Please be punctual and update once completed. Thanks!`;
                         await loadWithdrawalRequests();
                         alert("Withdrawal request added for " + rider.name + " - $" + amt.toFixed(2));
                       } catch (e: any) { alert("Error: " + e.message); }
-                    }} className="w-full py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700">Add Withdrawal Request</button>
+                    }} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700">Add Withdrawal Request</button>
+                    <button onClick={() => {
+                      const ids = ["admin-wd-rider", "admin-wd-amount", "admin-wd-fullname", "admin-wd-mobile", "admin-wd-paynow"];
+                      ids.forEach((id) => { const el = document.getElementById(id) as HTMLInputElement; if (el) el.value = ""; });
+                      const selects = ["admin-wd-method", "admin-wd-bank"];
+                      selects.forEach((id) => { const el = document.getElementById(id) as HTMLSelectElement; if (el) el.selectedIndex = 0; });
+                      const riderEl = document.getElementById("admin-wd-rider") as HTMLSelectElement; if (riderEl) riderEl.selectedIndex = 0;
+                    }} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg font-semibold text-sm hover:bg-gray-200">Clear</button>
                     <p className="text-xs text-gray-400">Rider earnings will be deducted on submission. If rejected, earnings will be restored.</p>
                   </div>
                 </details>
