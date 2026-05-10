@@ -8954,6 +8954,99 @@ Please be punctual and update once completed. Thanks!`;
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-2xl font-bold mb-6">💰 Withdrawal Management</h3>
                 
+                <details className="mb-4 border border-blue-200 rounded-lg">
+                  <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-blue-700 hover:bg-blue-50">+ Add Rider Withdrawal</summary>
+                  <div className="px-4 pb-4 pt-2 space-y-3">
+                    <select id="admin-wd-rider" className="w-full px-3 py-2 border rounded-lg text-sm">
+                      <option value="">Select Rider</option>
+                      {riders.map((r: any) => (
+                        <option key={r.id} value={r.id}>{r.name} - ${(r.earnings || 0).toFixed(2)} | {r.phone}</option>
+                      ))}
+                    </select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input type="number" id="admin-wd-amount" placeholder="Amount ($)" className="px-3 py-2 border rounded-lg text-sm" min="0.01" step="0.01" />
+                      <select id="admin-wd-method" className="px-3 py-2 border rounded-lg text-sm">
+                        <option value="paynow">PayNow</option>
+                        <option value="bank">Bank Transfer</option>
+                      </select>
+                    </div>
+                    <input type="text" id="admin-wd-fullname" placeholder="Full Name" className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    <input type="text" id="admin-wd-mobile" placeholder="Mobile Number" className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    <select id="admin-wd-bank" className="w-full px-3 py-2 border rounded-lg text-sm">
+                      <option value="">Select Bank</option>
+                      <option value="DBS">DBS</option>
+                      <option value="OCBC">OCBC</option>
+                      <option value="UOB">UOB</option>
+                      <option value="Standard Chartered">Standard Chartered</option>
+                      <option value="HSBC">HSBC</option>
+                      <option value="Maybank">Maybank</option>
+                      <option value="CIMB">CIMB</option>
+                      <option value="Citibank">Citibank</option>
+                      <option value="Bank of China">Bank of China</option>
+                      <option value="RHB">RHB</option>
+                    </select>
+                    <input type="text" id="admin-wd-paynow" placeholder="PayNow / Account No" className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    <button onClick={async () => {
+                      const riderEl = document.getElementById("admin-wd-rider") as HTMLSelectElement;
+                      const amtEl = document.getElementById("admin-wd-amount") as HTMLInputElement;
+                      const methodEl = document.getElementById("admin-wd-method") as HTMLSelectElement;
+                      const nameEl = document.getElementById("admin-wd-fullname") as HTMLInputElement;
+                      const mobileEl = document.getElementById("admin-wd-mobile") as HTMLInputElement;
+                      const bankEl = document.getElementById("admin-wd-bank") as HTMLSelectElement;
+                      const acctEl = document.getElementById("admin-wd-paynow") as HTMLInputElement;
+                      const riderId = riderEl?.value;
+                      const amt = parseFloat(amtEl?.value || "0");
+                      const method = methodEl?.value || "paynow";
+                      const fullName = nameEl?.value || "";
+                      const mobile = mobileEl?.value || "";
+                      const bank = bankEl?.value || "";
+                      const acctNo = acctEl?.value || "";
+                      if (!riderId) return alert("Please select a rider");
+                      if (amt <= 0) return alert("Please enter a valid amount");
+                      if (!fullName) return alert("Please enter full name");
+                      if (!mobile) return alert("Please enter mobile number");
+                      if (!bank) return alert("Please select a bank");
+                      if (!acctNo) return alert("Please enter PayNow/Account number");
+                      const rider = riders.find((r: any) => r.id === riderId);
+                      if (!rider) return alert("Rider not found");
+                      if (!window.confirm("Add withdrawal request for " + rider.name + " - $" + amt.toFixed(2) + "?")) return;
+                      try {
+                        const newEarnings = (rider.earnings || 0) - amt;
+                        await api("riders?id=eq." + riderId, "PATCH", { earnings: newEarnings });
+                        await api("audit_logs", "POST", {
+                          action: "withdrawal_request",
+                          user_id: riderId,
+                          user_type: "admin",
+                          details: JSON.stringify({
+                            riderId: riderId,
+                            riderName: rider.name,
+                            riderPhone: rider.phone,
+                            amount: amt,
+                            withdrawMethod: method,
+                            fullName: fullName,
+                            mobileNumber: mobile,
+                            bankName: bank,
+                            paynowNo: method === "paynow" ? acctNo : null,
+                            bankAccountNo: method === "bank" ? acctNo : null,
+                            status: "pending",
+                            requestedAt: new Date().toISOString(),
+                            addedByAdmin: true
+                          }),
+                          timestamp: new Date().toISOString()
+                        });
+                        amtEl.value = "";
+                        nameEl.value = "";
+                        mobileEl.value = "";
+                        acctEl.value = "";
+                        await loadData();
+                        await loadWithdrawalRequests();
+                        alert("Withdrawal request added for " + rider.name + " - $" + amt.toFixed(2));
+                      } catch (e: any) { alert("Error: " + e.message); }
+                    }} className="w-full py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700">Add Withdrawal Request</button>
+                    <p className="text-xs text-gray-400">Rider earnings will be deducted on submission. If rejected, earnings will be restored.</p>
+                  </div>
+                </details>
+                
                 {/* Summary Stats */}
                 <div className="grid grid-cols-5 gap-4 mb-6">
                   <div className="bg-yellow-50 p-4 rounded-lg text-center">
