@@ -2226,16 +2226,40 @@ const DeliveryPlatform = () => {
     }
   };
 
+  const lookupCoordinatesByName = async (placeName: string): Promise<{lat: number, lng: number} | null> => {
+    if (!placeName || placeName.trim().length < 3) return null;
+    try {
+      const searchTerm = placeName.replace(/#\d+-\d+/g, '').replace(/\b(Blk|Block)\b/gi, '').trim();
+      const response = await fetch(
+        `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(searchTerm)}&returnGeom=Y&getAddrDetails=Y&pageNum=1`
+      );
+      const data = await response.json();
+      if (data.results && data.results.length > 0) {
+        return {
+          lat: parseFloat(data.results[0].LATITUDE),
+          lng: parseFloat(data.results[0].LONGITUDE)
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Place name lookup failed:', error);
+      return null;
+    }
+  };
+
   // Cache for coordinate lookups to avoid duplicate API calls
   const coordsCacheRef = useRef<Record<string, {lat: number, lng: number} | null>>({});
   
   // Lookup coordinates with caching
-  const lookupCoordinatesCached = async (postalCode: string): Promise<{lat: number, lng: number} | null> => {
-    if (coordsCacheRef.current[postalCode] !== undefined) {
-      return coordsCacheRef.current[postalCode];
+  const lookupCoordinatesCached = async (key: string): Promise<{lat: number, lng: number} | null> => {
+    if (coordsCacheRef.current[key] !== undefined) {
+      return coordsCacheRef.current[key];
     }
-    const result = await lookupCoordinates(postalCode);
-    coordsCacheRef.current[postalCode] = result;
+    let result = await lookupCoordinates(key);
+    if (!result && !/^\d{6}$/.test(key)) {
+      result = await lookupCoordinatesByName(key);
+    }
+    coordsCacheRef.current[key] = result;
     return result;
   };
 
@@ -2243,9 +2267,8 @@ const DeliveryPlatform = () => {
   const calculateJobDistances = async (pickupAddress: string, stops: any[]): Promise<{distances: number[], totalDistance: number} | null> => {
     try {
       const pickupPostal = extractPostalCode(pickupAddress);
-      if (!pickupPostal) return null;
-
-      const pickupCoords = await lookupCoordinatesCached(pickupPostal);
+      const pickupKey = pickupPostal || pickupAddress;
+      const pickupCoords = await lookupCoordinatesCached(pickupKey);
       if (!pickupCoords) return null;
 
       const distances: number[] = [];
@@ -2253,15 +2276,16 @@ const DeliveryPlatform = () => {
       let totalDistance = 0;
 
       for (const stop of stops) {
-        const fullStopAddr = `${stop.address || ''} ${stop.unitNo || ''}`;
+        const fullStopAddr = `${stop.address || ''} ${stop.unitNo || ''}`.trim();
         const stopPostal = extractPostalCode(fullStopAddr);
-        if (!stopPostal) { distances.push(0); continue; }
+        const stopKey = stopPostal || fullStopAddr;
+        if (!stopKey || stopKey.length < 3) { distances.push(0); continue; }
         
-        const stopCoords = await lookupCoordinatesCached(stopPostal);
+        const stopCoords = await lookupCoordinatesCached(stopKey);
         if (!stopCoords) { distances.push(0); continue; }
 
         const dist = haversineDistance(prevCoords.lat, prevCoords.lng, stopCoords.lat, stopCoords.lng);
-        const routeDist = dist * 1.35; // Route factor: Singapore roads are ~1.35x straight-line distance
+        const routeDist = dist * 1.35;
         const rounded = parseFloat(routeDist.toFixed(1));
         distances.push(rounded);
         totalDistance += rounded;
@@ -2279,8 +2303,6 @@ const DeliveryPlatform = () => {
   useEffect(() => {
     const calcFormDist = async () => {
       if (!jobForm.pickup || !jobForm.stops[0]?.address) { setFormDistance(null); return; }
-      const pickupPostal = extractPostalCode(jobForm.pickup);
-      if (!pickupPostal) { setFormDistance(null); return; }
       const result = await calculateJobDistances(jobForm.pickup, jobForm.stops.filter((s: any) => s.address));
       if (result) {
         setFormDistance(result.totalDistance);
@@ -2360,7 +2382,7 @@ const DeliveryPlatform = () => {
     
     const uncachedJobs = jobs.filter((job: any) => {
       const stops = job.stops || [];
-      return !jobDistanceCache[job.id] && stops.length > 0 && job.pickup && extractPostalCode(job.pickup);
+      return !jobDistanceCache[job.id] && stops.length > 0 && job.pickup;
     });
     
     if (uncachedJobs.length === 0) return;
