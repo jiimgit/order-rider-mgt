@@ -10100,20 +10100,43 @@ Please be punctual and update once completed. Thanks!`;
 
               <div className="border rounded-lg overflow-hidden" style={{ height: '400px' }}>
                 {allRiderLocations.length > 0 ? (
-                  <iframe
-                    width="100%"
-                    height="100%"
-                    frameBorder="0"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${
-                      Math.min(...allRiderLocations.map(l => l.longitude)) - 0.02
-                    }%2C${
-                      Math.min(...allRiderLocations.map(l => l.latitude)) - 0.02
-                    }%2C${
-                      Math.max(...allRiderLocations.map(l => l.longitude)) + 0.02
-                    }%2C${
-                      Math.max(...allRiderLocations.map(l => l.latitude)) + 0.02
-                    }&layer=mapnik`}
-                  />
+                  <div id="live-rider-map" style={{ width: '100%', height: '100%' }} ref={(el) => {
+                    if (!el) return;
+                    if ((el as any).__mapInit) return;
+                    (el as any).__mapInit = true;
+                    const loadMap = () => {
+                      if (!(window as any).L) {
+                        const link = document.createElement('link');
+                        link.rel = 'stylesheet';
+                        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+                        document.head.appendChild(link);
+                        const script = document.createElement('script');
+                        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+                        script.onload = () => initMap(el);
+                        document.head.appendChild(script);
+                      } else {
+                        initMap(el);
+                      }
+                    };
+                    const initMap = (container: HTMLElement) => {
+                      const L = (window as any).L;
+                      const locs = allRiderLocations.filter((l: any) => l.latitude && l.longitude);
+                      const center = locs.length > 0 ? [locs.reduce((s: number, l: any) => s + l.latitude, 0) / locs.length, locs.reduce((s: number, l: any) => s + l.longitude, 0) / locs.length] : [1.3521, 103.8198];
+                      const map = L.map(container).setView(center, 12);
+                      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+                      locs.forEach((loc: any) => {
+                        const rider = riders.find((r: any) => r.id === loc.rider_id);
+                        const name = rider?.name || 'Rider';
+                        const icon = L.divIcon({ className: '', html: '<div style="background:#22c55e;color:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:12px;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3)">' + name.charAt(0).toUpperCase() + '</div>', iconSize: [32, 32], iconAnchor: [16, 16] });
+                        L.marker([loc.latitude, loc.longitude], { icon }).addTo(map).bindPopup('<b>' + name + '</b><br>Updated: ' + new Date(loc.updated_at).toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }));
+                      });
+                      if (locs.length > 1) {
+                        const bounds = L.latLngBounds(locs.map((l: any) => [l.latitude, l.longitude]));
+                        map.fitBounds(bounds, { padding: [30, 30] });
+                      }
+                    };
+                    loadMap();
+                  }} />
                 ) : (
                   <div className="h-full flex items-center justify-center bg-gray-100">
                     <p className="text-gray-500">No riders currently sharing GPS location</p>
