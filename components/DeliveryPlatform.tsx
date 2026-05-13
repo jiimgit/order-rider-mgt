@@ -7998,6 +7998,14 @@ Please be punctual and update once completed. Thanks!`;
                                 ✓ Submit Drop-off {podStopIndex + 1} Photo
                               </button>
                             )}
+                            {(activeJob.stops?.length || 1) <= 1 && (
+                              <button 
+                                onClick={() => submitPodAndComplete(activeJob.id)}
+                                className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700"
+                              >
+                                ✓ Submit & Complete
+                              </button>
+                            )}
                           </div>
                         </div>
                       ) : (
