@@ -1,5 +1,38 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+async function lookupPostalCode(address: string): Promise<string | null> {
+  try {
+    const searchTerm = address.replace(/#\d+-\d+/g, '').replace(/S\(\d{6}\)/g, '').replace(/Singapore\s*\d{6}/gi, '').trim();
+    if (searchTerm.length < 3) return null;
+    const response = await fetch(
+      `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(searchTerm)}&returnGeom=Y&getAddrDetails=Y&pageNum=1`
+    );
+    const data = await response.json();
+    if (data.results && data.results.length > 0) {
+      const postal = data.results[0].POSTAL;
+      if (postal && postal !== 'NIL' && postal.length === 6) {
+        return postal;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function hasPostalCode(address: string): boolean {
+  return /\b\d{6}\b/.test(address);
+}
+
+async function enrichAddressWithPostal(address: string): Promise<string> {
+  if (!address || hasPostalCode(address)) return address;
+  const postal = await lookupPostalCode(address);
+  if (postal) {
+    return address.replace(/,?\s*Singapore\s*$/i, '').trim() + ', Singapore ' + postal;
+  }
+  return address;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -26,39 +59,56 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000,
+        max_tokens: 4096,
         messages: [{
           role: 'user',
-          content: `You are an expert Singapore delivery logistics AI dispatcher for MoveIt app. Your job is to:
-1. Parse delivery details (addresses, contacts, parcels)
-2. Analyze ALL drop-off locations and classify them by Singapore region
-3. Cluster nearby drops together and suggest optimal driver assignments
-4. Recommend the number of drivers needed
+          content: `You are a Singapore delivery logistics AI dispatcher for MoveIt app. Your job is to:
+1. Parse delivery details (pickup + all drop-offs)
+2. Analyze the geography of ALL drop-offs
+3. Cluster drop-offs by nearby regions
+4. Recommend optimal number of drivers
+5. Assign specific drops to each driver based on geographic clusters
+6. Estimate completion time per driver and total
 
-SINGAPORE REGION CLASSIFICATION (you MUST classify every address):
-- WEST: Jurong East, Jurong West, Clementi, Bukit Batok, Bukit Panjang, Choa Chu Kang, Tuas, Pioneer, Boon Lay, Lakeside, Chinese Garden, Dover, Buona Vista
-- NORTH: Woodlands, Yishun, Sembawang, Admiralty, Marsiling, Khatib, Ang Mo Kio (northern part)
-- NORTHEAST: Sengkang, Punggol, Hougang, Serangoon, Buangkok, Kovan
-- EAST: Bedok, Tampines, Pasir Ris, Changi, Simei, Tanah Merah, Kembangan, Eunos, Paya Lebar
-- CENTRAL: Toa Payoh, Bishan, Ang Mo Kio, Novena, Orchard, City Hall, Marina Bay, Queenstown, Tiong Bahru, Outram, Chinatown, Raffles Place, Kallang, Geylang
-- BUKIT PANJANG/TECK WHYE CLUSTER: Bukit Panjang, Teck Whye, Senja, Jelapang, Pending, Petir, Cashew (these are close to West but form their own cluster)
+IMPORTANT - ADDRESSES:
+- Include the full address as provided by the customer
+- If you know the Singapore 6-digit postal code for the location, include it (e.g. Singapore 310110)
+- Do NOT make up postal codes if you are unsure
 
-DRIVER RECOMMENDATION RULES:
-- 1-3 drops in same area: 1 driver
-- 4-8 drops spread across 2 regions: 1-2 drivers
-- 6-12 drops spread across 3+ regions: 2-3 drivers  
-- 13-20 drops: 2-4 drivers, MUST split by region clusters
-- 20+ drops: 3-5 drivers
-- NEVER recommend 1 driver for 10+ drops across different regions
-- Group drops that are geographically close (same estate, same area) to the same driver
-- If drops are concentrated in one region (e.g., 10 drops all in Jurong), 1-2 drivers is fine
+CRITICAL RULES FOR ROUTE PLANNING:
+- NEVER assign all drops to 1 driver if there are more than 5 drops
+- For 6-10 drops: recommend 2 drivers minimum
+- For 11-15 drops: recommend 2-3 drivers
+- For 16+ drops: recommend 3+ drivers
+- Cluster drops by GEOGRAPHIC PROXIMITY
+- A driver should handle drops that are NEAR EACH OTHER
+- Consider that 1 driver can complete about 5-8 drops per hour in a cluster
+- If drops are spread across Singapore, MUST split into multiple drivers
 
-IMPORTANT: For 5+ drops, you MUST provide a detailed routePlan with:
-- Which specific drops go to which driver
-- Cluster reasoning (why these drops are grouped together)
-- Each driver should handle drops in nearby areas to minimize travel
+SINGAPORE GEOGRAPHY REFERENCE:
+- Jurong East/West, Clementi, Bukit Batok, Bukit Panjang, Choa Chu Kang, Tuas = WEST
+- Woodlands, Yishun, Sembawang, Admiralty, Mandai = NORTH  
+- Bedok, Tampines, Pasir Ris, Changi, Simei, Loyang = EAST
+- Toa Payoh, Bishan, Ang Mo Kio, Serangoon, Hougang = CENTRAL-NORTH
+- Orchard, Novena, City Hall, Marina Bay, Raffles Place = CENTRAL
+- HarbourFront, Bukit Merah, Telok Blangah, Queenstown = SOUTH
+- Sengkang, Punggol = NORTHEAST
+- Bukit Timah, Toh Yi, Holland = CENTRAL-WEST
+- Teck Whye, Senja = WEST (near Bukit Panjang)
+- Pending Road, Jelapang Road = WEST (Bukit Panjang area)
 
-Return ONLY valid JSON with this exact structure (no markdown, no backticks, no explanation):
+CLUSTERING LOGIC:
+- Group drops that are within the SAME estate or adjacent estates
+- If a cluster has too many drops (>8), consider splitting into sub-clusters
+
+Pricing rules:
+- Base: $3
+- Per stop: $2.50
+- Distance factor: $0.95 per km estimated
+- Minimum $3
+- suggestedPrice should be based on estimated total distance
+
+Return ONLY valid JSON (no markdown, no backticks):
 {
   "pickup": "full pickup address",
   "pickupUnitNo": "unit number or N/A",
@@ -69,8 +119,8 @@ Return ONLY valid JSON with this exact structure (no markdown, no backticks, no 
       "address": "full drop-off address",
       "unitNo": "unit number or N/A",
       "recipientName": "recipient name or empty string",
-      "recipientPhone": "recipient phone or empty string",
-      "region": "West or North or East or Central or Northeast"
+      "recipientPhone": "phone or empty string",
+      "region": "geographic cluster name"
     }
   ],
   "parcelSize": "small or medium or large or extra-large",
@@ -79,27 +129,29 @@ Return ONLY valid JSON with this exact structure (no markdown, no backticks, no 
   "suggestedDrivers": number,
   "deliveryDate": "YYYY-MM-DD or empty string",
   "deliverySlot": "time slot or empty string",
-  "analysis": "brief 1-2 sentence summary",
+  "analysis": "1-2 sentence summary",
   "routePlan": {
     "totalStops": number,
     "totalDrivers": number,
-    "estimatedTime": {
-      "withRecommendedDrivers": "e.g. 4-5 hours",
-      "withFewerDrivers": "e.g. 6-8 hours",
-      "withOneDriver": "not recommended" or "e.g. 2 hours" for small orders
-    },
+    "estimatedTime": "total estimated time",
     "routes": [
       {
         "driver": "Driver A",
-        "cluster": "Jurong / Bukit Batok Cluster",
+        "region": "cluster name",
         "stops": [0, 1, 2],
-        "stopDetails": "Drop 1, 3, 5 (Jurong West, Jurong East, Boon Lay)",
-        "estimatedTime": "1.5 hours",
-        "estimatedDistance": "15 km",
-        "region": "West"
+        "stopDetails": ["Drop 1: address summary", "Drop 2: address summary"],
+        "estimatedTime": "e.g. 2 hours",
+        "estimatedDistance": "e.g. 15 km"
       }
     ],
-    "reasoning": "Detailed explanation of why drops are grouped this way. Mention geographic proximity, cluster density, and why splitting reduces total delivery time."
+    "alternativeOptions": [
+      {
+        "drivers": 2,
+        "estimatedTime": "6-8 hours",
+        "note": "description"
+      }
+    ],
+    "reasoning": "explanation of why this arrangement is optimal"
   }
 }
 
@@ -124,13 +176,31 @@ ${deliveryDetails}`
     const text = data.content?.[0]?.text || '';
     const clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
+    let parsed;
     try {
-      const parsed = JSON.parse(clean);
-      return res.status(200).json(parsed);
+      parsed = JSON.parse(clean);
     } catch {
       console.error('Failed to parse AI response:', clean.substring(0, 500));
       return res.status(500).json({ error: 'Failed to parse AI response. Please try again.' });
     }
+
+    // Post-processing: enrich addresses with postal codes from OneMap
+    try {
+      if (parsed.pickup && !hasPostalCode(parsed.pickup)) {
+        parsed.pickup = await enrichAddressWithPostal(parsed.pickup);
+      }
+      if (parsed.stops && Array.isArray(parsed.stops)) {
+        for (let i = 0; i < parsed.stops.length; i++) {
+          if (parsed.stops[i].address && !hasPostalCode(parsed.stops[i].address)) {
+            parsed.stops[i].address = await enrichAddressWithPostal(parsed.stops[i].address);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Postal code enrichment failed:', e);
+    }
+
+    return res.status(200).json(parsed);
   } catch (error: any) {
     console.error('AI analyze error:', error);
     return res.status(500).json({ error: error.message || 'AI analysis failed' });
