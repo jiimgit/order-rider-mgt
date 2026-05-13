@@ -5652,14 +5652,29 @@ Please be punctual and update once completed. Thanks!`;
                             <p className="font-bold text-sm text-gray-800">Follow AI Suggestion</p>
                             <p className="text-xs text-green-700 font-medium">{aiResult.routePlan?.totalDrivers || aiResult.suggestedDrivers || 1} Riders</p>
                             <p className="text-xs text-gray-500 mt-1">Auto-assign stops using AI-optimized clusters.</p>
-                            <button onClick={applyAiDispatch} className="mt-2 w-full py-1.5 bg-green-600 text-white rounded-lg font-semibold text-xs hover:bg-green-700">Use AI Allocation ({aiResult.routePlan?.totalDrivers || aiResult.suggestedDrivers || 1} Riders)</button>
+                            <button onClick={() => {
+                              const bal = curr?.credits || 0;
+                              const est = parseFloat(aiResult.suggestedPrice) || (3 + (aiResult.stops?.length || 1) * 2.50);
+                              if (bal < est) {
+                                alert("Insufficient balance. Your balance: $" + bal.toFixed(2) + ". Estimated cost: $" + est.toFixed(2) + ". Please top up first.");
+                                return;
+                              }
+                              applyAiDispatch();
+                            }} className="mt-2 w-full py-1.5 bg-green-600 text-white rounded-lg font-semibold text-xs hover:bg-green-700">Use AI Allocation ({aiResult.routePlan?.totalDrivers || aiResult.suggestedDrivers || 1} Riders)</button>
                           </div>
                           <div className="border border-gray-200 rounded-lg p-3 text-center">
                             <p className="text-2xl mb-1">👤</p>
                             <p className="font-bold text-sm text-gray-800">Use 1 Rider</p>
                             <p className="text-xs text-gray-600 font-medium">All {aiResult.stops?.length || 1} Stops</p>
                             <p className="text-xs text-gray-500 mt-1">Assign all stops to a single rider. Longer completion time.</p>
-                            <button onClick={applyAiResult} className="mt-2 w-full py-1.5 bg-orange-500 text-white rounded-lg font-semibold text-xs hover:bg-orange-600">1 Rider for All Stops</button>
+                            <button onClick={() => {
+                              const bal = curr?.credits || 0;
+                              const est = parseFloat(aiResult.suggestedPrice) || (3 + (aiResult.stops?.length || 1) * 2.50);
+                              if (bal < est) {
+                                if (!window.confirm("Your balance ($" + bal.toFixed(2) + ") may be insufficient for the estimated price ($" + est.toFixed(2) + "). Continue anyway?")) return;
+                              }
+                              applyAiResult();
+                            }} className="mt-2 w-full py-1.5 bg-orange-500 text-white rounded-lg font-semibold text-xs hover:bg-orange-600">1 Rider for All Stops</button>
                           </div>
                           <div className="border border-gray-200 rounded-lg p-3 text-center">
                             <p className="text-2xl mb-1">✏️</p>
