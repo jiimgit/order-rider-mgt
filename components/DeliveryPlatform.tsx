@@ -3930,7 +3930,7 @@ Please be punctual and update once completed. Thanks!`;
       })) : [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
       parcelSize: aiResult.parcelSize || 'small',
       remarks: aiResult.remarks || '',
-      price: (() => { const d = aiResult.stops?.filter((s: any) => s.address).length || 1; return (3 + d * 2.50).toFixed(2); })(),
+      price: aiResult.suggestedPrice?.toString() || (() => { const d = aiResult.stops?.filter((s: any) => s.address).length || 1; return (3 + d * 2.50).toFixed(2); })(),
       deliveryDate: aiResult.deliveryDate || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
       timeframe: aiResult.deliverySlot || ''
     });
@@ -3949,7 +3949,20 @@ Please be punctual and update once completed. Thanks!`;
     const totalOrders = routes.length;
     const allStops = aiResult.stops || [];
     
-    const totalPrice = allStops.length * 2.50 + 3 * totalOrders;
+    // Calculate distance-based pricing for each route
+    let totalPrice = 0;
+    const routePrices: number[] = [];
+    for (const route of routes) {
+      const stopIndices = route.stops || [];
+      const routeStops = stopIndices.map((idx: number) => allStops[idx]).filter(Boolean);
+      const distResult = await calculateJobDistances(aiResult.pickup || '', routeStops.map((s: any) => ({ address: s.address || '', unitNo: s.unitNo || '' })));
+      const dist = distResult?.totalDistance || 0;
+      const drops = routeStops.length;
+      const price = Math.max(3, 3 + (dist * 0.95) + (drops * 2.50));
+      routePrices.push(parseFloat(price.toFixed(2)));
+      totalPrice += price;
+    }
+    totalPrice = parseFloat(totalPrice.toFixed(2));
     
     const freshCust = await api('customers?id=eq.' + curr.id);
     const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : (curr.credits || 0);
@@ -3978,7 +3991,7 @@ Please be punctual and update once completed. Thanks!`;
         const routeStops = stopIndices.map((idx: number) => allStops[idx]).filter(Boolean);
         if (routeStops.length === 0) continue;
 
-        const orderPrice = 3 + routeStops.length * 2.50;
+        const orderPrice = routePrices[i] || (3 + routeStops.length * 2.50);
         const orderId = generateOrderId();
         const deliveryAddresses = routeStops.map((s: any) => (s.address || '') + ' ' + (s.unitNo || '')).join(' -> ');
         const clusterName = route.cluster || route.region || 'Cluster ' + (i + 1);
