@@ -6609,7 +6609,7 @@ Please be punctual and update once completed. Thanks!`;
                               </div>
                               <div className="flex gap-3 mt-1 text-xs text-gray-400">
                                 {job.distance_km && <span>{job.distance_km} km</span>}
-                                <span>{job.timeframe || job.delivery_slot || ''}</span>
+                                <span>{job.delivery_date ? new Date(job.delivery_date + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} {job.timeframe || job.delivery_slot ? '• ' + (job.timeframe || job.delivery_slot) : ''}</span>
                                 {job.parcel_size && <span className="capitalize">📦 {job.parcel_size}</span>}
                               </div>
                               {job.remarks && <p className="text-xs text-gray-400 italic mt-0.5 truncate">{job.remarks}</p>}
@@ -8185,7 +8185,7 @@ Please be punctual and update once completed. Thanks!`;
                             <div className="flex-1">
                               <div className="mb-1">
                                 <div className="flex gap-3 text-xs text-gray-500">
-                                  {job.delivery_date && <span>📅 {job.delivery_date}</span>}
+                                  {job.delivery_date && <span>📅 {new Date(job.delivery_date + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                                   {job.timeframe && <span>🕐 {job.timeframe}</span>}
                                 </div>
                                 {job.remarks && <p className="text-xs text-gray-400 italic mt-1">{job.remarks?.substring(0, 50)}{job.remarks?.length > 50 ? '...' : ''}</p>}
