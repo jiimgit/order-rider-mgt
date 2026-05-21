@@ -1722,7 +1722,7 @@ const DeliveryPlatform = () => {
           status: 'posted',
           recipient_name: job.recipient_name || null,
           recipient_phone: job.recipient_phone || null,
-          parcel_size: job.parcel_size || 'small',
+          parcel_size: job.parcel_size || 'bike',
           remarks: job.notes || null
         });
         successCount++;
@@ -2437,10 +2437,10 @@ const DeliveryPlatform = () => {
           </span>
         </div>
 
-        {/* Parcel Information */}
+        {/* Vehicle Information */}
         {job.parcel_size && (
           <div className="bg-gray-50 p-2 rounded">
-            <p className="text-xs font-medium text-gray-500 uppercase">Parcel Information</p>
+            <p className="text-xs font-medium text-gray-500 uppercase">Vehicle Information</p>
             <p className="text-sm">📦 Vehicle Type: <span className="font-medium capitalize">{job.parcel_size}</span></p>
           </div>
         )}
@@ -2894,8 +2894,8 @@ Thank you for your order! 🙏`;
     // Template with headers and sample data
     const template = [
       ['customer_name', 'customer_phone', 'pickup', 'pickup_unit_no', 'delivery', 'delivery_unit_no', 'recipient_name', 'recipient_phone', 'delivery_slot', 'delivery_date', 'parcel_size', 'price', 'notes'],
-      ['John Doe', '91234567', '123 Orchard Road Singapore 238858', '#01-01', '456 Marina Bay Sands Singapore 018956', '#05-10', 'Alice Tan', '81234567', '6am-11am', '2026-03-16', 'small', '15', 'Handle with care'],
-      ['Jane Smith', '98765432', '789 Bugis Street Singapore 188067', 'N/A', '321 Tampines Ave 5 Singapore 529651', '#02-15', 'Bob Lee', '92345678', '12pm-5pm', '2026-03-17', 'medium', '12', 'Call before delivery'],
+      ['John Doe', '91234567', '123 Orchard Road Singapore 238858', '#01-01', '456 Marina Bay Sands Singapore 018956', '#05-10', 'Alice Tan', '81234567', '6am-11am', '2026-03-16', 'bike', '15', 'Handle with care'],
+      ['Jane Smith', '98765432', '789 Bugis Street Singapore 188067', 'N/A', '321 Tampines Ave 5 Singapore 529651', '#02-15', 'Bob Lee', '92345678', '12pm-5pm', '2026-03-17', 'car', '12', 'Call before delivery'],
       ['', '', '', '', '', '', '', '', '', '', '', '', ''],
       ['DELETE THE SAMPLE ROWS ABOVE AND ADD YOUR OWN DATA', '', '', '', '', '', '', '', '', '', '', '', ''],
     ];
@@ -3007,7 +3007,7 @@ Thank you for your order! 🙏`;
           status: 'posted',
           recipient_name: job.recipient_name || null,
           recipient_phone: job.recipient_phone || null,
-          parcel_size: job.parcel_size || 'small',
+          parcel_size: job.parcel_size || 'bike',
           remarks: job.notes || null
         });
         successCount++;
@@ -4042,7 +4042,7 @@ Please be punctual and update once completed. Thanks!`;
     if (!jobForm.pickup) { alert('Please fill in pickup location'); return false; }
     if (!jobForm.pickupUnitNo) { alert('Please fill in pickup Unit No (enter "N/A" if not applicable)'); return false; }
     if (!jobForm.stops[0]?.address) { alert('Please fill in at least one drop-off location'); return false; }
-    if (!jobForm.parcelSize) { alert('Please select a parcel size'); return false; }
+    if (!jobForm.parcelSize) { alert('Please select a vehicle type'); return false; }
     if (!jobForm.timeframe) { alert('Please select a delivery time slot'); return false; }
     if (!jobForm.deliveryDate) { alert('Please select a delivery date'); return false; }
     const emptyStops = jobForm.stops.filter(s => !s.address);
@@ -4071,7 +4071,7 @@ Please be punctual and update once completed. Thanks!`;
     if (!jobForm.pickup) return alert('Please fill in pickup location');
     if (!jobForm.pickupUnitNo) return alert('Please fill in pickup Unit No (enter "N/A" if not applicable)');
     if (!jobForm.stops[0]?.address) return alert('Please fill in at least one drop-off location');
-    if (!jobForm.parcelSize) return alert('Please select a parcel size');
+    if (!jobForm.parcelSize) return alert('Please select a vehicle type');
     if (!jobForm.timeframe) return alert('Please select a delivery time slot');
     if (!jobForm.deliveryDate) return alert('Please select a delivery date');
     
@@ -5573,7 +5573,7 @@ Please be punctual and update once completed. Thanks!`;
                     <p className="text-sm font-semibold text-purple-800">Paste your order details</p>
                     <button onClick={() => { setShowPasteOrder(false); setAiInput(''); setAiResult(null); }} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
                   </div>
-                  <textarea value={aiInput} onChange={(e) => setAiInput(e.target.value)} className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm bg-white" rows={3} placeholder='e.g. "Bedok 460456 to Jurong 600123, small parcel, today 2pm"' />
+                  <textarea value={aiInput} onChange={(e) => setAiInput(e.target.value)} className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm bg-white" rows={3} placeholder='e.g. "Bedok 460456 to Jurong 600123, bike delivery, today 2pm"' />
                   <div className="flex gap-2 mt-2">
                     <button onClick={analyzeWithAI} disabled={aiAnalyzing || aiInput.trim().length < 20} className={`flex-1 py-2 rounded-lg font-semibold text-sm ${aiAnalyzing || aiInput.trim().length < 20 ? 'bg-gray-200 text-gray-400' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>{aiAnalyzing ? 'Analyzing...' : 'Analyze'}</button>
                     <button onClick={() => { setAiInput(''); setAiResult(null); }} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">Clear</button>
@@ -5929,10 +5929,9 @@ Please be punctual and update once completed. Thanks!`;
                     onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="small">📦 Small (fits in hand, &lt;1kg)</option>
-                    <option value="medium">📦📦 Medium (shoebox size, 1-5kg)</option>
-                    <option value="large">📦📦📦 Large (luggage size, 5-20kg)</option>
-                    <option value="extra-large">🚚 Extra Large (furniture, &gt;20kg)</option>
+                    <option value="bike">🏍️ Bike (fits in hand or backpack, &lt;5kg)</option>
+                    <option value="car">🚗 Car (boot-size items, 5-30kg)</option>
+                    <option value="van">🚐 Van (bulky/furniture, &gt;30kg)</option>
                   </select>
                 </div>
 
@@ -10081,9 +10080,9 @@ Please be punctual and update once completed. Thanks!`;
                       onChange={(e) => setAdminOrderForm({...adminOrderForm, parcelSize: e.target.value})}
                       className="w-full px-3 py-2 border rounded-lg"
                     >
-                      <option value="small">Small</option>
-                      <option value="medium">Medium</option>
-                      <option value="large">Large</option>
+                      <option value="bike">🏍️ Bike</option>
+                      <option value="car">🚗 Car</option>
+                      <option value="van">🚐 Van</option>
                     </select>
                   </div>
                 </div>
@@ -10492,7 +10491,7 @@ Please be punctual and update once completed. Thanks!`;
                       id="admin-ai-input"
                       className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm bg-white"
                       rows={3}
-                      placeholder='e.g. "Pickup from Bedok 460456 #05-123, contact Ali 91234567, deliver to Jurong 600123 #12-456, recipient Sarah 98765432, small parcel, today 2pm"'
+                      placeholder='e.g. "Pickup from Bedok 460456 #05-123, contact Ali 91234567, deliver to Jurong 600123 #12-456, recipient Sarah 98765432, bike delivery, today 2pm"'
                     />
                     <div className="flex gap-2 mt-2">
                       <button
@@ -10735,10 +10734,9 @@ Please be punctual and update once completed. Thanks!`;
                         onChange={(e) => setAdminJobForm({...adminJobForm, parcelSize: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                       >
-                        <option value="small">Small (Documents/Small items)</option>
-                        <option value="medium">Medium (Shoebox size)</option>
-                        <option value="large">Large (Large box)</option>
-                        <option value="extra-large">Extra Large (Furniture/Bulky)</option>
+                        <option value="bike">🏍️ Bike (Documents/Small items)</option>
+                        <option value="car">🚗 Car (Boot-size items)</option>
+                        <option value="van">🚐 Van (Furniture/Bulky)</option>
                       </select>
                     </div>
                     <div>
@@ -11586,11 +11584,10 @@ Please be punctual and update once completed. Thanks!`;
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
-                    <select value={editJob.parcel_size || 'small'} onChange={(e) => setEditJob({...editJob, parcel_size: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                      <option value="small">Small</option>
-                      <option value="medium">Medium</option>
-                      <option value="large">Large</option>
-                      <option value="extra-large">Extra Large</option>
+                    <select value={editJob.parcel_size || 'bike'} onChange={(e) => setEditJob({...editJob, parcel_size: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <option value="bike">🏍️ Bike</option>
+                      <option value="car">🚗 Car</option>
+                      <option value="van">🚐 Van</option>
                     </select>
                   </div>
                 </div>
