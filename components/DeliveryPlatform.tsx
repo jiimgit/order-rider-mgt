@@ -282,7 +282,7 @@ const DeliveryPlatform = () => {
     timeframe: '', 
     deliveryDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
     price: '10',
-    parcelSize: 'small',
+    parcelSize: 'bike',
     remarks: ''
   });
   const [useMyProfile, setUseMyProfile] = useState(true); // Auto-fill pickup contact with customer profile
@@ -322,7 +322,7 @@ const DeliveryPlatform = () => {
     timeframe: '',
     deliveryDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
     price: '10',
-    parcelSize: 'small',
+    parcelSize: 'bike',
     remarks: ''
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -421,7 +421,7 @@ const DeliveryPlatform = () => {
     deliveryUnitNo: '',
     recipientName: '',
     recipientPhone: '',
-    parcelSize: 'small',
+    parcelSize: 'bike',
     price: '10',
     remarks: '',
     weeklyDays: [] as string[],
@@ -520,7 +520,7 @@ const DeliveryPlatform = () => {
     delivery: '',
     price: '10',
     timeframe: 'same-day',
-    parcelSize: 'small',
+    parcelSize: 'bike',
     remarks: ''
   });
 
@@ -1869,7 +1869,7 @@ const DeliveryPlatform = () => {
         delivery: '',
         price: '10',
         timeframe: 'same-day',
-        parcelSize: 'small',
+        parcelSize: 'bike',
         remarks: ''
       });
       setShowAdminCreateOrder(false);
@@ -2441,7 +2441,7 @@ const DeliveryPlatform = () => {
         {job.parcel_size && (
           <div className="bg-gray-50 p-2 rounded">
             <p className="text-xs font-medium text-gray-500 uppercase">Parcel Information</p>
-            <p className="text-sm">📦 Parcel Size: <span className="font-medium capitalize">{job.parcel_size}</span></p>
+            <p className="text-sm">📦 Vehicle Type: <span className="font-medium capitalize">{job.parcel_size}</span></p>
           </div>
         )}
 
@@ -3476,7 +3476,7 @@ Reminder for your upcoming delivery:
 ${job.pickup_contact || job.customer_name || 'Customer'} – ${job.pickup_phone || job.customer_phone || 'N/A'}
 ${job.pickup}
 ${dropOffSection}
-📦 Parcel: ${job.parcel_size ? job.parcel_size.charAt(0).toUpperCase() + job.parcel_size.slice(1) : 'N/A'}
+🚗 Vehicle: ${job.parcel_size ? job.parcel_size.charAt(0).toUpperCase() + job.parcel_size.slice(1) : 'N/A'}
 ${cachedDist ? `📏 Distance: ${cachedDist.totalDistance} km\n` : ''}${job.remarks ? `📝 Remarks: ${job.remarks}\n` : ''}
 Please be punctual and update once completed. Thanks!`;
   };
@@ -3928,7 +3928,7 @@ Please be punctual and update once completed. Thanks!`;
         recipientName: s.recipientName || '',
         recipientPhone: s.recipientPhone || ''
       })) : [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
-      parcelSize: aiResult.parcelSize || 'small',
+      parcelSize: (aiResult.vehicleType || aiResult.parcelSize || 'bike'),
       remarks: aiResult.remarks || '',
       price: aiResult.suggestedPrice?.toString() || (() => { const d = aiResult.stops?.filter((s: any) => s.address).length || 1; return (3 + d * 2.50).toFixed(2); })(),
       deliveryDate: aiResult.deliveryDate || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
@@ -4014,7 +4014,7 @@ Please be punctual and update once completed. Thanks!`;
           status: 'posted',
           recipient_name: routeStops[0]?.recipientName || null,
           recipient_phone: routeStops[0]?.recipientPhone || null,
-          parcel_size: aiResult.parcelSize || 'small',
+          parcel_size: (aiResult.vehicleType || aiResult.parcelSize || 'bike'),
           remarks: (aiResult.remarks || '') + ' [AI Cluster: ' + clusterName + ']',
           original_price: null,
           discount_amount: null
@@ -4166,7 +4166,7 @@ Please be punctual and update once completed. Thanks!`;
         timeframe: '', 
         deliveryDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
         price: '10', 
-        parcelSize: 'small', 
+        parcelSize: 'bike', 
         remarks: '' 
       });
       setJobPostTime(Date.now()); setBoostStage(0); alert(`Job posted successfully!\nOrder ID: ${orderId}`);
@@ -5584,7 +5584,7 @@ Please be punctual and update once completed. Thanks!`;
                       <div className="space-y-1 text-xs">
                         <div className="p-1.5 bg-orange-50 rounded"><span className="text-orange-600 font-medium">Pickup:</span> {aiResult.pickup}</div>
                         {aiResult.stops?.map((stop: any, idx: number) => (<div key={idx} className="p-1.5 bg-green-50 rounded"><span className="text-green-600 font-medium">Drop-off {idx+1}:</span> {stop.address} {stop.region && <span className="text-gray-400">({stop.region})</span>}</div>))}
-                        <div className="p-1.5 bg-blue-50 rounded"><span className="text-blue-600 font-medium">Parcel:</span> <span className="capitalize">{aiResult.parcelSize}</span></div>
+                        <div className="p-1.5 bg-blue-50 rounded"><span className="text-blue-600 font-medium">Vehicle:</span> <span className="capitalize">{(aiResult.vehicleType || aiResult.parcelSize)}</span></div>
                         {aiResult.remarks && <div className="p-1.5 bg-yellow-50 rounded"><span className="text-yellow-600 font-medium">Remarks:</span> {aiResult.remarks}</div>}
                       </div>
 
@@ -5920,10 +5920,10 @@ Please be punctual and update once completed. Thanks!`;
                     Delivery Fee
                   </label>
                   
-                <p className="text-xs sm:text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span> Parcel Size</p>
-                {/* Parcel Size */}
+                <p className="text-xs sm:text-sm font-bold text-gray-800 flex items-center gap-2 mb-3 mt-4"><span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span> Vehicle Type</p>
+                {/* Vehicle Type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Parcel Size <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Vehicle Type <span className="text-red-500">*</span></label>
                   <select 
                     value={jobForm.parcelSize} 
                     onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
@@ -6614,7 +6614,7 @@ Please be punctual and update once completed. Thanks!`;
                               </div>
                               {job.remarks && <p className="text-xs text-gray-400 italic mt-0.5 truncate">{job.remarks}</p>}
                               <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View details</summary><div className="mt-1 text-xs bg-gray-50 rounded p-2 space-y-0.5">
-                                <p><strong>Parcel:</strong> <span className="capitalize">{job.parcel_size}</span></p>
+                                <p><strong>Vehicle:</strong> <span className="capitalize">{job.parcel_size}</span></p>
                                 {job.distance_km && <p><strong>Distance:</strong> {job.distance_km} km</p>}
                                 <p><strong>Delivery:</strong> {job.delivery_date} {job.timeframe || job.delivery_slot || ''}</p>
                                 {job.remarks && <p><strong>Remark:</strong> {job.remarks}</p>}
@@ -8191,7 +8191,7 @@ Please be punctual and update once completed. Thanks!`;
                                 {job.remarks && <p className="text-xs text-gray-400 italic mt-1">{job.remarks?.substring(0, 50)}{job.remarks?.length > 50 ? '...' : ''}</p>}
                               </div>
                               <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View details</summary><div className="mt-1 text-xs bg-gray-50 rounded p-2 space-y-0.5">
-                                <p><strong>Parcel:</strong> <span className="capitalize">{job.parcel_size}</span></p>
+                                <p><strong>Vehicle:</strong> <span className="capitalize">{job.parcel_size}</span></p>
                                 {job.distance_km && <p><strong>Distance:</strong> {job.distance_km} km</p>}
                                 <p><strong>Delivery:</strong> {job.delivery_date} {job.timeframe || ''}</p>
                                 {job.remarks && <p><strong>Remark:</strong> {job.remarks}</p>}
@@ -10075,7 +10075,7 @@ Please be punctual and update once completed. Thanks!`;
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Parcel Size</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
                     <select
                       value={adminOrderForm.parcelSize}
                       onChange={(e) => setAdminOrderForm({...adminOrderForm, parcelSize: e.target.value})}
@@ -10516,7 +10516,7 @@ Please be punctual and update once completed. Thanks!`;
                               deliveryUnit: result.stops?.[0]?.unitNo || prev.deliveryUnit,
                               recipientName: result.stops?.[0]?.recipientName || prev.recipientName,
                               recipientPhone: result.stops?.[0]?.recipientPhone || prev.recipientPhone,
-                              parcelSize: result.parcelSize || prev.parcelSize,
+                              parcelSize: result.vehicleType || result.parcelSize || prev.parcelSize,
                               remarks: result.remarks || prev.remarks,
                               price: result.suggestedPrice?.toString() || prev.price,
                               deliveryDate: result.deliveryDate || prev.deliveryDate,
@@ -10729,7 +10729,7 @@ Please be punctual and update once completed. Thanks!`;
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Parcel Size <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type <span className="text-red-500">*</span></label>
                       <select
                         value={adminJobForm.parcelSize}
                         onChange={(e) => setAdminJobForm({...adminJobForm, parcelSize: e.target.value})}
@@ -10830,7 +10830,7 @@ Please be punctual and update once completed. Thanks!`;
                         timeframe: '',
                         deliveryDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
                         price: '10',
-                        parcelSize: 'small',
+                        parcelSize: 'bike',
                         remarks: ''
                       });
                       setShowManualJobForm(false);
@@ -11585,7 +11585,7 @@ Please be punctual and update once completed. Thanks!`;
                     <input type="number" value={editJob.price || ''} onChange={(e) => setEditJob({...editJob, price: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" step="0.5" min="0" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Parcel Size</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
                     <select value={editJob.parcel_size || 'small'} onChange={(e) => setEditJob({...editJob, parcel_size: e.target.value})} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                       <option value="small">Small</option>
                       <option value="medium">Medium</option>
@@ -12838,12 +12838,11 @@ Please be punctual and update once completed. Thanks!`;
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Parcel Size</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
                   <select value={deliveryPlan.parcelSize} onChange={(e) => setDeliveryPlan({...deliveryPlan, parcelSize: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm">
-                    <option value="small">Small</option>
-                    <option value="medium">Medium</option>
-                    <option value="large">Large</option>
-                    <option value="extra-large">Extra Large</option>
+                    <option value="bike">🏍️ Bike</option>
+                    <option value="car">🚗 Car</option>
+                    <option value="van">🚐 Van</option>
                   </select>
                 </div>
                 <div>
