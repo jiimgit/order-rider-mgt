@@ -5929,9 +5929,9 @@ Please be punctual and update once completed. Thanks!`;
                     onChange={(e) => setJobForm({...jobForm, parcelSize: e.target.value})} 
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="bike">🏍️ Bike (fits in hand or backpack, &lt;5kg)</option>
-                    <option value="car">🚗 Car (boot-size items, 5-30kg)</option>
-                    <option value="van">🚐 Van (bulky/furniture, &gt;30kg)</option>
+                    <option value="bike">🏍️ Bike</option>
+                    <option value="car">🚗 Car</option>
+                    <option value="van">🚐 Van</option>
                   </select>
                 </div>
 
@@ -10734,9 +10734,9 @@ Please be punctual and update once completed. Thanks!`;
                         onChange={(e) => setAdminJobForm({...adminJobForm, parcelSize: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
                       >
-                        <option value="bike">🏍️ Bike (Documents/Small items)</option>
-                        <option value="car">🚗 Car (Boot-size items)</option>
-                        <option value="van">🚐 Van (Furniture/Bulky)</option>
+                        <option value="bike">🏍️ Bike</option>
+                        <option value="car">🚗 Car</option>
+                        <option value="van">🚐 Van</option>
                       </select>
                     </div>
                     <div>
