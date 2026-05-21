@@ -123,7 +123,7 @@ Return ONLY valid JSON (no markdown, no backticks):
       "region": "geographic cluster name"
     }
   ],
-  "parcelSize": "small or medium or large or extra-large",
+  "vehicleType": "bike or car or van",
   "remarks": "special instructions or empty string",
   "suggestedPrice": number,
   "suggestedDrivers": number,
