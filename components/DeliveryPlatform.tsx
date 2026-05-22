@@ -6593,8 +6593,13 @@ Please be punctual and update once completed. Thanks!`;
                   <div className="space-y-2">
                     {filteredAvailableJobs.slice(0, 10).map((job: any) => {
                       const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
-                      const pArea = (job.pickup || '').replace(/\d{6}/g, '').replace(/Singapore/gi, '').replace(/Blk\s*\d+[A-Z]?\s*/gi, '').replace(/#\d+-\d+/g, '').replace(/\b\d+[A-Z]?\b/g, '').replace(/\s+/g, ' ').trim().substring(0, 30) || 'Pickup';
-                      const dArea = (job.delivery || '').replace(/\d{6}/g, '').replace(/Singapore/gi, '').replace(/Blk\s*\d+[A-Z]?\s*/gi, '').replace(/#\d+-\d+/g, '').replace(/\b\d+[A-Z]?\b/g, '').replace(/\s+/g, ' ').trim().substring(0, 30) || 'Drop-off';
+                      const pickupArea = extractAreaName(job.pickup) || 'Pickup';
+                      const stopsList: any[] = Array.isArray(job.stops) && job.stops.length > 0
+                        ? job.stops
+                        : (job.delivery ? [{ address: job.delivery }] : []);
+                      const dropoffAreas = stopsList
+                        .map((s: any) => extractAreaName(s.address) || 'Drop-off')
+                        .join(' → ');
                       return (
                         <div key={`pv-${job.id}`} className="border border-gray-200 rounded-lg p-3">
                           <div className="flex justify-between items-start gap-2">
@@ -6603,20 +6608,21 @@ Please be punctual and update once completed. Thanks!`;
                                 {parseFloat(job.price) >= 12 && <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-xs font-semibold">🔥 High demand</span>}
                               </div>
                               <div className="text-xs text-gray-600 space-y-0.5">
-                                <p className="truncate">🟢 {pArea}</p>
-                                <p className="truncate">🔴 {dArea}</p>
+                                <p className="break-words"><span className="font-semibold">🟢 Pickup:</span> {pickupArea}</p>
+                                <p className="break-words"><span className="font-semibold">🔴 Drop-off:</span> {dropoffAreas || 'Drop-off'}{stopsList.length > 1 && <span className="ml-1 text-gray-500">({stopsList.length} stops)</span>}</p>
                               </div>
                               <div className="flex gap-3 mt-1 text-xs text-gray-400">
                                 {job.distance_km && <span>{job.distance_km} km</span>}
                                 <span>{job.delivery_date ? new Date(job.delivery_date + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} {job.timeframe || job.delivery_slot ? '• ' + (job.timeframe || job.delivery_slot) : ''}</span>
                                 {job.parcel_size && <span className="capitalize">📦 {job.parcel_size}</span>}
                               </div>
-                              {job.remarks && <p className="text-xs text-gray-400 italic mt-0.5 truncate">{job.remarks}</p>}
+                              {job.remarks && <p className="text-xs text-gray-400 italic mt-0.5 break-words">{job.remarks}</p>}
                               <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View details</summary><div className="mt-1 text-xs bg-gray-50 rounded p-2 space-y-0.5">
+                                <p className="break-words"><strong>Route:</strong> {pickupArea} → {dropoffAreas}</p>
                                 <p><strong>Vehicle:</strong> <span className="capitalize">{job.parcel_size}</span></p>
                                 {job.distance_km && <p><strong>Distance:</strong> {job.distance_km} km</p>}
                                 <p><strong>Delivery:</strong> {job.delivery_date} {job.timeframe || job.delivery_slot || ''}</p>
-                                {job.remarks && <p><strong>Remark:</strong> {job.remarks}</p>}
+                                {job.remarks && <p className="break-words"><strong>Remark:</strong> {job.remarks}</p>}
                                 <p className="text-gray-400 italic mt-1">Full address and contact shown after accepting</p>
                               </div></details>
                             </div>
@@ -8174,6 +8180,13 @@ Please be punctual and update once completed. Thanks!`;
                     {filteredAvailableJobs.map((job: any) => {
                       const comm = calculateCommissions(job.price, curr.tier, curr.upline_chain || [], job.total_stops || 1);
                       const isSelected = selectedJobsForAccept.includes(job.id);
+                      const pickupArea = extractAreaName(job.pickup) || 'Pickup';
+                      const stopsList: any[] = Array.isArray(job.stops) && job.stops.length > 0
+                        ? job.stops
+                        : (job.delivery ? [{ address: job.delivery }] : []);
+                      const dropoffAreas = stopsList
+                        .map((s: any) => extractAreaName(s.address) || 'Drop-off')
+                        .join(' → ');
                       return (
                         <div 
                           key={job.id} 
@@ -8181,19 +8194,24 @@ Please be punctual and update once completed. Thanks!`;
                         >
                           <div className="flex items-start gap-3">
                             
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
+                              <div className="mb-2 space-y-0.5">
+                                <p className="text-sm text-gray-700 break-words"><span className="font-semibold">🟢 Pickup:</span> {pickupArea}</p>
+                                <p className="text-sm text-gray-700 break-words"><span className="font-semibold">🔴 Drop-off:</span> {dropoffAreas || 'Drop-off'}{stopsList.length > 1 && <span className="ml-1 text-gray-500 text-xs">({stopsList.length} stops)</span>}</p>
+                              </div>
                               <div className="mb-1">
                                 <div className="flex gap-3 text-xs text-gray-500">
                                   {job.delivery_date && <span>📅 {new Date(job.delivery_date + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                                   {job.timeframe && <span>🕐 {job.timeframe}</span>}
                                 </div>
-                                {job.remarks && <p className="text-xs text-gray-400 italic mt-1">{job.remarks?.substring(0, 50)}{job.remarks?.length > 50 ? '...' : ''}</p>}
+                                {job.remarks && <p className="text-xs text-gray-400 italic mt-1 break-words">{job.remarks}</p>}
                               </div>
                               <details className="mt-1"><summary className="text-xs text-blue-600 cursor-pointer">View details</summary><div className="mt-1 text-xs bg-gray-50 rounded p-2 space-y-0.5">
+                                <p className="break-words"><strong>Route:</strong> {pickupArea} → {dropoffAreas}</p>
                                 <p><strong>Vehicle:</strong> <span className="capitalize">{job.parcel_size}</span></p>
                                 {job.distance_km && <p><strong>Distance:</strong> {job.distance_km} km</p>}
                                 <p><strong>Delivery:</strong> {job.delivery_date} {job.timeframe || ''}</p>
-                                {job.remarks && <p><strong>Remark:</strong> {job.remarks}</p>}
+                                {job.remarks && <p className="break-words"><strong>Remark:</strong> {job.remarks}</p>}
                                 <p className="text-gray-400 italic mt-1">Full address and contact shown after accepting</p>
                               </div></details>
                             </div>
