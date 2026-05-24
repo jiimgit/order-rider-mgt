@@ -439,6 +439,8 @@ const DeliveryPlatform = () => {
   const [showPodManagement, setShowPodManagement] = useState(false);
   const [selectedPodJob, setSelectedPodJob] = useState<any>(null);
   const [viewingPodImage, setViewingPodImage] = useState<string | null>(null); // For fullscreen POD view
+  // Egress optimization: POD photos are excluded from polling and lazy-loaded on demand
+  const [podCache, setPodCache] = useState<{[jobId: string]: { pod_image?: string; pod_images?: any[]; pod_timestamp?: string; loading?: boolean }}>({});
 
   // Admin Withdrawal Management states
   const [showWithdrawalManagement, setShowWithdrawalManagement] = useState(false);
@@ -3561,10 +3563,23 @@ Please be punctual and update once completed. Thanks!`;
   useEffect(() => {
     if (auth.isAuth) {
       const interval = setInterval(() => {
+        // Egress optimization: skip polling when the tab is hidden / browser minimized.
+        // The user will get a fresh load when they return to the tab via the visibilitychange handler below.
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
         loadData();
         checkAutoReminders();
       }, 120000); // 120 seconds (2 minutes)
-      return () => clearInterval(interval);
+      // When the tab becomes visible again after being hidden, refresh once immediately
+      const onVis = () => {
+        if (document.visibilityState === 'visible') {
+          loadData();
+        }
+      };
+      document.addEventListener('visibilitychange', onVis);
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', onVis);
+      };
     }
   }, [auth.isAuth]);
 
@@ -3630,15 +3645,18 @@ Please be punctual and update once completed. Thanks!`;
       const c = await api('customers?select=*');
       console.log('[LoadData] Customers loaded:', c?.length || 0);
       
-      const j = await api('jobs?select=*&order=created_at.desc&limit=500');
+      // Egress optimization: exclude heavy pod_image/pod_images/pod_stops base64 columns
+      // (averaging 545KB per row). These are loaded on-demand when viewing job details.
+      const jobsColumns = 'id,order_id,customer_id,customer_name,customer_phone,rider_id,rider_name,rider_phone,rider_vehicle_type,pickup,pickup_unit_no,pickup_contact,pickup_phone,delivery,delivery_unit_no,delivery_date,delivery_slot,timeframe,recipient_name,recipient_phone,stops,total_stops,price,boost_amount,price_increased,is_urgent,status,parcel_size,remarks,notes,distance_km,commissions,pod_flagged,pod_timestamp,created_at,accepted_at,picked_up_at,completed_at';
+      const j = await api(`jobs?select=${jobsColumns}&order=created_at.desc&limit=200`);
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
       // Also load audit logs for withdrawal notifications
-      const logs = await api('audit_logs?order=timestamp.desc&limit=500');
+      const logs = await api('audit_logs?order=timestamp.desc&limit=200');
       console.log('[LoadData] Audit logs loaded:', logs?.length || 0);
       
       // Load all rider locations for admin (to check GPS status)
-      const riderLocs = await api('rider_locations?order=updated_at.desc');
+      const riderLocs = await api('rider_locations?order=updated_at.desc&limit=200');
       console.log('[LoadData] Rider locations loaded:', riderLocs?.length || 0);
       
       // Parse details if it's a string
@@ -3652,6 +3670,30 @@ Please be punctual and update once completed. Thanks!`;
       setJobs(Array.isArray(j) ? j : []);
       setAuditLogs(parsedLogs);
       setAllRiderLocations(Array.isArray(riderLocs) ? riderLocs : []);
+      
+      // Egress optimization: pre-fetch POD photos ONLY for the rider's own active jobs
+      // (typically 1-2 rows), so the POD upload progress UI still works correctly.
+      // All other POD photos are lazy-loaded on demand via fetchJobPod().
+      if (auth.type === 'rider' && auth.id && Array.isArray(j)) {
+        const myActiveJobs = j.filter((job: any) =>
+          job.rider_id === auth.id && job.status !== 'completed' && job.status !== 'cancelled'
+        );
+        for (const aj of myActiveJobs.slice(0, 5)) {
+          try {
+            const podData = await api(`jobs?id=eq.${aj.id}&select=pod_image,pod_images,pod_timestamp`);
+            const row = Array.isArray(podData) && podData[0] ? podData[0] : null;
+            if (row) {
+              setPodCache(prev => ({ ...prev, [aj.id]: { pod_image: row.pod_image, pod_images: row.pod_images, pod_timestamp: row.pod_timestamp, loading: false } }));
+              // Also merge into the jobs state so existing code reading job.pod_images keeps working
+              setJobs(prevJobs => prevJobs.map((pj: any) =>
+                pj.id === aj.id ? { ...pj, pod_image: row.pod_image, pod_images: row.pod_images, pod_timestamp: row.pod_timestamp } : pj
+              ));
+            }
+          } catch (e) {
+            console.warn('Failed to pre-fetch POD for active job', aj.id);
+          }
+        }
+      }
       
       // Customer notifications — check for job status changes
       if (auth.type === 'customer' && auth.id && Array.isArray(j)) {
@@ -3744,6 +3786,24 @@ Please be punctual and update once completed. Thanks!`;
       }
     }
     setLoading(false);
+  };
+
+  // Lazy-load POD photos for a specific job on demand (not included in polling to save egress).
+  // Returns cached data immediately if already fetched.
+  const fetchJobPod = async (jobId: string) => {
+    if (!jobId) return null;
+    if (podCache[jobId] && !podCache[jobId].loading) return podCache[jobId];
+    setPodCache(prev => ({ ...prev, [jobId]: { ...(prev[jobId] || {}), loading: true } }));
+    try {
+      const data = await api(`jobs?id=eq.${jobId}&select=pod_image,pod_images,pod_timestamp`);
+      const row = Array.isArray(data) && data[0] ? data[0] : {};
+      const entry = { pod_image: row.pod_image, pod_images: row.pod_images, pod_timestamp: row.pod_timestamp, loading: false };
+      setPodCache(prev => ({ ...prev, [jobId]: entry }));
+      return entry;
+    } catch (e) {
+      setPodCache(prev => ({ ...prev, [jobId]: { ...(prev[jobId] || {}), loading: false } }));
+      return null;
+    }
   };
 
   const handleLogin = async (type: string) => {
@@ -6486,46 +6546,69 @@ Please be punctual and update once completed. Thanks!`;
                         <div className="bg-green-50 p-3 rounded-lg mb-3">
                           <p className="text-sm font-medium text-green-800 mb-2">✅ Delivery Completed</p>
                           
-                          {/* Multi-stop POD photos */}
-                          {job.pod_images && Array.isArray(job.pod_images) && job.pod_images.length > 0 ? (
-                            <div>
-                              <p className="text-xs text-gray-600 mb-2">Proof of Delivery ({job.pod_images.length} photo{job.pod_images.length > 1 ? 's' : ''}):</p>
-                              <div className="grid grid-cols-2 gap-2">
-                                {job.pod_images.map((pod: any, idx: number) => (
-                                  <div key={idx} className="border rounded-lg overflow-hidden">
-                                    <img 
-                                      src={pod.image} 
-                                      alt={`POD Drop-off ${pod.stopIndex + 1}`} 
-                                      className="w-full h-24 object-cover cursor-pointer hover:opacity-90"
-                                      onClick={() => setViewingPodImage(pod.image)}
-                                    />
-                                    <div className="p-1 bg-white">
-                                      <p className="text-xs font-medium text-gray-700">Drop-off {pod.stopIndex + 1}</p>
-                                      <p className="text-xs text-gray-500 truncate">{pod.address}</p>
-                                      <p className="text-xs text-gray-400">{formatSGT(pod.timestamp)}</p>
-                                    </div>
+                          {/* Lazy-load POD photos on demand to save egress */}
+                          {(() => {
+                            const cached = podCache[job.id];
+                            if (!cached) {
+                              return (
+                                <button
+                                  onClick={() => fetchJobPod(job.id)}
+                                  className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700"
+                                >
+                                  📷 View Proof of Delivery
+                                </button>
+                              );
+                            }
+                            if (cached.loading) {
+                              return <p className="text-xs text-gray-500">Loading POD photos...</p>;
+                            }
+                            const podImages = cached.pod_images;
+                            const podImage = cached.pod_image;
+                            const podTimestamp = cached.pod_timestamp;
+                            if (podImages && Array.isArray(podImages) && podImages.length > 0) {
+                              return (
+                                <div>
+                                  <p className="text-xs text-gray-600 mb-2">Proof of Delivery ({podImages.length} photo{podImages.length > 1 ? 's' : ''}):</p>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {podImages.map((pod: any, idx: number) => (
+                                      <div key={idx} className="border rounded-lg overflow-hidden">
+                                        <img 
+                                          src={pod.image} 
+                                          alt={`POD Drop-off ${pod.stopIndex + 1}`} 
+                                          className="w-full h-24 object-cover cursor-pointer hover:opacity-90"
+                                          onClick={() => setViewingPodImage(pod.image)}
+                                        />
+                                        <div className="p-1 bg-white">
+                                          <p className="text-xs font-medium text-gray-700">Drop-off {pod.stopIndex + 1}</p>
+                                          <p className="text-xs text-gray-500 truncate">{pod.address}</p>
+                                          <p className="text-xs text-gray-400">{formatSGT(pod.timestamp)}</p>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : job.pod_image && !job.pod_image.includes('truncated') ? (
-                            <div>
-                              <p className="text-xs text-gray-600 mb-2">Proof of Delivery:</p>
-                              <img 
-                                src={job.pod_image} 
-                                alt="Proof of Delivery" 
-                                className="w-full max-w-xs rounded-lg border cursor-pointer hover:opacity-90"
-                                onClick={() => setViewingPodImage(job.pod_image)}
-                              />
-                              {job.pod_timestamp && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Delivered: {formatSGT(job.pod_timestamp)}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-gray-500">No POD photo uploaded</p>
-                          )}
+                                </div>
+                              );
+                            }
+                            if (podImage && !podImage.includes('truncated')) {
+                              return (
+                                <div>
+                                  <p className="text-xs text-gray-600 mb-2">Proof of Delivery:</p>
+                                  <img 
+                                    src={podImage} 
+                                    alt="Proof of Delivery" 
+                                    className="w-full max-w-xs rounded-lg border cursor-pointer hover:opacity-90"
+                                    onClick={() => setViewingPodImage(podImage)}
+                                  />
+                                  {podTimestamp && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      Delivered: {formatSGT(podTimestamp)}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return <p className="text-xs text-gray-500">No POD photo uploaded</p>;
+                          })()}
                           <a
                             href={`?track=${job.id}`}
                             target="_blank"
@@ -7022,7 +7105,7 @@ Please be punctual and update once completed. Thanks!`;
                                 ✓ {formatSGT(delivery.completed_at)}
                               </p>
                             )}
-                            {delivery.pod_image && (
+                            {delivery.pod_timestamp && (
                               <p className="text-xs text-green-500 mt-1">📸 POD Uploaded</p>
                             )}
                           </div>
