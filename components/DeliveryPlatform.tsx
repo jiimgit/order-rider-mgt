@@ -3645,10 +3645,10 @@ Please be punctual and update once completed. Thanks!`;
       const c = await api('customers?select=*');
       console.log('[LoadData] Customers loaded:', c?.length || 0);
       
-      // Egress optimization: exclude heavy pod_image/pod_images/pod_stops base64 columns
-      // (averaging 545KB per row). These are loaded on-demand when viewing job details.
-      const jobsColumns = 'id,order_id,customer_id,customer_name,customer_phone,rider_id,rider_name,rider_phone,rider_vehicle_type,pickup,pickup_unit_no,pickup_contact,pickup_phone,delivery,delivery_unit_no,delivery_date,delivery_slot,timeframe,recipient_name,recipient_phone,stops,total_stops,price,boost_amount,price_increased,is_urgent,status,parcel_size,remarks,notes,distance_km,commissions,pod_flagged,pod_timestamp,created_at,accepted_at,picked_up_at,completed_at';
-      const j = await api(`jobs?select=${jobsColumns}&order=created_at.desc&limit=200`);
+      // Egress optimization: lazy POD photo loading + reduced limits + tab visibility pause
+      // (column whitelist removed because some column names didn't match the live DB schema —
+      // egress reduction comes from the lazy POD loading further down + tab-hidden polling pause)
+      const j = await api('jobs?select=*&order=created_at.desc&limit=200');
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
       // Also load audit logs for withdrawal notifications
