@@ -1157,10 +1157,12 @@ const DeliveryPlatform = () => {
   }, [riders, jobs, auth]);
 
   // Admin POD Management - Jobs with/without POD (Feature 13)
+  // Egress optimization: use pod_timestamp as the lightweight presence indicator
+  // (pod_image/pod_images base64 columns are excluded from polling to save bandwidth)
   const podManagementData = useMemo(() => {
     const completedJobs = jobs.filter((j: any) => j.status === 'completed');
-    const withPod = completedJobs.filter((j: any) => j.pod_image);
-    const withoutPod = completedJobs.filter((j: any) => !j.pod_image);
+    const withPod = completedJobs.filter((j: any) => j.pod_timestamp);
+    const withoutPod = completedJobs.filter((j: any) => !j.pod_timestamp);
     
     return { completedJobs, withPod, withoutPod };
   }, [jobs]);
@@ -3645,10 +3647,11 @@ Please be punctual and update once completed. Thanks!`;
       const c = await api('customers?select=*');
       console.log('[LoadData] Customers loaded:', c?.length || 0);
       
-      // Egress optimization: lazy POD photo loading + reduced limits + tab visibility pause
-      // (column whitelist removed because some column names didn't match the live DB schema —
-      // egress reduction comes from the lazy POD loading further down + tab-hidden polling pause)
-      const j = await api('jobs?select=*&order=created_at.desc&limit=200');
+      // Egress optimization: exclude heavy pod_image/pod_images/pod_stops base64 columns
+      // (averaging 545KB per row). These are lazy-loaded on demand via fetchJobPod().
+      // Column list verified against the actual public.jobs schema.
+      const jobsColumns = 'id,customer_id,customer_name,customer_phone,rider_id,rider_name,rider_phone,pickup,delivery,timeframe,price,status,commissions,created_at,accepted_at,picked_up_at,on_the_way_at,completed_at,cancelled_at,requires_return,recipient_name,recipient_phone,parcel_size,remarks,pod_timestamp,pod_flagged,pod_flagged_at,created_by_admin,pickup_contact,pickup_phone,stops,total_stops,order_id,delivery_slot,delivery_date,rider_vehicle_type,promo_code,original_price,discount_amount,is_urgent,boost_amount,boosted_at';
+      const j = await api(`jobs?select=${jobsColumns}&order=created_at.desc&limit=200`);
       console.log('[LoadData] Jobs loaded:', j?.length || 0);
       
       // Also load audit logs for withdrawal notifications
@@ -9086,7 +9089,11 @@ Please be punctual and update once completed. Thanks!`;
                         </div>
                         <div className="mt-3 flex gap-2">
                           <button
-                            onClick={() => setSelectedPodJob(job)}
+                            onClick={async () => {
+                              // Egress optimization: POD photos aren't in the polled jobs list — fetch on demand
+                              const pod = await fetchJobPod(job.id);
+                              setSelectedPodJob({ ...job, pod_image: pod?.pod_image, pod_images: pod?.pod_images, pod_timestamp: pod?.pod_timestamp || job.pod_timestamp });
+                            }}
                             className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200"
                           >
                             View POD
