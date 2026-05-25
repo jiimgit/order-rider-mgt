@@ -1844,6 +1844,13 @@ const DeliveryPlatform = () => {
       return;
     }
     
+    // Recompute price from real distance (overrides any stale form price)
+    let finalPrice = parseFloat(adminOrderForm.price) || 10;
+    try {
+      const priceCalc = await computeDistancePrice(adminOrderForm.pickup, [{ address: adminOrderForm.delivery }]);
+      if (priceCalc) finalPrice = priceCalc.price;
+    } catch (e) { /* fall back to form price */ }
+    
     try {
       await api('jobs', 'POST', {
         customer_id: adminOrderForm.customerId,
@@ -1852,7 +1859,7 @@ const DeliveryPlatform = () => {
         pickup: adminOrderForm.pickup,
         delivery: adminOrderForm.delivery,
         timeframe: adminOrderForm.timeframe,
-        price: parseFloat(adminOrderForm.price) || 10,
+        price: finalPrice,
         status: 'posted',
         parcel_size: adminOrderForm.parcelSize,
         remarks: adminOrderForm.remarks,
@@ -2301,6 +2308,21 @@ const DeliveryPlatform = () => {
       console.error('[Distance] Calculation failed:', error);
       return null;
     }
+  };
+
+  // Unified distance-based price computation used by all job-creation paths
+  // (customer manual, customer AI, admin manual, admin AI) to ensure consistency.
+  // Formula: $3 base + ($0.95 × total_km × 1.35 route factor handled inside calculateJobDistances) + ($2.50 × drops)
+  // Returns { distance, price } or null if distance lookup fails.
+  const computeDistancePrice = async (pickupAddress: string, stops: any[]): Promise<{ distance: number; price: number } | null> => {
+    if (!pickupAddress || !stops || stops.length === 0) return null;
+    const validStops = stops.filter((s: any) => s && s.address);
+    if (validStops.length === 0) return null;
+    const result = await calculateJobDistances(pickupAddress, validStops);
+    if (!result || result.totalDistance <= 0) return null;
+    const drops = validStops.length;
+    const computed = 3 + (result.totalDistance * 0.95) + (drops * 2.50);
+    return { distance: result.totalDistance, price: parseFloat(computed.toFixed(2)) };
   };
 
   // Live distance calculation for customer job form
@@ -3976,8 +3998,21 @@ Please be punctual and update once completed. Thanks!`;
   };
 
   // Apply AI result to job form
-  const applyAiResult = () => {
+  const applyAiResult = async () => {
     if (!aiResult) return;
+    
+    const aiStops = aiResult.stops?.length > 0 ? aiResult.stops.map((s: any) => ({
+      address: s.address || '',
+      unitNo: s.unitNo || 'N/A',
+      recipientName: s.recipientName || '',
+      recipientPhone: s.recipientPhone || ''
+    })) : [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }];
+    
+    // Compute real distance-based price (overrides AI's suggestedPrice which doesn't account for actual geography)
+    const priceCalc = await computeDistancePrice(aiResult.pickup || '', aiStops);
+    const finalPrice = priceCalc
+      ? priceCalc.price.toFixed(2)
+      : (aiResult.suggestedPrice?.toString() || (() => { const d = aiResult.stops?.filter((s: any) => s.address).length || 1; return (3 + d * 2.50).toFixed(2); })());
     
     setJobForm({
       ...jobForm,
@@ -3985,15 +4020,10 @@ Please be punctual and update once completed. Thanks!`;
       pickupUnitNo: aiResult.pickupUnitNo || 'N/A',
       pickupContact: aiResult.pickupContact || '',
       pickupPhone: aiResult.pickupPhone || '',
-      stops: aiResult.stops?.length > 0 ? aiResult.stops.map((s: any) => ({
-        address: s.address || '',
-        unitNo: s.unitNo || 'N/A',
-        recipientName: s.recipientName || '',
-        recipientPhone: s.recipientPhone || ''
-      })) : [{ address: '', unitNo: '', recipientName: '', recipientPhone: '' }],
+      stops: aiStops,
       parcelSize: (aiResult.vehicleType || aiResult.parcelSize || 'bike'),
       remarks: aiResult.remarks || '',
-      price: aiResult.suggestedPrice?.toString() || (() => { const d = aiResult.stops?.filter((s: any) => s.address).length || 1; return (3 + d * 2.50).toFixed(2); })(),
+      price: finalPrice,
       deliveryDate: aiResult.deliveryDate || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }),
       timeframe: aiResult.deliverySlot || ''
     });
@@ -4120,6 +4150,14 @@ Please be punctual and update once completed. Thanks!`;
     setIsSubmittingJob(true);
     
     try {
+    // Force distance-based price recompute before submission (overrides any stale form price
+    // from AI Analyze suggestedPrice or the no-distance fallback)
+    const priceCalc = await computeDistancePrice(jobForm.pickup, jobForm.stops);
+    if (priceCalc) {
+      jobForm.price = priceCalc.price.toFixed(2);
+      setFormDistance(priceCalc.distance);
+      setJobForm(prev => ({ ...prev, price: priceCalc.price.toFixed(2) }));
+    }
     const originalPrice = parseFloat(jobForm.price);
     const minPrice = 3 + (jobForm.stops.length - 1) * 2; // $3 base + $2 per extra stop
     if (originalPrice < minPrice) return alert(`Minimum price is $${minPrice} for ${jobForm.stops.length} stop(s)`);
@@ -10613,6 +10651,17 @@ Please be punctual and update once completed. Thanks!`;
                             const resp = await fetch("/api/ai-analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deliveryDetails: input }) });
                             const result = await resp.json();
                             if (result.error) { alert(result.error); return; }
+                            
+                            // Compute real distance-based price (overrides AI's suggestedPrice)
+                            let aiPrice = result.suggestedPrice?.toString();
+                            try {
+                              const aiStops = (result.stops && result.stops.length > 0)
+                                ? result.stops.map((s: any) => ({ address: s.address || '', unitNo: s.unitNo || 'N/A' }))
+                                : [{ address: result.stops?.[0]?.address || '', unitNo: 'N/A' }];
+                              const priceCalc = await computeDistancePrice(result.pickup || '', aiStops);
+                              if (priceCalc) aiPrice = priceCalc.price.toFixed(2);
+                            } catch (e) { /* keep AI suggested price */ }
+                            
                             setAdminJobForm((prev: any) => ({
                               ...prev,
                               pickup: result.pickup || prev.pickup,
@@ -10625,7 +10674,7 @@ Please be punctual and update once completed. Thanks!`;
                               recipientPhone: result.stops?.[0]?.recipientPhone || prev.recipientPhone,
                               parcelSize: result.vehicleType || result.parcelSize || prev.parcelSize,
                               remarks: result.remarks || prev.remarks,
-                              price: result.suggestedPrice?.toString() || prev.price,
+                              price: aiPrice || prev.price,
                               deliveryDate: result.deliveryDate || prev.deliveryDate,
                               deliverySlot: result.deliverySlot || prev.deliverySlot,
                             }));
@@ -10890,9 +10939,18 @@ Please be punctual and update once completed. Thanks!`;
                     
                     if (!adminJobForm.timeframe) return alert('Please select a delivery time slot');
                     
-                    const price = parseFloat(adminJobForm.price);
+                    // Recompute price from real distance (overrides any stale form price from AI suggestedPrice)
+                    let finalPrice = parseFloat(adminJobForm.price);
+                    try {
+                      const priceCalc = await computeDistancePrice(adminJobForm.pickup, adminJobForm.stops);
+                      if (priceCalc) {
+                        finalPrice = priceCalc.price;
+                        setAdminJobForm(prev => ({ ...prev, price: priceCalc.price.toFixed(2) }));
+                      }
+                    } catch (e) { /* fall back to form price */ }
+                    
                     const minPrice = 3 + (adminJobForm.stops.length - 1) * 2;
-                    if (!price || price < minPrice) return alert(`Minimum price is $${minPrice} for ${adminJobForm.stops.length} stop(s)`);
+                    if (!finalPrice || finalPrice < minPrice) return alert(`Minimum price is $${minPrice} for ${adminJobForm.stops.length} stop(s)`);
 
                     // Generate Order ID
                     const orderId = generateOrderId();
@@ -10914,7 +10972,7 @@ Please be punctual and update once completed. Thanks!`;
                         timeframe: adminJobForm.timeframe,
                         delivery_slot: adminJobForm.timeframe,
                         delivery_date: adminJobForm.deliveryDate || null,
-                        price,
+                        price: finalPrice,
                         status: 'posted',
                         recipient_name: adminJobForm.stops[0]?.recipientName || null,
                         recipient_phone: adminJobForm.stops[0]?.recipientPhone || null,
