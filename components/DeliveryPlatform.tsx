@@ -10955,13 +10955,26 @@ Please be punctual and update once completed. Thanks!`;
                     // Generate Order ID
                     const orderId = generateOrderId();
 
+                    // Look up customer_id by matching phone — so the customer can see this job
+                    // in their own portal (which filters by j.customer_id === auth.id).
+                    // Falls back to null for walk-in customers without a registered account.
+                    const normalizePhone = (p: string) => (p || '').replace(/\D/g, '').replace(/^65/, '').slice(-8);
+                    const adminPhoneKey = normalizePhone(adminJobForm.customerPhone);
+                    const matchedCustomer = adminPhoneKey
+                      ? customers.find((c: any) => normalizePhone(c.phone) === adminPhoneKey)
+                      : null;
+                    const linkedCustomerId = matchedCustomer ? matchedCustomer.id : null;
+                    if (!matchedCustomer && adminJobForm.customerPhone) {
+                      console.log('[AdminCreateJob] No registered customer found with phone', adminJobForm.customerPhone, '— job will be saved without customer_id (walk-in).');
+                    }
+
                     try {
                       const deliveryAddresses = adminJobForm.stops.map(s => `${s.address} ${s.unitNo}`).join(' → ');
                       
                       await api('jobs', 'POST', {
                         order_id: orderId,
-                        customer_id: null, // Manual job - no customer account
-                        customer_name: adminJobForm.customerName,
+                        customer_id: linkedCustomerId,
+                        customer_name: matchedCustomer ? matchedCustomer.name : adminJobForm.customerName,
                         customer_phone: adminJobForm.customerPhone,
                         pickup: `${adminJobForm.pickup} ${adminJobForm.pickupUnitNo}`,
                         pickup_contact: adminJobForm.pickupContact || null,
