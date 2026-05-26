@@ -312,6 +312,7 @@ const DeliveryPlatform = () => {
   const [summaryDateTo, setSummaryDateTo] = useState('');
   const [showManualJobForm, setShowManualJobForm] = useState(false);
   const [adminJobForm, setAdminJobForm] = useState({
+    customerId: '',
     customerName: '',
     customerPhone: '',
     pickup: '',
@@ -325,6 +326,9 @@ const DeliveryPlatform = () => {
     parcelSize: 'bike',
     remarks: ''
   });
+  // Admin customer-search dropdown state (for Manual Key In Job form)
+  const [adminCustomerSearch, setAdminCustomerSearch] = useState('');
+  const [adminCustomerDropdownOpen, setAdminCustomerDropdownOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Live GPS Tracking states
@@ -10692,15 +10696,104 @@ Please be punctual and update once completed. Thanks!`;
                 {/* Customer Information */}
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-blue-900 mb-3">👤 Customer Information</h4>
+                  
+                  {/* Searchable customer dropdown */}
+                  <div className="mb-3 relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Search Customer <span className="text-gray-400 text-xs">(by name or phone)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={adminCustomerSearch}
+                      onChange={(e) => {
+                        setAdminCustomerSearch(e.target.value);
+                        setAdminCustomerDropdownOpen(true);
+                        // If admin clears the search, also clear the selected customer link
+                        if (!e.target.value) {
+                          setAdminJobForm(prev => ({ ...prev, customerId: '', customerName: '', customerPhone: '' }));
+                        }
+                      }}
+                      onFocus={() => setAdminCustomerDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setAdminCustomerDropdownOpen(false), 200)}
+                      placeholder="Type customer name or phone to search..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    {/* Dropdown results */}
+                    {adminCustomerDropdownOpen && adminCustomerSearch.trim().length > 0 && (() => {
+                      const searchLower = adminCustomerSearch.trim().toLowerCase();
+                      const searchDigits = adminCustomerSearch.replace(/\D/g, '');
+                      const matches = customers.filter((c: any) => {
+                        const nameMatch = (c.name || '').toLowerCase().includes(searchLower);
+                        const phoneDigits = (c.phone || '').replace(/\D/g, '');
+                        const phoneMatch = searchDigits.length >= 3 && phoneDigits.includes(searchDigits);
+                        return nameMatch || phoneMatch;
+                      }).slice(0, 8);
+                      
+                      return (
+                        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                          {matches.length > 0 ? (
+                            matches.map((c: any) => (
+                              <button
+                                type="button"
+                                key={c.id}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setAdminJobForm(prev => ({
+                                    ...prev,
+                                    customerId: c.id,
+                                    customerName: c.name || '',
+                                    customerPhone: c.phone || ''
+                                  }));
+                                  setAdminCustomerSearch(`${c.name} (${c.phone})`);
+                                  setAdminCustomerDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="font-medium text-sm text-gray-800">{c.name || '(no name)'}</div>
+                                <div className="text-xs text-gray-500">{c.phone || '(no phone)'}</div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-gray-500 italic">
+                              No registered customer matches "{adminCustomerSearch}". You can still type the name and phone below for a walk-in customer.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Selected customer indicator OR manual entry hint */}
+                  {adminJobForm.customerId ? (
+                    <div className="mb-3 p-2 bg-green-100 border border-green-300 rounded text-xs text-green-800 flex justify-between items-center">
+                      <span>✓ Linked to registered customer — they will see this job in their portal</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminJobForm(prev => ({ ...prev, customerId: '', customerName: '', customerPhone: '' }));
+                          setAdminCustomerSearch('');
+                        }}
+                        className="text-red-600 hover:text-red-800 font-semibold ml-2"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ) : (adminJobForm.customerName || adminJobForm.customerPhone) ? (
+                    <div className="mb-3 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800">
+                      ⚠ Walk-in customer (no account) — this job will not appear in any customer portal
+                    </div>
+                  ) : null}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name <span className="text-red-500">*</span></label>
                       <input
                         type="text"
                         value={adminJobForm.customerName}
-                        onChange={(e) => setAdminJobForm({...adminJobForm, customerName: e.target.value})}
+                        onChange={(e) => setAdminJobForm({...adminJobForm, customerName: e.target.value, customerId: ''})}
                         placeholder="Enter customer name"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        readOnly={!!adminJobForm.customerId}
                       />
                     </div>
                     <div>
@@ -10708,9 +10801,10 @@ Please be punctual and update once completed. Thanks!`;
                       <input
                         type="text"
                         value={adminJobForm.customerPhone}
-                        onChange={(e) => setAdminJobForm({...adminJobForm, customerPhone: e.target.value})}
+                        onChange={(e) => setAdminJobForm({...adminJobForm, customerPhone: e.target.value, customerId: ''})}
                         placeholder="Enter customer phone"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        readOnly={!!adminJobForm.customerId}
                       />
                     </div>
                   </div>
@@ -10955,17 +11049,25 @@ Please be punctual and update once completed. Thanks!`;
                     // Generate Order ID
                     const orderId = generateOrderId();
 
-                    // Look up customer_id by matching phone — so the customer can see this job
-                    // in their own portal (which filters by j.customer_id === auth.id).
-                    // Falls back to null for walk-in customers without a registered account.
+                    // Determine which customer this job belongs to:
+                    // (1) If admin explicitly selected a customer from the dropdown, use that customer_id directly.
+                    // (2) Otherwise, try to match the typed phone against a registered customer.
+                    // (3) Otherwise, leave customer_id null (walk-in customer without an account).
                     const normalizePhone = (p: string) => (p || '').replace(/\D/g, '').replace(/^65/, '').slice(-8);
-                    const adminPhoneKey = normalizePhone(adminJobForm.customerPhone);
-                    const matchedCustomer = adminPhoneKey
-                      ? customers.find((c: any) => normalizePhone(c.phone) === adminPhoneKey)
-                      : null;
-                    const linkedCustomerId = matchedCustomer ? matchedCustomer.id : null;
+                    let linkedCustomerId: string | null = null;
+                    let matchedCustomer: any = null;
+                    if (adminJobForm.customerId) {
+                      matchedCustomer = customers.find((c: any) => c.id === adminJobForm.customerId) || null;
+                      linkedCustomerId = matchedCustomer ? matchedCustomer.id : null;
+                    } else {
+                      const adminPhoneKey = normalizePhone(adminJobForm.customerPhone);
+                      if (adminPhoneKey) {
+                        matchedCustomer = customers.find((c: any) => normalizePhone(c.phone) === adminPhoneKey) || null;
+                        linkedCustomerId = matchedCustomer ? matchedCustomer.id : null;
+                      }
+                    }
                     if (!matchedCustomer && adminJobForm.customerPhone) {
-                      console.log('[AdminCreateJob] No registered customer found with phone', adminJobForm.customerPhone, '— job will be saved without customer_id (walk-in).');
+                      console.log('[AdminCreateJob] No registered customer found — job saved without customer_id (walk-in).');
                     }
 
                     try {
@@ -10997,6 +11099,7 @@ Please be punctual and update once completed. Thanks!`;
                       
                       // Reset form
                       setAdminJobForm({
+                        customerId: '',
                         customerName: '',
                         customerPhone: '',
                         pickup: '',
@@ -11010,6 +11113,8 @@ Please be punctual and update once completed. Thanks!`;
                         parcelSize: 'bike',
                         remarks: ''
                       });
+                      setAdminCustomerSearch('');
+                      setAdminCustomerDropdownOpen(false);
                       setShowManualJobForm(false);
                       loadData();
                     } catch (e: any) {
