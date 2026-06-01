@@ -3582,7 +3582,8 @@ Please be punctual and update once completed. Thanks!`;
     viewCustomers: isFullAdmin || isStaff,
     editCustomers: isFullAdmin,            // staff is read-only on customers
     viewRiders: isFullAdmin,
-    viewPod: isFullAdmin,
+    viewPod: isFullAdmin || isStaff,       // staff can view PODs
+    flagPod: isFullAdmin,                  // ...but only admin can flag/unflag them
     viewWithdrawals: isFullAdmin,
     viewReferrals: isFullAdmin,
     viewReports: isFullAdmin,
@@ -3593,7 +3594,7 @@ Please be punctual and update once completed. Thanks!`;
   // Auto-redirect staff away from restricted tabs (e.g. if they had 'riders' cached from a previous session)
   useEffect(() => {
     if (isStaff) {
-      const allowedViews = ['jobs', 'customers'];
+      const allowedViews = ['jobs', 'customers', 'pod'];
       if (!allowedViews.includes(adminView)) {
         setAdminView('jobs');
       }
@@ -5420,7 +5421,7 @@ Please be punctual and update once completed. Thanks!`;
                   onClick={() => setAdminView('pod')} 
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'pod' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
-                  📸 POD
+                  📸 POD{isStaff && <span className="ml-1 text-xs opacity-75">(view only)</span>}
                 </button>}
                 {adminCan.viewWithdrawals && <button 
                   onClick={() => { setAdminView('withdrawals'); loadWithdrawalRequests(); }} 
@@ -9179,7 +9180,7 @@ Please be punctual and update once completed. Thanks!`;
                           >
                             View POD
                           </button>
-                          {!job.pod_flagged && (
+                          {!job.pod_flagged && adminCan.flagPod && (
                             <button
                               onClick={() => flagPodInvalid(job.id)}
                               className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
@@ -12908,7 +12909,7 @@ Please be punctual and update once completed. Thanks!`;
               )}
               
               <div className="mt-4 flex gap-2">
-                {!selectedPodJob.pod_flagged && (
+                {!selectedPodJob.pod_flagged && adminCan.flagPod && (
                   <button
                     onClick={() => { flagPodInvalid(selectedPodJob.id); setSelectedPodJob(null); }}
                     className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
