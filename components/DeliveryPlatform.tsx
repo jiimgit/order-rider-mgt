@@ -3569,6 +3569,37 @@ Please be punctual and update once completed. Thanks!`;
   };
 
   const curr = auth.type === 'customer' ? customers.find(c => c.id === auth.id) : auth.type === 'rider' ? riders.find(r => r.id === auth.id) : null;
+
+  // Admin role-based permissions
+  // - 'admin' (default): full access to all admin tabs and actions
+  // - 'staff': limited access - Jobs tab (full edit) + Customers tab (read-only). Used for order-handling staff.
+  const adminRole = (auth as any).role || (auth.type === 'admin' ? 'admin' : null);
+  const isFullAdmin = auth.type === 'admin' && adminRole === 'admin';
+  const isStaff = auth.type === 'admin' && adminRole === 'staff';
+  const adminCan = {
+    viewJobs: isFullAdmin || isStaff,
+    editJobs: isFullAdmin || isStaff,
+    viewCustomers: isFullAdmin || isStaff,
+    editCustomers: isFullAdmin,            // staff is read-only on customers
+    viewRiders: isFullAdmin,
+    viewPod: isFullAdmin,
+    viewWithdrawals: isFullAdmin,
+    viewReferrals: isFullAdmin,
+    viewReports: isFullAdmin,
+    viewAudit: isFullAdmin,
+    viewSettings: isFullAdmin,
+  };
+
+  // Auto-redirect staff away from restricted tabs (e.g. if they had 'riders' cached from a previous session)
+  useEffect(() => {
+    if (isStaff) {
+      const allowedViews = ['jobs', 'customers'];
+      if (!allowedViews.includes(adminView)) {
+        setAdminView('jobs');
+      }
+    }
+  }, [isStaff, adminView]);
+
   // Multi-job capability: get ALL active jobs for this rider
   const activeJobsList = jobs.filter(j => j.rider_id === auth.id && j.status !== 'completed' && j.status !== 'cancelled');
   // For backwards compatibility, activeJob is the currently selected one or first one
@@ -3838,9 +3869,17 @@ Please be punctual and update once completed. Thanks!`;
   const handleLogin = async (type: string) => {
     try {
       if (type === 'admin' && loginForm.email === 'admin@delivery.com' && loginForm.password === 'admin123') {
-        const authData = { isAuth: true, type: 'admin', id: 'admin1' };
+        const authData = { isAuth: true, type: 'admin', role: 'admin', id: 'admin1' };
         setAuth(authData);
         localStorage.setItem('moveit_auth', JSON.stringify(authData)); // Persistent login
+        setLoginForm({ email: '', password: '' });
+        return;
+      }
+      // Staff role: limited admin access (Jobs full access + Customers read-only)
+      if (type === 'admin' && loginForm.email === 'staff@delivery.com' && loginForm.password === 'staff123') {
+        const authData = { isAuth: true, type: 'admin', role: 'staff', id: 'staff1' };
+        setAuth(authData);
+        localStorage.setItem('moveit_auth', JSON.stringify(authData));
         setLoginForm({ email: '', password: '' });
         return;
       }
@@ -5346,7 +5385,7 @@ Please be punctual and update once completed. Thanks!`;
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex justify-between items-center">
           <div>
             <h1 className="text-lg sm:text-2xl font-bold">
-              {auth.type === 'admin' ? 'Admin Dashboard' : auth.type === 'customer' ? 'Customer Portal' : 'Rider Portal'}
+              {auth.type === 'admin' ? (isStaff ? 'Staff Dashboard' : 'Admin Dashboard') : auth.type === 'customer' ? 'Customer Portal' : 'Rider Portal'}
             </h1>
             {curr && (
               <p className="text-sm text-gray-600">
@@ -5359,31 +5398,31 @@ Please be punctual and update once completed. Thanks!`;
           <div className="flex gap-2">
             {auth.type === 'admin' && (
               <>
-                <button 
+                {adminCan.viewCustomers && <button 
                   onClick={() => setAdminView('customers')} 
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'customers' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
-                  Customers
-                </button>
-                <button 
+                  Customers{isStaff && <span className="ml-1 text-xs opacity-75">(view only)</span>}
+                </button>}
+                {adminCan.viewRiders && <button 
                   onClick={() => setAdminView('riders')} 
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'riders' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   Riders
-                </button>
-                <button 
+                </button>}
+                {adminCan.viewJobs && <button 
                   onClick={() => setAdminView('jobs')} 
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'jobs' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   Jobs
-                </button>
-                <button 
+                </button>}
+                {adminCan.viewPod && <button 
                   onClick={() => setAdminView('pod')} 
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'pod' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   📸 POD
-                </button>
-                <button 
+                </button>}
+                {adminCan.viewWithdrawals && <button 
                   onClick={() => { setAdminView('withdrawals'); loadWithdrawalRequests(); }} 
                   className={`px-4 py-2 rounded text-sm font-medium relative ${adminView === 'withdrawals' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
@@ -5394,31 +5433,31 @@ Please be punctual and update once completed. Thanks!`;
                       {withdrawalRequests.filter((r: any) => r.details?.status === 'pending').length}
                     </span>
                   )}
-                </button>
-                <button 
+                </button>}
+                {adminCan.viewReferrals && <button 
                   onClick={() => setAdminView('referrals')} 
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'referrals' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   🌳 Referrals
-                </button>
-                <button 
+                </button>}
+                {adminCan.viewReports && <button 
                   onClick={() => setAdminView('reports')} 
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'reports' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   📊 Reports
-                </button>
-                <button 
+                </button>}
+                {adminCan.viewAudit && <button 
                   onClick={() => { setAdminView('audit'); loadAuditLogs(); }} 
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'audit' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   📋 Audit
-                </button>
-                <button 
+                </button>}
+                {adminCan.viewSettings && <button 
                   onClick={() => { setAdminView('settings'); loadPromotions(); }} 
                   className={`px-4 py-2 rounded text-sm font-medium ${adminView === 'settings' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                 >
                   ⚙️ Settings
-                </button>
+                </button>}
               </>
             )}
             <button 
@@ -8531,8 +8570,8 @@ Please be punctual and update once completed. Thanks!`;
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => setShowCustomerWallet(c)} className="p-2 bg-green-100 rounded hover:bg-green-200" title="View Wallet"><CreditCard size={18} /></button>
-                            <button onClick={() => setEditCust({...c, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>
-                            <button onClick={async () => { if (window.confirm('Delete customer?')) { await api(`customers?id=eq.${c.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>
+                            {adminCan.editCustomers && <button onClick={() => setEditCust({...c, password: ''})} className="p-2 bg-blue-100 rounded hover:bg-blue-200" title="Edit"><Edit2 size={18} /></button>}
+                            {adminCan.editCustomers && <button onClick={async () => { if (window.confirm('Delete customer?')) { await api(`customers?id=eq.${c.id}`, 'DELETE'); loadData(); }}} className="p-2 bg-red-100 rounded hover:bg-red-200" title="Delete"><Trash2 size={18} /></button>}
                           </div>
                         </div>
                       </div>
