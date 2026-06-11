@@ -412,6 +412,9 @@ const DeliveryPlatform = () => {
   const [jobDistanceCache, setJobDistanceCache] = useState<Record<string, {distances: number[], totalDistance: number}>>({});
   const [formDistance, setFormDistance] = useState<number | null>(null);
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
+  // Tracks which address fields are currently looking up a postal code via OneMap.
+  // Used to show a "Looking up..." indicator next to the input so the user knows the system is responding.
+  const [lookingUp, setLookingUp] = useState<{ pickup?: boolean; stops?: Record<number, boolean>; adminPickup?: boolean; adminStops?: Record<number, boolean> }>({});
   const [showDeliveryPlan, setShowDeliveryPlan] = useState(false);
   const [showPasteOrder, setShowPasteOrder] = useState(false);
   const [jobPostTime, setJobPostTime] = useState<number | null>(null);
@@ -2191,14 +2194,27 @@ const DeliveryPlatform = () => {
     return `${baseUrl}?track=${job.id}`;
   };
 
+  // Cache for postal-code → full-address lookups (avoids re-hitting OneMap for repeat codes)
+  const postalAddressCacheRef = useRef<Record<string, string | null>>({});
+
   // Singapore Postal Code Lookup using OneMap API (free, no key required)
   const lookupPostalCode = async (postalCode: string): Promise<string | null> => {
     if (!/^\d{6}$/.test(postalCode)) return null;
-    
+
+    // Return cached result instantly if we've looked this up before
+    if (postalAddressCacheRef.current[postalCode] !== undefined) {
+      return postalAddressCacheRef.current[postalCode];
+    }
+
     try {
+      // Abort the request if OneMap takes longer than 5 seconds (rare but possible)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       const response = await fetch(
-        `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postalCode}&returnGeom=Y&getAddrDetails=Y&pageNum=1`
+        `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postalCode}&returnGeom=Y&getAddrDetails=Y&pageNum=1`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeoutId);
       const data = await response.json();
       
       if (data.results && data.results.length > 0) {
@@ -2211,11 +2227,14 @@ const DeliveryPlatform = () => {
           'Singapore',
           postalCode
         ].filter(Boolean).join(' ');
+        postalAddressCacheRef.current[postalCode] = address;
         return address;
       }
+      postalAddressCacheRef.current[postalCode] = null;
       return null;
     } catch (error) {
       console.error('Postal code lookup failed:', error);
+      // Don't cache failures (they may be transient like timeout/network)
       return null;
     }
   };
@@ -5848,7 +5867,10 @@ Please be punctual and update once completed. Thanks!`;
                       <div className="w-0.5 h-full bg-gray-300 min-h-[60px]"></div>
                     </div>
                     <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Location</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Pickup Location
+                        {lookingUp.pickup && <span className="ml-2 text-xs text-blue-600 font-normal">🔄 Looking up...</span>}
+                      </label>
                       <input 
                         type="text" 
                         value={jobForm.pickup} 
@@ -5857,7 +5879,9 @@ Please be punctual and update once completed. Thanks!`;
                           setJobForm({...jobForm, pickup: value});
                           // Auto-lookup if user enters exactly 6 digits
                           if (/^\d{6}$/.test(value)) {
+                            setLookingUp(prev => ({ ...prev, pickup: true }));
                             const address = await lookupPostalCode(value);
+                            setLookingUp(prev => ({ ...prev, pickup: false }));
                             if (address) {
                               setJobForm(prev => {
                                 // Only replace if the user hasn't kept typing past the postal code
@@ -5944,6 +5968,7 @@ Please be punctual and update once completed. Thanks!`;
                         <div className="flex justify-between items-center mb-1">
                           <label className="block text-sm font-medium text-gray-700">
                             {jobForm.stops.length === 1 ? 'Drop-off Location' : `Stop ${index + 1}`}
+                            {lookingUp.stops?.[index] && <span className="ml-2 text-xs text-blue-600 font-normal">🔄 Looking up...</span>}
                           </label>
                           {jobForm.stops.length > 1 && (
                             <button
@@ -5968,7 +5993,9 @@ Please be punctual and update once completed. Thanks!`;
                             setJobForm({...jobForm, stops: newStops});
                             // Auto-lookup if user enters exactly 6 digits
                             if (/^\d{6}$/.test(value)) {
+                              setLookingUp(prev => ({ ...prev, stops: { ...(prev.stops || {}), [index]: true } }));
                               const address = await lookupPostalCode(value);
+                              setLookingUp(prev => ({ ...prev, stops: { ...(prev.stops || {}), [index]: false } }));
                               if (address) {
                                 // Use functional update with prev (latest state) so we don't overwrite
                                 // any keystrokes the user typed while OneMap was responding.
@@ -10875,7 +10902,10 @@ Please be punctual and update once completed. Thanks!`;
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Address <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Pickup Address <span className="text-red-500">*</span>
+                          {lookingUp.adminPickup && <span className="ml-2 text-xs text-blue-600 font-normal">🔄 Looking up...</span>}
+                        </label>
                         <input
                           type="text"
                           value={adminJobForm.pickup}
@@ -10884,7 +10914,9 @@ Please be punctual and update once completed. Thanks!`;
                             setAdminJobForm({...adminJobForm, pickup: value});
                             // Auto-lookup if user enters exactly 6 digits
                             if (/^\d{6}$/.test(value)) {
+                              setLookingUp(prev => ({ ...prev, adminPickup: true }));
                               const address = await lookupPostalCode(value);
+                              setLookingUp(prev => ({ ...prev, adminPickup: false }));
                               if (address) {
                                 setAdminJobForm(prev => {
                                   if (/^\d{6}$/.test(prev.pickup)) {
@@ -10955,7 +10987,10 @@ Please be punctual and update once completed. Thanks!`;
                   {adminJobForm.stops.map((stop, idx) => (
                     <div key={idx} className="bg-white p-3 rounded-lg mb-3 border border-orange-200">
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-orange-800">Stop {idx + 1}</span>
+                        <span className="text-sm font-medium text-orange-800">
+                          Stop {idx + 1}
+                          {lookingUp.adminStops?.[idx] && <span className="ml-2 text-xs text-blue-600 font-normal">🔄 Looking up...</span>}
+                        </span>
                         {adminJobForm.stops.length > 1 && (
                           <button
                             onClick={() => {
@@ -10980,7 +11015,9 @@ Please be punctual and update once completed. Thanks!`;
                               setAdminJobForm({...adminJobForm, stops: newStops});
                               // Auto-lookup if user enters exactly 6 digits
                               if (/^\d{6}$/.test(value)) {
+                                setLookingUp(prev => ({ ...prev, adminStops: { ...(prev.adminStops || {}), [idx]: true } }));
                                 const address = await lookupPostalCode(value);
+                                setLookingUp(prev => ({ ...prev, adminStops: { ...(prev.adminStops || {}), [idx]: false } }));
                                 if (address) {
                                   setAdminJobForm(prev => {
                                     const latestStops = [...prev.stops];
