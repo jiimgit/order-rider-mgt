@@ -2364,16 +2364,20 @@ const DeliveryPlatform = () => {
   const handleStopPostalCode = async (index: number, value: string) => {
     const postalCode = value.replace(/\D/g, '').slice(0, 6);
     const newStops = [...jobForm.stops];
-    newStops[index].address = value;
+    newStops[index] = { ...newStops[index], address: value };
     setJobForm({ ...jobForm, stops: newStops });
     
     // Only lookup if exactly 6 digits and looks like a postal code
     if (postalCode.length === 6 && /^\d{6}$/.test(value)) {
       const address = await lookupPostalCode(postalCode);
       if (address) {
-        const updatedStops = [...jobForm.stops];
-        updatedStops[index].address = address;
-        setJobForm(prev => ({ ...prev, stops: updatedStops }));
+        setJobForm(prev => {
+          const latestStops = [...prev.stops];
+          if (latestStops[index] && /^\d{6}$/.test(latestStops[index].address)) {
+            latestStops[index] = { ...latestStops[index], address };
+          }
+          return { ...prev, stops: latestStops };
+        });
       }
     }
   };
@@ -5854,7 +5858,15 @@ Please be punctual and update once completed. Thanks!`;
                           // Auto-lookup if user enters exactly 6 digits
                           if (/^\d{6}$/.test(value)) {
                             const address = await lookupPostalCode(value);
-                            if (address) setJobForm(prev => ({...prev, pickup: address}));
+                            if (address) {
+                              setJobForm(prev => {
+                                // Only replace if the user hasn't kept typing past the postal code
+                                if (/^\d{6}$/.test(prev.pickup)) {
+                                  return { ...prev, pickup: address };
+                                }
+                                return prev;
+                              });
+                            }
                           }
                         }}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
@@ -5952,15 +5964,22 @@ Please be punctual and update once completed. Thanks!`;
                           onChange={async (e) => {
                             const value = e.target.value;
                             const newStops = [...jobForm.stops];
-                            newStops[index].address = value;
+                            newStops[index] = { ...newStops[index], address: value };
                             setJobForm({...jobForm, stops: newStops});
                             // Auto-lookup if user enters exactly 6 digits
                             if (/^\d{6}$/.test(value)) {
                               const address = await lookupPostalCode(value);
                               if (address) {
-                                const updatedStops = [...jobForm.stops];
-                                updatedStops[index].address = address;
-                                setJobForm(prev => ({...prev, stops: updatedStops}));
+                                // Use functional update with prev (latest state) so we don't overwrite
+                                // any keystrokes the user typed while OneMap was responding.
+                                setJobForm(prev => {
+                                  const latestStops = [...prev.stops];
+                                  // Only replace if the user hasn't kept typing past the postal code
+                                  if (latestStops[index] && /^\d{6}$/.test(latestStops[index].address)) {
+                                    latestStops[index] = { ...latestStops[index], address };
+                                  }
+                                  return { ...prev, stops: latestStops };
+                                });
                               }
                             }
                           }} 
@@ -10860,8 +10879,23 @@ Please be punctual and update once completed. Thanks!`;
                         <input
                           type="text"
                           value={adminJobForm.pickup}
-                          onChange={(e) => setAdminJobForm({...adminJobForm, pickup: e.target.value})}
-                          placeholder="Enter pickup address"
+                          onChange={async (e) => {
+                            const value = e.target.value;
+                            setAdminJobForm({...adminJobForm, pickup: value});
+                            // Auto-lookup if user enters exactly 6 digits
+                            if (/^\d{6}$/.test(value)) {
+                              const address = await lookupPostalCode(value);
+                              if (address) {
+                                setAdminJobForm(prev => {
+                                  if (/^\d{6}$/.test(prev.pickup)) {
+                                    return { ...prev, pickup: address };
+                                  }
+                                  return prev;
+                                });
+                              }
+                            }
+                          }}
+                          placeholder="Enter postal code (e.g., 238858) or full address"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                         />
                       </div>
@@ -10939,12 +10973,26 @@ Please be punctual and update once completed. Thanks!`;
                           <input
                             type="text"
                             value={stop.address}
-                            onChange={(e) => {
+                            onChange={async (e) => {
+                              const value = e.target.value;
                               const newStops = [...adminJobForm.stops];
-                              newStops[idx].address = e.target.value;
+                              newStops[idx] = { ...newStops[idx], address: value };
                               setAdminJobForm({...adminJobForm, stops: newStops});
+                              // Auto-lookup if user enters exactly 6 digits
+                              if (/^\d{6}$/.test(value)) {
+                                const address = await lookupPostalCode(value);
+                                if (address) {
+                                  setAdminJobForm(prev => {
+                                    const latestStops = [...prev.stops];
+                                    if (latestStops[idx] && /^\d{6}$/.test(latestStops[idx].address)) {
+                                      latestStops[idx] = { ...latestStops[idx], address };
+                                    }
+                                    return { ...prev, stops: latestStops };
+                                  });
+                                }
+                              }
                             }}
-                            placeholder="Drop-off address"
+                            placeholder="Enter postal code or full address"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                           />
                         </div>
