@@ -4004,24 +4004,33 @@ Please be punctual and update once completed. Thanks!`;
         return;
       }
       
-      const job = jobs.find((j: any) => j.id === jobId);
-      if (!job) return;
+      // Fetch the job's current authoritative price from DB (not local state)
+      // so we don't add the boost to a stale price that's already been changed by another action.
+      const freshJobArr = await api(`jobs?id=eq.${jobId}&select=price,boost_amount,order_id,status`);
+      const freshJob = Array.isArray(freshJobArr) && freshJobArr[0] ? freshJobArr[0] : null;
+      if (!freshJob) { alert('Could not load order. Please refresh and try again.'); return; }
+      if (freshJob.status === 'cancelled' || freshJob.status === 'completed') {
+        alert(`Cannot boost a ${freshJob.status} order.`);
+        return;
+      }
       
-      const newPrice = parseFloat(job.price) + extraAmount;
+      const currentPrice = parseFloat(freshJob.price) || 0;
+      const currentBoost = parseFloat(freshJob.boost_amount) || 0;
+      const newPrice = currentPrice + extraAmount;
       
       await api(`jobs?id=eq.${jobId}`, 'PATCH', { 
         price: newPrice, 
         is_urgent: true,
         boosted_at: new Date().toISOString(),
-        boost_amount: (job.boost_amount || 0) + extraAmount
+        boost_amount: currentBoost + extraAmount
       });
       
       // Deduct credits
       await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits - extraAmount });
       
       await logAuditAction('boost_order', {
-        jobId, orderId: job.order_id,
-        originalPrice: job.price, newPrice,
+        jobId, orderId: freshJob.order_id,
+        originalPrice: currentPrice, newPrice,
         boostAmount: extraAmount
       });
       
@@ -6349,7 +6358,58 @@ Please be punctual and update once completed. Thanks!`;
               <div className={`rounded-lg shadow p-4 ${boostStage >= 2 ? 'bg-red-50 border border-red-200' : 'bg-orange-50 border border-orange-200'}`}>
                 <p className={`font-bold text-sm ${boostStage >= 2 ? 'text-red-700' : 'text-orange-700'}`}>{boostStage >= 2 ? '🔥 High demand now' : '⚡ No driver accepted yet'}</p>
                 <p className="text-xs text-gray-600 my-2">{boostStage >= 2 ? 'Increase price to get matched sooner' : 'Boost +$2 for faster match'}</p>
-                <button onClick={async () => { const amt = boostStage >= 2 ? 4 : 2; const pj = jobs.filter((j: any) => j.customer_id === auth.id && j.status === 'posted'); for (const p of pj) { await api(`jobs?id=eq.${p.id}`, 'PATCH', { price: (parseFloat(p.price) || 0) + amt }); } setBoostStage(0); setJobPostTime(null); await loadData(); alert(`Price boosted by $${amt}!`); }} className={`w-full py-2 rounded-lg font-semibold text-sm text-white ${boostStage >= 2 ? 'bg-red-600' : 'bg-orange-500'}`}>{boostStage >= 2 ? 'Increase Price +$4' : 'Boost Price +$2'}</button>
+                <button onClick={async () => {
+                  const amt = boostStage >= 2 ? 4 : 2;
+                  const pj = jobs.filter((j: any) => j.customer_id === auth.id && j.status === 'posted');
+                  if (pj.length === 0) { setBoostStage(0); setJobPostTime(null); return; }
+
+                  // Check the customer has enough credits to boost ALL posted jobs
+                  const freshCust = await api(`customers?id=eq.${auth.id}`);
+                  let freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : 0;
+                  const totalNeeded = amt * pj.length;
+                  if (freshCredits < totalNeeded) {
+                    alert(`Insufficient credits to boost ${pj.length} order(s).\n\nNeeded: $${totalNeeded.toFixed(2)} ($${amt.toFixed(2)} × ${pj.length})\nBalance: $${freshCredits.toFixed(2)}\n\nPlease top up first.`);
+                    return;
+                  }
+
+                  // For each posted job: update job.price and boost_amount in DB, deduct credits, log audit.
+                  // Mirrors boostOrder() exactly so the business rule holds: credits deducted = price added.
+                  try {
+                    for (const p of pj) {
+                      // Re-fetch this job's current price to avoid stale local state
+                      const freshJob = await api(`jobs?id=eq.${p.id}&select=price,boost_amount,order_id`);
+                      const jobRow = Array.isArray(freshJob) && freshJob[0] ? freshJob[0] : null;
+                      if (!jobRow) continue;
+                      const currentPrice = parseFloat(jobRow.price) || 0;
+                      const currentBoost = parseFloat(jobRow.boost_amount) || 0;
+                      const newPrice = currentPrice + amt;
+                      const newBoost = currentBoost + amt;
+                      await api(`jobs?id=eq.${p.id}`, 'PATCH', {
+                        price: newPrice,
+                        is_urgent: true,
+                        boosted_at: new Date().toISOString(),
+                        boost_amount: newBoost
+                      });
+                      // Deduct credits using fresh balance each iteration
+                      const c2 = await api(`customers?id=eq.${auth.id}`);
+                      freshCredits = c2 && c2.length > 0 ? (c2[0].credits || 0) : freshCredits;
+                      await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits - amt });
+                      await logAuditAction('boost_order', {
+                        jobId: p.id,
+                        orderId: jobRow.order_id,
+                        originalPrice: currentPrice,
+                        newPrice,
+                        boostAmount: amt
+                      });
+                    }
+                    setBoostStage(0);
+                    setJobPostTime(null);
+                    await loadData();
+                    alert(`Price boosted by $${amt} for ${pj.length} order(s).\n$${totalNeeded.toFixed(2)} deducted from your wallet.`);
+                  } catch (e: any) {
+                    alert('Error boosting order(s): ' + e.message);
+                  }
+                }} className={`w-full py-2 rounded-lg font-semibold text-sm text-white ${boostStage >= 2 ? 'bg-red-600' : 'bg-orange-500'}`}>{boostStage >= 2 ? 'Increase Price +$4' : 'Boost Price +$2'}</button>
               </div>
             )}
             <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
@@ -6623,18 +6683,26 @@ Please be punctual and update once completed. Thanks!`;
                             onClick={async () => {
                               if (window.confirm(`Cancel this order?\n\nOrder: ${job.order_id || ''}\nAmount: $${parseFloat(job.price).toFixed(2)}\n\nThe amount will be refunded to your wallet.`)) {
                                 try {
+                                  // Re-fetch the job's current price from DB so the refund matches what
+                                  // was actually deducted (including any boost added after local state was last polled).
+                                  const freshJobArr = await api(`jobs?id=eq.${job.id}&select=price,status`);
+                                  const freshJob = Array.isArray(freshJobArr) && freshJobArr[0] ? freshJobArr[0] : null;
+                                  if (!freshJob) { alert('Could not load the latest order details. Please refresh and try again.'); return; }
+                                  if (freshJob.status === 'cancelled') { alert('This order is already cancelled.'); loadData(); return; }
+                                  const refundAmount = parseFloat(freshJob.price) || 0;
+
                                   await api(`jobs?id=eq.${job.id}`, 'PATCH', { status: 'cancelled', cancelled_at: new Date().toISOString() });
-                                  // Refund credits
+                                  // Refund credits using the freshly-fetched price
                                   const freshCust = await api(`customers?id=eq.${auth.id}`);
                                   const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : 0;
-                                  await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits + parseFloat(job.price) });
+                                  await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits + refundAmount });
                                   await logAuditAction('customer_cancel_order', {
                                     jobId: job.id,
                                     orderId: job.order_id,
-                                    refundAmount: parseFloat(job.price),
+                                    refundAmount,
                                     customerId: auth.id
                                   });
-                                  alert(`Order cancelled. $${parseFloat(job.price).toFixed(2)} refunded to your wallet.`);
+                                  alert(`Order cancelled. $${refundAmount.toFixed(2)} refunded to your wallet.`);
                                   loadData();
                                 } catch (e: any) {
                                   alert('Error cancelling order: ' + e.message);
@@ -9028,28 +9096,37 @@ Please be punctual and update once completed. Thanks!`;
                                 onClick={async () => { 
                                   if (window.confirm(`Cancel this job and refund $${j.price} to ${j.customer_name || 'customer'}?`)) { 
                                     try {
+                                      // Re-fetch the job's current price from DB so the refund matches what
+                                      // was actually deducted (including any boost added after local state was last polled).
+                                      const freshJobArr = await api(`jobs?id=eq.${j.id}&select=price,status,customer_id`);
+                                      const freshJob = Array.isArray(freshJobArr) && freshJobArr[0] ? freshJobArr[0] : null;
+                                      if (!freshJob) { alert('Could not load the latest order details. Please refresh and try again.'); return; }
+                                      if (freshJob.status === 'cancelled') { alert('This order is already cancelled.'); loadData(); return; }
+                                      const refundAmount = parseFloat(freshJob.price) || 0;
+                                      const targetCustomerId = freshJob.customer_id || j.customer_id;
+
                                       // Update job status to cancelled
                                       await api(`jobs?id=eq.${j.id}`, 'PATCH', { status: 'cancelled', cancelled_at: new Date().toISOString() });
                                       
                                       // Refund credits to customer if customer_id exists
-                                      if (j.customer_id) {
+                                      if (targetCustomerId) {
                                         // Fetch fresh customer data from database to avoid stale credits
-                                        const freshCustomer = await api(`customers?id=eq.${j.customer_id}`);
+                                        const freshCustomer = await api(`customers?id=eq.${targetCustomerId}`);
                                         if (freshCustomer && freshCustomer.length > 0) {
-                                          const newCredits = (freshCustomer[0].credits || 0) + parseFloat(j.price);
-                                          await api(`customers?id=eq.${j.customer_id}`, 'PATCH', { credits: newCredits });
+                                          const newCredits = parseFloat(((freshCustomer[0].credits || 0) + refundAmount).toFixed(2));
+                                          await api(`customers?id=eq.${targetCustomerId}`, 'PATCH', { credits: newCredits });
                                           
                                           // Log the refund
                                           await logAuditAction('admin_job_cancel_refund', {
                                             jobId: j.id,
                                             orderId: j.order_id,
-                                            customerId: j.customer_id,
+                                            customerId: targetCustomerId,
                                             customerName: j.customer_name,
-                                            refundAmount: j.price,
+                                            refundAmount,
                                             newBalance: newCredits
                                           });
                                           
-                                          alert(`Job cancelled. $${j.price} refunded to ${j.customer_name}'s account.\nNew balance: $${newCredits.toFixed(2)}`);
+                                          alert(`Job cancelled. $${refundAmount.toFixed(2)} refunded to ${j.customer_name}'s account.\nNew balance: $${newCredits.toFixed(2)}`);
                                         }
                                       } else {
                                         alert('Job cancelled. (No customer account to refund)');
@@ -12016,7 +12093,42 @@ Please be punctual and update once completed. Thanks!`;
                         const deliveryStr = stops.length > 0 
                           ? stops.map((s: any) => `${s.address || ''} ${s.unitNo || ''}`).join(' → ')
                           : editJob.delivery;
-                        
+                        const newPrice = parseFloat(editJob.price) || 0;
+
+                        // Fetch the current authoritative price from the DB (not local state)
+                        // to compute the delta precisely. Wallet adjustment rule:
+                        //   delta > 0 (price raised) → deduct delta from customer wallet
+                        //   delta < 0 (price lowered) → refund |delta| to customer wallet
+                        // Only applies to ACTIVE orders (not completed, not cancelled).
+                        // Walk-in orders without customer_id are skipped (no wallet to adjust).
+                        const freshJobArr = await api(`jobs?id=eq.${editJob.id}&select=price,status,customer_id`);
+                        const freshJob = Array.isArray(freshJobArr) && freshJobArr[0] ? freshJobArr[0] : null;
+                        const oldPrice = freshJob ? (parseFloat(freshJob.price) || 0) : (parseFloat(editJob.price) || 0);
+                        const delta = parseFloat((newPrice - oldPrice).toFixed(2));
+                        const canAdjustWallet =
+                          freshJob &&
+                          freshJob.customer_id &&
+                          freshJob.status !== 'cancelled' &&
+                          freshJob.status !== 'completed' &&
+                          Math.abs(delta) > 0.001;
+
+                        // If raising price, verify customer has enough credits BEFORE saving anything
+                        if (canAdjustWallet && delta > 0) {
+                          const freshCust = await api(`customers?id=eq.${freshJob.customer_id}`);
+                          const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : 0;
+                          if (freshCredits < delta) {
+                            alert(`Cannot raise price by $${delta.toFixed(2)} — customer's wallet only has $${freshCredits.toFixed(2)}.\n\nAsk the customer to top up first, or set a price the customer can afford.`);
+                            return;
+                          }
+                        }
+
+                        // Confirm wallet adjustment with admin before proceeding
+                        if (canAdjustWallet) {
+                          const direction = delta > 0 ? 'deducted from' : 'refunded to';
+                          const ok = window.confirm(`Price will change from $${oldPrice.toFixed(2)} to $${newPrice.toFixed(2)}.\n\n$${Math.abs(delta).toFixed(2)} will be ${direction} the customer's wallet.\n\nProceed?`);
+                          if (!ok) return;
+                        }
+
                         await api(`jobs?id=eq.${editJob.id}`, 'PATCH', {
                           pickup: editJob.pickup,
                           delivery: deliveryStr,
@@ -12028,17 +12140,34 @@ Please be punctual and update once completed. Thanks!`;
                           delivery_date: editJob.delivery_date,
                           timeframe: editJob.timeframe,
                           delivery_slot: editJob.delivery_slot,
-                          price: parseFloat(editJob.price) || 0,
+                          price: newPrice,
                           parcel_size: editJob.parcel_size,
                           remarks: editJob.remarks
                         });
+
+                        // Apply wallet adjustment AFTER the price PATCH succeeded
+                        let walletNote = '';
+                        if (canAdjustWallet) {
+                          const freshCust = await api(`customers?id=eq.${freshJob.customer_id}`);
+                          const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : 0;
+                          const newCredits = parseFloat((freshCredits - delta).toFixed(2));
+                          await api(`customers?id=eq.${freshJob.customer_id}`, 'PATCH', { credits: newCredits });
+                          walletNote = delta > 0
+                            ? `\n$${delta.toFixed(2)} deducted from customer's wallet (new balance: $${newCredits.toFixed(2)}).`
+                            : `\n$${Math.abs(delta).toFixed(2)} refunded to customer's wallet (new balance: $${newCredits.toFixed(2)}).`;
+                        }
+
                         await logAuditAction('admin_edit_order', {
                           jobId: editJob.id,
-                          orderId: editJob.order_id
+                          orderId: editJob.order_id,
+                          oldPrice,
+                          newPrice,
+                          priceDelta: delta,
+                          walletAdjusted: canAdjustWallet
                         });
                         setEditJob(null);
                         await loadData();
-                        alert('Order updated successfully!');
+                        alert('Order updated successfully!' + walletNote);
                       } catch (e: any) {
                         alert('Error updating order: ' + e.message);
                       }
