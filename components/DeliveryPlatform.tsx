@@ -12648,7 +12648,19 @@ Please be punctual and update once completed. Thanks!`;
                         <p className="text-xs text-gray-400">{formatSGT(t.date)}</p>
                       </div>
                       {t.logId && (
-                        <button onClick={async () => { if (!window.confirm("Delete this record?")) return; try { await api("audit_logs?id=eq." + t.logId, "DELETE"); await loadData(); const fr = await api("customers?id=eq." + showCustomerWallet.id); if (fr && fr.length > 0) setShowCustomerWallet(fr[0]); } catch (e: any) { alert("Error: " + e.message); } }} className="text-red-400 hover:text-red-600 px-1" title="Delete"><Trash2 size={14} /></button>
+                        <button onClick={async () => {
+                          const isTopup = t.type === 'topup';
+                          const warning = isTopup
+                            ? `Delete this top-up record?\n\nAmount: $${t.amount.toFixed(2)}\nDescription: ${t.description}\n\n⚠ IMPORTANT: This only removes the history record from this list. It does NOT change the customer's current balance.\n\nUse this ONLY to clean up duplicate audit log entries that did not actually credit the wallet (e.g. accidental duplicate Stripe logs).\n\nIf the customer was really charged for this top-up, deleting this record will lose the audit trail without reversing the credit.\n\nProceed?`
+                            : "Delete this record?";
+                          if (!window.confirm(warning)) return;
+                          try {
+                            await api("audit_logs?id=eq." + t.logId, "DELETE");
+                            await loadData();
+                            const fr = await api("customers?id=eq." + showCustomerWallet.id);
+                            if (fr && fr.length > 0) setShowCustomerWallet(fr[0]);
+                          } catch (e: any) { alert("Error: " + e.message); }
+                        }} className="text-red-400 hover:text-red-600 px-1" title="Delete"><Trash2 size={14} /></button>
                       )}
                       <p className={`font-bold text-sm whitespace-nowrap ml-2 ${
                         t.type === 'topup' || t.type === 'refund' ? 'text-green-600' : 'text-red-600'
