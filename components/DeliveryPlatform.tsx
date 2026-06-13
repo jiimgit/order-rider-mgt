@@ -582,7 +582,10 @@ const DeliveryPlatform = () => {
       const topupStatus = urlParams.get('topup');
       const sessionId = urlParams.get('session_id');
       if (topupStatus === 'success' && sessionId) {
-        // Payment successful - log the Stripe top-up
+        // Clear URL params IMMEDIATELY so a page refresh during the setTimeout
+        // window can't re-trigger this handler with the same sessionId.
+        window.history.replaceState({}, '', window.location.pathname);
+        // Payment successful - log the Stripe top-up (deduplicated by sessionId)
         setTimeout(async () => {
           try {
             const savedAuth = localStorage.getItem('moveit_auth');
@@ -592,21 +595,28 @@ const DeliveryPlatform = () => {
             if (savedAuth) {
               const parsedAuth = JSON.parse(savedAuth);
               if (parsedAuth.id && parsedAuth.type === 'customer') {
-                const custData = await api(`customers?id=eq.${parsedAuth.id}`);
-                const custName = custData && custData.length > 0 ? custData[0].name : 'Unknown';
-                await api('audit_logs', 'POST', {
-                  action: 'customer_topup',
-                  user_id: parsedAuth.id,
-                  user_type: 'customer',
-                  details: JSON.stringify({
-                    customerId: parsedAuth.id,
-                    customerName: custName,
-                    amount: topupData?.amount || 0,
-                    sessionId: sessionId,
-                    status: 'stripe_payment'
-                  }),
-                  timestamp: new Date().toISOString()
-                });
+                // DEDUPLICATION: only log if this sessionId hasn't already been logged.
+                // Prevents duplicate top-up entries when the user refreshes the page after the Stripe redirect.
+                const existing = await api(`audit_logs?action=eq.customer_topup&user_id=eq.${parsedAuth.id}&details=ilike.*${sessionId}*`);
+                if (Array.isArray(existing) && existing.length > 0) {
+                  console.log('[Stripe topup] Already logged for sessionId', sessionId, '- skipping duplicate');
+                } else {
+                  const custData = await api(`customers?id=eq.${parsedAuth.id}`);
+                  const custName = custData && custData.length > 0 ? custData[0].name : 'Unknown';
+                  await api('audit_logs', 'POST', {
+                    action: 'customer_topup',
+                    user_id: parsedAuth.id,
+                    user_type: 'customer',
+                    details: JSON.stringify({
+                      customerId: parsedAuth.id,
+                      customerName: custName,
+                      amount: topupData?.amount || 0,
+                      sessionId: sessionId,
+                      status: 'stripe_payment'
+                    }),
+                    timestamp: new Date().toISOString()
+                  });
+                }
               }
             }
             // Clear pending top-up
@@ -615,7 +625,6 @@ const DeliveryPlatform = () => {
             console.log('Failed to log Stripe top-up:', e);
           }
           alert('🎉 Payment successful! Your credits have been added to your account.');
-          window.history.replaceState({}, '', window.location.pathname);
           loadData();
         }, 500);
       } else if (topupStatus === 'cancelled') {
