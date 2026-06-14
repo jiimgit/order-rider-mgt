@@ -3907,6 +3907,7 @@ Please be punctual and update once completed. Thanks!`;
   };
 
   // Returns the cutoff Date (in UTC) for a given delivery date + slot. Returns null if not parseable.
+  // Same-day auto-cancel is DISABLED — only future deliveries are auto-cancelled (at 23:59 SG the day before).
   const computeAutoCancelCutoff = (deliveryDate: string | null | undefined, deliverySlot: string | null | undefined): Date | null => {
     if (!deliveryDate) return null;
     // Parse YYYY-MM-DD as a Singapore-local date
@@ -3917,35 +3918,19 @@ Please be punctual and update once completed. Thanks!`;
     const month = parseInt(moStr, 10);
     const day = parseInt(dStr, 10);
 
-    // Determine if delivery is today (in Singapore time)
+    // If delivery is TODAY in Singapore time, do NOT auto-cancel — administrator handles same-day cancellations manually
     const todaySG = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }); // YYYY-MM-DD
-    const isToday = deliveryDate.substring(0, 10) === todaySG;
+    if (deliveryDate.substring(0, 10) === todaySG) return null;
 
-    let cutoffYear = year, cutoffMonth = month, cutoffDay = day, cutoffHour = 23, cutoffMin = 59;
-
-    if (isToday) {
-      // Cutoff = 1 hour before slot start, on the SAME day
-      const slotStart = deliverySlot ? SLOT_START_HOUR_SG[deliverySlot] : undefined;
-      if (slotStart === undefined) {
-        // No recognizable slot — fall back to end-of-day (23:59 today)
-        cutoffHour = 23; cutoffMin = 59;
-      } else {
-        cutoffHour = slotStart - 1;
-        cutoffMin = 0;
-      }
-    } else {
-      // Cutoff = 23:59 the day BEFORE delivery
-      // Move back one day using a Date object to handle month/year boundaries
-      const prevDay = new Date(Date.UTC(year, month - 1, day));
-      prevDay.setUTCDate(prevDay.getUTCDate() - 1);
-      cutoffYear = prevDay.getUTCFullYear();
-      cutoffMonth = prevDay.getUTCMonth() + 1;
-      cutoffDay = prevDay.getUTCDate();
-      cutoffHour = 23; cutoffMin = 59;
-    }
+    // Future delivery: cutoff = 23:59 the day BEFORE delivery (Singapore time)
+    const prevDay = new Date(Date.UTC(year, month - 1, day));
+    prevDay.setUTCDate(prevDay.getUTCDate() - 1);
+    const cutoffYear = prevDay.getUTCFullYear();
+    const cutoffMonth = prevDay.getUTCMonth() + 1;
+    const cutoffDay = prevDay.getUTCDate();
+    const cutoffHour = 23, cutoffMin = 59;
 
     // Convert SG time (UTC+8) to a UTC Date
-    // SG time X:Y on date D == UTC (X-8):Y on date D (with rollback if X<8)
     const utcDate = new Date(Date.UTC(cutoffYear, cutoffMonth - 1, cutoffDay, cutoffHour - 8, cutoffMin));
     return utcDate;
   };
