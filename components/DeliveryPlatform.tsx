@@ -3881,6 +3881,142 @@ Please be punctual and update once completed. Thanks!`;
     setLoading(false);
   };
 
+  // ---------------------------------------------------------------------------
+  // Auto-cancel expired posted orders
+  //
+  // Business rule (Singapore time, UTC+8):
+  //   - If delivery date is TODAY: cutoff = 1 hour before the slot start
+  //     (e.g. delivery today with slot "12pm-5pm" → cutoff = 11:00 SG time)
+  //   - If delivery date is FUTURE: cutoff = 23:59 the day BEFORE delivery
+  //     (e.g. delivery 20 June → cutoff = 19 June 23:59 SG time)
+  //   - If delivery date is in the PAST: already overdue → cancel immediately
+  //
+  // Status flow:
+  //   Only orders with status === 'posted' (still waiting for a driver) are eligible.
+  //   Once a driver has accepted, this function leaves the order alone.
+  //
+  // Trigger:
+  //   Runs after every loadData(). Any user with the portal open (customer, admin, staff)
+  //   helps trigger cleanup. To avoid races where two users try to cancel the same order
+  //   at once, each candidate is re-fetched from the DB and skipped if status has changed.
+  // ---------------------------------------------------------------------------
+  const SLOT_START_HOUR_SG: Record<string, number> = {
+    '6am-11am': 6,
+    '12pm-5pm': 12,
+    '6pm-11pm': 18,
+  };
+
+  // Returns the cutoff Date (in UTC) for a given delivery date + slot. Returns null if not parseable.
+  const computeAutoCancelCutoff = (deliveryDate: string | null | undefined, deliverySlot: string | null | undefined): Date | null => {
+    if (!deliveryDate) return null;
+    // Parse YYYY-MM-DD as a Singapore-local date
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(deliveryDate);
+    if (!m) return null;
+    const [_, yStr, moStr, dStr] = m;
+    const year = parseInt(yStr, 10);
+    const month = parseInt(moStr, 10);
+    const day = parseInt(dStr, 10);
+
+    // Determine if delivery is today (in Singapore time)
+    const todaySG = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }); // YYYY-MM-DD
+    const isToday = deliveryDate.substring(0, 10) === todaySG;
+
+    let cutoffYear = year, cutoffMonth = month, cutoffDay = day, cutoffHour = 23, cutoffMin = 59;
+
+    if (isToday) {
+      // Cutoff = 1 hour before slot start, on the SAME day
+      const slotStart = deliverySlot ? SLOT_START_HOUR_SG[deliverySlot] : undefined;
+      if (slotStart === undefined) {
+        // No recognizable slot — fall back to end-of-day (23:59 today)
+        cutoffHour = 23; cutoffMin = 59;
+      } else {
+        cutoffHour = slotStart - 1;
+        cutoffMin = 0;
+      }
+    } else {
+      // Cutoff = 23:59 the day BEFORE delivery
+      // Move back one day using a Date object to handle month/year boundaries
+      const prevDay = new Date(Date.UTC(year, month - 1, day));
+      prevDay.setUTCDate(prevDay.getUTCDate() - 1);
+      cutoffYear = prevDay.getUTCFullYear();
+      cutoffMonth = prevDay.getUTCMonth() + 1;
+      cutoffDay = prevDay.getUTCDate();
+      cutoffHour = 23; cutoffMin = 59;
+    }
+
+    // Convert SG time (UTC+8) to a UTC Date
+    // SG time X:Y on date D == UTC (X-8):Y on date D (with rollback if X<8)
+    const utcDate = new Date(Date.UTC(cutoffYear, cutoffMonth - 1, cutoffDay, cutoffHour - 8, cutoffMin));
+    return utcDate;
+  };
+
+  // Tracks jobs we've already auto-cancelled in this session, to avoid double-processing
+  const autoCancelledRef = useRef<Set<string>>(new Set());
+
+  // Inspects all currently-loaded posted orders and auto-cancels any whose cutoff has passed.
+  // Refunds the customer for each cancelled order (same logic as admin cancel).
+  const runAutoCancelSweep = async (jobsList: any[]) => {
+    if (!Array.isArray(jobsList) || jobsList.length === 0) return;
+    const now = new Date();
+    const candidates = jobsList.filter((j: any) => {
+      if (!j || j.status !== 'posted') return false;
+      if (autoCancelledRef.current.has(j.id)) return false;
+      const cutoff = computeAutoCancelCutoff(j.delivery_date, j.delivery_slot || j.timeframe);
+      if (!cutoff) return false;
+      return now.getTime() >= cutoff.getTime();
+    });
+
+    for (const job of candidates) {
+      autoCancelledRef.current.add(job.id);
+      try {
+        // Re-check the job from DB to confirm it's still 'posted' (avoid races with admin actions)
+        const freshArr = await api(`jobs?id=eq.${job.id}&select=id,status,price,customer_id,order_id`);
+        const fresh = Array.isArray(freshArr) && freshArr[0] ? freshArr[0] : null;
+        if (!fresh || fresh.status !== 'posted') continue;
+        const refundAmount = parseFloat(fresh.price) || 0;
+
+        // Mark as cancelled
+        await api(`jobs?id=eq.${fresh.id}`, 'PATCH', { status: 'cancelled', cancelled_at: new Date().toISOString() });
+
+        // Refund credits to the customer if there's a linked customer account
+        let newBalance: number | null = null;
+        if (fresh.customer_id) {
+          const custArr = await api(`customers?id=eq.${fresh.customer_id}`);
+          const cust = Array.isArray(custArr) && custArr[0] ? custArr[0] : null;
+          if (cust) {
+            newBalance = parseFloat(((cust.credits || 0) + refundAmount).toFixed(2));
+            await api(`customers?id=eq.${fresh.customer_id}`, 'PATCH', { credits: newBalance });
+          }
+        }
+
+        await logAuditAction('auto_cancel_expired', {
+          jobId: fresh.id,
+          orderId: fresh.order_id,
+          customerId: fresh.customer_id,
+          refundAmount,
+          newBalance,
+          reason: 'No driver accepted before cutoff (1h before pickup if same day, else 23:59 the day before delivery)'
+        });
+      } catch (e: any) {
+        console.warn('[AutoCancel] Failed for job', job.id, e?.message || e);
+        // Remove from the dedup set so a later run can retry
+        autoCancelledRef.current.delete(job.id);
+      }
+    }
+    if (candidates.length > 0) {
+      // Refresh data so the UI reflects the cancellations
+      loadData();
+    }
+  };
+
+  // Run the auto-cancel sweep whenever jobs are reloaded
+  useEffect(() => {
+    if (jobs && jobs.length > 0 && auth.isAuth) {
+      runAutoCancelSweep(jobs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, auth.isAuth]);
+
   // Lazy-load POD photos for a specific job on demand (not included in polling to save egress).
   // Returns cached data immediately if already fetched.
   const fetchJobPod = async (jobId: string) => {
@@ -6682,45 +6818,15 @@ Please be punctual and update once completed. Thanks!`;
                       {/* Boost/Urgent Button - for posted jobs waiting for a rider */}
                       {job.status === 'posted' && (
                         <div className="mb-3 space-y-2">
+                          {/* Contact-admin notice: customers cannot self-cancel a posted order; they must contact the administrator */}
+                          <div className="bg-yellow-50 border border-yellow-300 p-2 rounded-lg text-center">
+                            <p className="text-xs font-medium text-yellow-800">If you wish to cancel this order please kindly contact the administrator</p>
+                          </div>
                           <button
                             onClick={() => setShowBoostModal(job)}
                             className="w-full py-2 px-3 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
                           >
                             ⚡ Boost Order — Get a Driver Faster
-                          </button>
-                          <button
-                            onClick={async () => {
-                              if (window.confirm(`Cancel this order?\n\nOrder: ${job.order_id || ''}\nAmount: $${parseFloat(job.price).toFixed(2)}\n\nThe amount will be refunded to your wallet.`)) {
-                                try {
-                                  // Re-fetch the job's current price from DB so the refund matches what
-                                  // was actually deducted (including any boost added after local state was last polled).
-                                  const freshJobArr = await api(`jobs?id=eq.${job.id}&select=price,status`);
-                                  const freshJob = Array.isArray(freshJobArr) && freshJobArr[0] ? freshJobArr[0] : null;
-                                  if (!freshJob) { alert('Could not load the latest order details. Please refresh and try again.'); return; }
-                                  if (freshJob.status === 'cancelled') { alert('This order is already cancelled.'); loadData(); return; }
-                                  const refundAmount = parseFloat(freshJob.price) || 0;
-
-                                  await api(`jobs?id=eq.${job.id}`, 'PATCH', { status: 'cancelled', cancelled_at: new Date().toISOString() });
-                                  // Refund credits using the freshly-fetched price
-                                  const freshCust = await api(`customers?id=eq.${auth.id}`);
-                                  const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : 0;
-                                  await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits + refundAmount });
-                                  await logAuditAction('customer_cancel_order', {
-                                    jobId: job.id,
-                                    orderId: job.order_id,
-                                    refundAmount,
-                                    customerId: auth.id
-                                  });
-                                  alert(`Order cancelled. $${refundAmount.toFixed(2)} refunded to your wallet.`);
-                                  loadData();
-                                } catch (e: any) {
-                                  alert('Error cancelling order: ' + e.message);
-                                }
-                              }
-                            }}
-                            className="w-full py-2 px-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-200 transition-colors"
-                          >
-                            ✕ Cancel Order
                           </button>
                         </div>
                       )}
