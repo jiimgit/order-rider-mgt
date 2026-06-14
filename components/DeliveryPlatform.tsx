@@ -329,6 +329,9 @@ const DeliveryPlatform = () => {
   // Admin customer-search dropdown state (for Manual Key In Job form)
   const [adminCustomerSearch, setAdminCustomerSearch] = useState('');
   const [adminCustomerDropdownOpen, setAdminCustomerDropdownOpen] = useState(false);
+  // Tracks whether the admin has manually edited the price on the Manual Key In Job form.
+  // When true, Submit will NOT silently override the price with the distance-based formula.
+  const [adminPriceManuallyEdited, setAdminPriceManuallyEdited] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Live GPS Tracking states
@@ -412,6 +415,10 @@ const DeliveryPlatform = () => {
   const [jobDistanceCache, setJobDistanceCache] = useState<Record<string, {distances: number[], totalDistance: number}>>({});
   const [formDistance, setFormDistance] = useState<number | null>(null);
   const [isSubmittingJob, setIsSubmittingJob] = useState(false);
+  // Tracks whether the customer has manually edited the price input (via +/- buttons or typing).
+  // When true, the live distance useEffect will NOT overwrite their custom price.
+  // Reset to false when the form is cleared or when the customer explicitly clicks "Use suggested price".
+  const [priceManuallyEdited, setPriceManuallyEdited] = useState(false);
   // Tracks which address fields are currently looking up a postal code via OneMap.
   // Used to show a "Looking up..." indicator next to the input so the user knows the system is responding.
   const [lookingUp, setLookingUp] = useState<{ pickup?: boolean; stops?: Record<number, boolean>; adminPickup?: boolean; adminStops?: Record<number, boolean> }>({});
@@ -1860,12 +1867,14 @@ const DeliveryPlatform = () => {
       return;
     }
     
-    // Recompute price from real distance (overrides any stale form price)
+    // If admin manually edited the price, respect their value — do NOT override.
     let finalPrice = parseFloat(adminOrderForm.price) || 10;
-    try {
-      const priceCalc = await computeDistancePrice(adminOrderForm.pickup, [{ address: adminOrderForm.delivery }]);
-      if (priceCalc) finalPrice = priceCalc.price;
-    } catch (e) { /* fall back to form price */ }
+    if (!adminPriceManuallyEdited) {
+      try {
+        const priceCalc = await computeDistancePrice(adminOrderForm.pickup, [{ address: adminOrderForm.delivery }]);
+        if (priceCalc) finalPrice = priceCalc.price;
+      } catch (e) { /* fall back to form price */ }
+    }
     
     try {
       await api('jobs', 'POST', {
@@ -1899,6 +1908,7 @@ const DeliveryPlatform = () => {
         parcelSize: 'bike',
         remarks: ''
       });
+      setAdminPriceManuallyEdited(false);
       setShowAdminCreateOrder(false);
       loadData();
     } catch (e: any) {
@@ -2364,7 +2374,9 @@ const DeliveryPlatform = () => {
       const result = await calculateJobDistances(jobForm.pickup, jobForm.stops.filter((s: any) => s.address));
       if (result) {
         setFormDistance(result.totalDistance);
-        if (result.totalDistance > 0) {
+        if (result.totalDistance > 0 && !priceManuallyEdited) {
+          // Only auto-set the price if the customer hasn't manually adjusted it.
+          // Once the customer edits the price, the system respects their choice and won't overwrite it.
           const drops = jobForm.stops.filter((s: any) => s.address).length || 1;
           const formulaPrice = 3 + (result.totalDistance * 0.95) + (drops * 2.50);
           setJobForm(prev => ({...prev, price: formulaPrice.toFixed(2)}));
@@ -2373,7 +2385,7 @@ const DeliveryPlatform = () => {
     };
     const timer = setTimeout(calcFormDist, 1000);
     return () => clearTimeout(timer);
-  }, [jobForm.pickup, JSON.stringify(jobForm.stops.map((s: any) => s.address))]);
+  }, [jobForm.pickup, JSON.stringify(jobForm.stops.map((s: any) => s.address)), priceManuallyEdited]);
 
   // Handle postal code input for pickup
   const handlePickupPostalCode = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3900,14 +3912,18 @@ Please be punctual and update once completed. Thanks!`;
   //   helps trigger cleanup. To avoid races where two users try to cancel the same order
   //   at once, each candidate is re-fetched from the DB and skipped if status has changed.
   // ---------------------------------------------------------------------------
-  const SLOT_START_HOUR_SG: Record<string, number> = {
-    '6am-11am': 6,
-    '12pm-5pm': 12,
-    '6pm-11pm': 18,
+  // Singapore time hour at which each delivery slot ENDS.
+  // Used as the same-day auto-cancel cutoff: if no driver accepts by this hour, the order is auto-cancelled and refunded.
+  const SLOT_END_HOUR_SG: Record<string, number> = {
+    '6am-11am': 11,
+    '12pm-5pm': 17,
+    '6pm-11pm': 23,
   };
 
   // Returns the cutoff Date (in UTC) for a given delivery date + slot. Returns null if not parseable.
-  // Same-day auto-cancel is DISABLED — only future deliveries are auto-cancelled (at 23:59 SG the day before).
+  // Rules (Singapore time, UTC+8):
+  //   - Delivery TODAY: cutoff = end-of-slot hour today (6am-11am→11:00, 12pm-5pm→17:00, 6pm-11pm→23:00)
+  //   - Delivery FUTURE: cutoff = 23:59 the day BEFORE delivery
   const computeAutoCancelCutoff = (deliveryDate: string | null | undefined, deliverySlot: string | null | undefined): Date | null => {
     if (!deliveryDate) return null;
     // Parse YYYY-MM-DD as a Singapore-local date
@@ -3918,17 +3934,34 @@ Please be punctual and update once completed. Thanks!`;
     const month = parseInt(moStr, 10);
     const day = parseInt(dStr, 10);
 
-    // If delivery is TODAY in Singapore time, do NOT auto-cancel — administrator handles same-day cancellations manually
     const todaySG = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }); // YYYY-MM-DD
-    if (deliveryDate.substring(0, 10) === todaySG) return null;
+    const deliveryStr = `${m[1]}-${m[2]}-${m[3]}`;
 
-    // Future delivery: cutoff = 23:59 the day BEFORE delivery (Singapore time)
-    const prevDay = new Date(Date.UTC(year, month - 1, day));
-    prevDay.setUTCDate(prevDay.getUTCDate() - 1);
-    const cutoffYear = prevDay.getUTCFullYear();
-    const cutoffMonth = prevDay.getUTCMonth() + 1;
-    const cutoffDay = prevDay.getUTCDate();
-    const cutoffHour = 23, cutoffMin = 59;
+    let cutoffYear: number, cutoffMonth: number, cutoffDay: number, cutoffHour: number, cutoffMin: number;
+
+    if (deliveryStr === todaySG) {
+      // SAME-DAY delivery: cutoff = end-of-slot hour today.
+      // If the slot is unrecognized, do NOT auto-cancel (return null) — safer than guessing.
+      const slotEnd = deliverySlot ? SLOT_END_HOUR_SG[deliverySlot] : undefined;
+      if (slotEnd === undefined) return null;
+      cutoffYear = year;
+      cutoffMonth = month;
+      cutoffDay = day;
+      cutoffHour = slotEnd;
+      cutoffMin = 0;
+    } else if (deliveryStr < todaySG) {
+      // Past-date delivery: do NOT auto-cancel (already in the past — admin should handle).
+      return null;
+    } else {
+      // FUTURE delivery: cutoff = 23:59 the day BEFORE delivery
+      const prevDay = new Date(Date.UTC(year, month - 1, day));
+      prevDay.setUTCDate(prevDay.getUTCDate() - 1);
+      cutoffYear = prevDay.getUTCFullYear();
+      cutoffMonth = prevDay.getUTCMonth() + 1;
+      cutoffDay = prevDay.getUTCDate();
+      cutoffHour = 23;
+      cutoffMin = 59;
+    }
 
     // Convert SG time (UTC+8) to a UTC Date
     const utcDate = new Date(Date.UTC(cutoffYear, cutoffMonth - 1, cutoffDay, cutoffHour - 8, cutoffMin));
@@ -3938,14 +3971,26 @@ Please be punctual and update once completed. Thanks!`;
   // Tracks jobs we've already auto-cancelled in this session, to avoid double-processing
   const autoCancelledRef = useRef<Set<string>>(new Set());
 
-  // Inspects all currently-loaded posted orders and auto-cancels any whose cutoff has passed.
-  // Refunds the customer for each cancelled order (same logic as admin cancel).
+  // Helper: returns true if the delivery date is strictly BEFORE today in Singapore time.
+  // Past-date orders are not auto-cancelled by this sweep (already overdue — admin should handle).
+  // Returns true (=skip) for missing or unparseable dates as a safety default.
+  const isPastDateSG = (deliveryDate: string | null | undefined): boolean => {
+    if (!deliveryDate) return true;
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(deliveryDate);
+    if (!m) return true;
+    const deliveryStr = `${m[1]}-${m[2]}-${m[3]}`;
+    const todaySG = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
+    return deliveryStr < todaySG; // strictly less-than (today is NOT past)
+  };
+
   const runAutoCancelSweep = async (jobsList: any[]) => {
     if (!Array.isArray(jobsList) || jobsList.length === 0) return;
     const now = new Date();
     const candidates = jobsList.filter((j: any) => {
       if (!j || j.status !== 'posted') return false;
       if (autoCancelledRef.current.has(j.id)) return false;
+      // SAFETY GUARD 1: skip strictly past-date deliveries (admin handles overdue orders manually)
+      if (isPastDateSG(j.delivery_date)) return false;
       const cutoff = computeAutoCancelCutoff(j.delivery_date, j.delivery_slot || j.timeframe);
       if (!cutoff) return false;
       return now.getTime() >= cutoff.getTime();
@@ -3955,9 +4000,20 @@ Please be punctual and update once completed. Thanks!`;
       autoCancelledRef.current.add(job.id);
       try {
         // Re-check the job from DB to confirm it's still 'posted' (avoid races with admin actions)
-        const freshArr = await api(`jobs?id=eq.${job.id}&select=id,status,price,customer_id,order_id`);
+        const freshArr = await api(`jobs?id=eq.${job.id}&select=id,status,price,customer_id,order_id,delivery_date,delivery_slot,timeframe`);
         const fresh = Array.isArray(freshArr) && freshArr[0] ? freshArr[0] : null;
         if (!fresh || fresh.status !== 'posted') continue;
+        // SAFETY GUARD 2 (belt and braces): skip past-date and re-verify cutoff using fresh DB values
+        if (isPastDateSG(fresh.delivery_date)) {
+          console.log('[AutoCancel] Skipping past-date order', fresh.order_id);
+          continue;
+        }
+        const freshCutoff = computeAutoCancelCutoff(fresh.delivery_date, fresh.delivery_slot || fresh.timeframe);
+        if (!freshCutoff || new Date().getTime() < freshCutoff.getTime()) {
+          console.log('[AutoCancel] Re-check: cutoff not yet reached for', fresh.order_id);
+          autoCancelledRef.current.delete(job.id); // allow future retry
+          continue;
+        }
         const refundAmount = parseFloat(fresh.price) || 0;
 
         // Mark as cancelled
@@ -3980,7 +4036,7 @@ Please be punctual and update once completed. Thanks!`;
           customerId: fresh.customer_id,
           refundAmount,
           newBalance,
-          reason: 'No driver accepted before cutoff (1h before pickup if same day, else 23:59 the day before delivery)'
+          reason: 'No driver accepted by cutoff (same-day: end of slot; future date: 23:59 SG day before)'
         });
       } catch (e: any) {
         console.warn('[AutoCancel] Failed for job', job.id, e?.message || e);
@@ -4237,6 +4293,7 @@ Please be punctual and update once completed. Thanks!`;
     setShowAiInput(false);
     setShowPasteOrder(false);
     setAiInput('');
+    setPriceManuallyEdited(false); // AI populated the form; allow live calc to refine the price until customer edits it
     alert('All stops assigned to 1 rider. Please review and submit.');
   };
 
@@ -4356,13 +4413,20 @@ Please be punctual and update once completed. Thanks!`;
     setIsSubmittingJob(true);
     
     try {
-    // Force distance-based price recompute before submission (overrides any stale form price
-    // from AI Analyze suggestedPrice or the no-distance fallback)
-    const priceCalc = await computeDistancePrice(jobForm.pickup, jobForm.stops);
-    if (priceCalc) {
-      jobForm.price = priceCalc.price.toFixed(2);
-      setFormDistance(priceCalc.distance);
-      setJobForm(prev => ({ ...prev, price: priceCalc.price.toFixed(2) }));
+    // Recompute price from distance ONLY if the customer hasn't manually adjusted it.
+    // If priceManuallyEdited is true, the customer has chosen a specific price (e.g. they bumped it up
+    // to attract drivers) and we must respect that — never silently override.
+    if (!priceManuallyEdited) {
+      const priceCalc = await computeDistancePrice(jobForm.pickup, jobForm.stops);
+      if (priceCalc) {
+        jobForm.price = priceCalc.price.toFixed(2);
+        setFormDistance(priceCalc.distance);
+        setJobForm(prev => ({ ...prev, price: priceCalc.price.toFixed(2) }));
+      }
+    } else {
+      // Still update formDistance for the breakdown display, but don't touch price
+      const priceCalc = await computeDistancePrice(jobForm.pickup, jobForm.stops);
+      if (priceCalc) setFormDistance(priceCalc.distance);
     }
     const originalPrice = parseFloat(jobForm.price);
     const minPrice = 3 + (jobForm.stops.length - 1) * 2; // $3 base + $2 per extra stop
@@ -4476,6 +4540,7 @@ Please be punctual and update once completed. Thanks!`;
         parcelSize: 'bike', 
         remarks: '' 
       });
+      setPriceManuallyEdited(false);
       setJobPostTime(Date.now()); setBoostStage(0); alert(`Job posted successfully!\nOrder ID: ${orderId}`);
       loadData();
     } catch (e: any) { 
@@ -6280,20 +6345,20 @@ Please be punctual and update once completed. Thanks!`;
                       </div>
                     </details>
                     {formDistance !== null && (
-                      <button type="button" onClick={() => { const drops = jobForm.stops.filter((s: any) => s.address).length || 1; const suggested = 3 + (formDistance * 0.95) + (drops * 2.50); setJobForm({...jobForm, price: suggested.toFixed(2)}); }} className="mt-2 w-full py-1.5 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700">
+                      <button type="button" onClick={() => { const drops = jobForm.stops.filter((s: any) => s.address).length || 1; const suggested = 3 + (formDistance * 0.95) + (drops * 2.50); setJobForm({...jobForm, price: suggested.toFixed(2)}); setPriceManuallyEdited(false); }} className="mt-2 w-full py-1.5 bg-blue-600 text-white rounded text-xs font-semibold hover:bg-blue-700">
                         Use Recommended Price
                       </button>
                     )}
                   </div>
                   
-                  <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 10) + 2; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-full py-2 border-2 border-blue-200 rounded-lg text-center hover:bg-blue-50 mb-3">
+                  <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 10) + 2; setJobForm({...jobForm, price: p.toFixed(2)}); setPriceManuallyEdited(true); }} className="w-full py-2 border-2 border-blue-200 rounded-lg text-center hover:bg-blue-50 mb-3">
                     <p className="text-blue-700 font-bold text-sm">⚡ Boost +$2.00</p>
                     <p className="text-xs text-gray-500">Get driver faster (2–5 mins)</p>
                   </button>
                   <div className="flex items-center justify-center gap-3 sm:gap-4">
-                    <button type="button" onClick={() => { const p = Math.max(3, (parseFloat(jobForm.price) || 3) - 1); setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">−</button>
-                    <input type="number" value={jobForm.price} onChange={(e) => setJobForm({...jobForm, price: e.target.value})} className="w-24 sm:w-28 text-center text-xl sm:text-2xl font-bold border-0 focus:ring-0 bg-transparent" min="3" step="0.5" />
-                    <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 3) + 1; setJobForm({...jobForm, price: p.toFixed(2)}); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">+</button>
+                    <button type="button" onClick={() => { const p = Math.max(3, (parseFloat(jobForm.price) || 3) - 1); setJobForm({...jobForm, price: p.toFixed(2)}); setPriceManuallyEdited(true); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">−</button>
+                    <input type="number" value={jobForm.price} onChange={(e) => { setJobForm({...jobForm, price: e.target.value}); setPriceManuallyEdited(true); }} className="w-24 sm:w-28 text-center text-xl sm:text-2xl font-bold border-0 focus:ring-0 bg-transparent" min="3" step="0.5" />
+                    <button type="button" onClick={() => { const p = (parseFloat(jobForm.price) || 3) + 1; setJobForm({...jobForm, price: p.toFixed(2)}); setPriceManuallyEdited(true); }} className="w-9 h-9 rounded-full border-2 border-gray-300 flex items-center justify-center text-lg font-bold text-gray-600 hover:bg-gray-100">+</button>
                   </div>
                 </div>
                 
@@ -10481,7 +10546,7 @@ Please be punctual and update once completed. Thanks!`;
                     <input
                       type="number"
                       value={adminOrderForm.price}
-                      onChange={(e) => setAdminOrderForm({...adminOrderForm, price: e.target.value})}
+                      onChange={(e) => { setAdminOrderForm({...adminOrderForm, price: e.target.value}); setAdminPriceManuallyEdited(true); }}
                       className="w-full px-3 py-2 border rounded-lg"
                       min="3"
                     />
@@ -10945,6 +11010,7 @@ Please be punctual and update once completed. Thanks!`;
                               deliveryDate: result.deliveryDate || prev.deliveryDate,
                               deliverySlot: result.deliverySlot || prev.deliverySlot,
                             }));
+                            setAdminPriceManuallyEdited(false); // AI populated; allow Submit to refine if admin doesn't edit
                             alert("AI analysis applied! Please review the auto-filled fields.");
                           } catch (e: any) { alert("AI analysis failed: " + e.message); }
                           finally { if (btn) btn.textContent = "Analyze"; }
@@ -11297,7 +11363,7 @@ Please be punctual and update once completed. Thanks!`;
                       <input
                         type="number"
                         value={adminJobForm.price}
-                        onChange={(e) => setAdminJobForm({...adminJobForm, price: e.target.value})}
+                        onChange={(e) => { setAdminJobForm({...adminJobForm, price: e.target.value}); setAdminPriceManuallyEdited(true); }}
                         placeholder="Enter price"
                         min="3"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
@@ -11335,15 +11401,18 @@ Please be punctual and update once completed. Thanks!`;
                     
                     if (!adminJobForm.timeframe) return alert('Please select a delivery time slot');
                     
-                    // Recompute price from real distance (overrides any stale form price from AI suggestedPrice)
+                    // If the admin manually edited the price, respect their value — do NOT override.
+                    // Otherwise (price still at default/auto-filled by AI), recompute from real distance.
                     let finalPrice = parseFloat(adminJobForm.price);
-                    try {
-                      const priceCalc = await computeDistancePrice(adminJobForm.pickup, adminJobForm.stops);
-                      if (priceCalc) {
-                        finalPrice = priceCalc.price;
-                        setAdminJobForm(prev => ({ ...prev, price: priceCalc.price.toFixed(2) }));
-                      }
-                    } catch (e) { /* fall back to form price */ }
+                    if (!adminPriceManuallyEdited) {
+                      try {
+                        const priceCalc = await computeDistancePrice(adminJobForm.pickup, adminJobForm.stops);
+                        if (priceCalc) {
+                          finalPrice = priceCalc.price;
+                          setAdminJobForm(prev => ({ ...prev, price: priceCalc.price.toFixed(2) }));
+                        }
+                      } catch (e) { /* fall back to form price */ }
+                    }
                     
                     const minPrice = 3 + (adminJobForm.stops.length - 1) * 2;
                     if (!finalPrice || finalPrice < minPrice) return alert(`Minimum price is $${minPrice} for ${adminJobForm.stops.length} stop(s)`);
@@ -11417,6 +11486,7 @@ Please be punctual and update once completed. Thanks!`;
                       });
                       setAdminCustomerSearch('');
                       setAdminCustomerDropdownOpen(false);
+                      setAdminPriceManuallyEdited(false);
                       setShowManualJobForm(false);
                       loadData();
                     } catch (e: any) {
