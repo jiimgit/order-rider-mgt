@@ -6865,19 +6865,70 @@ Please be punctual and update once completed. Thanks!`;
                         </div>
                       )}
                       
-                      {/* Boost/Urgent Button - for posted jobs waiting for a rider */}
+                      {/* Posted = no rider has accepted yet. Customer can cancel themselves. */}
                       {job.status === 'posted' && (
                         <div className="mb-3 space-y-2">
-                          {/* Contact-admin notice: customers cannot self-cancel a posted order; they must contact the administrator */}
-                          <div className="bg-yellow-50 border border-yellow-300 p-2 rounded-lg text-center">
-                            <p className="text-xs font-medium text-yellow-800">If you wish to cancel this order please kindly contact the administrator</p>
-                          </div>
                           <button
                             onClick={() => setShowBoostModal(job)}
                             className="w-full py-2 px-3 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
                           >
                             ⚡ Boost Order — Get a Driver Faster
                           </button>
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm(`Cancel this order?\n\nOrder: ${job.order_id || ''}\nAmount: $${parseFloat(job.price).toFixed(2)}\n\nThe full amount will be refunded to your wallet.`)) return;
+                              try {
+                                // Re-fetch latest job data from DB so the refund matches what was actually deducted
+                                // (including any boost added since the local state was last polled).
+                                // Also re-verify status: a rider may have accepted in the time between the customer
+                                // opening the page and clicking Cancel. If so, block the cancel.
+                                const freshJobArr = await api(`jobs?id=eq.${job.id}&select=price,status`);
+                                const freshJob = Array.isArray(freshJobArr) && freshJobArr[0] ? freshJobArr[0] : null;
+                                if (!freshJob) { alert('Could not load the latest order details. Please refresh and try again.'); return; }
+                                if (freshJob.status === 'cancelled') { alert('This order is already cancelled.'); loadData(); return; }
+                                if (freshJob.status !== 'posted') {
+                                  alert('A rider has just accepted your order. To cancel, please contact the administrator.');
+                                  loadData();
+                                  return;
+                                }
+                                const refundAmount = parseFloat(freshJob.price) || 0;
+
+                                // 1) Mark the job as cancelled
+                                await api(`jobs?id=eq.${job.id}`, 'PATCH', { status: 'cancelled', cancelled_at: new Date().toISOString() });
+
+                                // 2) Refund the full price to the customer's wallet using fresh DB credits
+                                const freshCust = await api(`customers?id=eq.${auth.id}`);
+                                const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : 0;
+                                const newBalance = parseFloat((freshCredits + refundAmount).toFixed(2));
+                                await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: newBalance });
+
+                                // 3) Audit log
+                                await logAuditAction('customer_cancel_order', {
+                                  jobId: job.id,
+                                  orderId: job.order_id,
+                                  refundAmount,
+                                  newBalance,
+                                  customerId: auth.id
+                                });
+                                alert(`Order cancelled. $${refundAmount.toFixed(2)} refunded to your wallet.\nNew balance: $${newBalance.toFixed(2)}`);
+                                loadData();
+                              } catch (e: any) {
+                                alert('Error cancelling order: ' + e.message);
+                              }
+                            }}
+                            className="w-full py-2 px-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-200 transition-colors"
+                          >
+                            ✕ Cancel Order
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Rider has accepted (or further along). Customer can no longer self-cancel — must contact admin. */}
+                      {(job.status === 'accepted' || job.status === 'picked_up' || job.status === 'on_the_way') && (
+                        <div className="mb-3">
+                          <div className="bg-yellow-50 border border-yellow-300 p-2 rounded-lg text-center">
+                            <p className="text-xs font-medium text-yellow-800">If you wish to cancel this immediately, please contact our administrator.</p>
+                          </div>
                         </div>
                       )}
 
