@@ -3920,13 +3920,26 @@ Please be punctual and update once completed. Thanks!`;
     '6pm-11pm': 23,
   };
 
-  // Returns the cutoff Date (in UTC) for a given delivery date + slot. Returns null if not parseable.
-  // Rules (Singapore time, UTC+8):
-  //   - Delivery TODAY: cutoff = end-of-slot hour today (6am-11am→11:00, 12pm-5pm→17:00, 6pm-11pm→23:00)
-  //   - Delivery FUTURE: cutoff = 23:59 the day BEFORE delivery
+  // ============================================================================
+  // AUTO-CANCEL IS CURRENTLY DISABLED (per administrator's instruction).
+  // Both same-day and future-date auto-cancel are turned off. The administrator
+  // handles all expired/unmatched orders manually from the admin portal.
+  //
+  // The original logic is preserved below in a helper function so it can be
+  // re-enabled later (or amended with new rules) by changing the early-return
+  // at the top of computeAutoCancelCutoff.
+  // ============================================================================
   const computeAutoCancelCutoff = (deliveryDate: string | null | undefined, deliverySlot: string | null | undefined): Date | null => {
+    // Auto-cancel is disabled. Return null so the sweep never cancels any order.
+    // To re-enable, remove this early return and the existing rule logic below will resume.
+    return null;
+
+    // ---- Preserved original rules (currently unreachable) ----
+    // Rules (Singapore time, UTC+8):
+    //   - Delivery TODAY: cutoff = end-of-slot hour today (6am-11am→11:00, 12pm-5pm→17:00, 6pm-11pm→23:00)
+    //   - Delivery FUTURE: cutoff = 23:59 the day BEFORE delivery
+    /* eslint-disable no-unreachable */
     if (!deliveryDate) return null;
-    // Parse YYYY-MM-DD as a Singapore-local date
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(deliveryDate);
     if (!m) return null;
     const [_, yStr, moStr, dStr] = m;
@@ -3934,14 +3947,12 @@ Please be punctual and update once completed. Thanks!`;
     const month = parseInt(moStr, 10);
     const day = parseInt(dStr, 10);
 
-    const todaySG = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }); // YYYY-MM-DD
+    const todaySG = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' });
     const deliveryStr = `${m[1]}-${m[2]}-${m[3]}`;
 
     let cutoffYear: number, cutoffMonth: number, cutoffDay: number, cutoffHour: number, cutoffMin: number;
 
     if (deliveryStr === todaySG) {
-      // SAME-DAY delivery: cutoff = end-of-slot hour today.
-      // If the slot is unrecognized, do NOT auto-cancel (return null) — safer than guessing.
       const slotEnd = deliverySlot ? SLOT_END_HOUR_SG[deliverySlot] : undefined;
       if (slotEnd === undefined) return null;
       cutoffYear = year;
@@ -3950,10 +3961,8 @@ Please be punctual and update once completed. Thanks!`;
       cutoffHour = slotEnd;
       cutoffMin = 0;
     } else if (deliveryStr < todaySG) {
-      // Past-date delivery: do NOT auto-cancel (already in the past — admin should handle).
       return null;
     } else {
-      // FUTURE delivery: cutoff = 23:59 the day BEFORE delivery
       const prevDay = new Date(Date.UTC(year, month - 1, day));
       prevDay.setUTCDate(prevDay.getUTCDate() - 1);
       cutoffYear = prevDay.getUTCFullYear();
@@ -3963,9 +3972,9 @@ Please be punctual and update once completed. Thanks!`;
       cutoffMin = 59;
     }
 
-    // Convert SG time (UTC+8) to a UTC Date
     const utcDate = new Date(Date.UTC(cutoffYear, cutoffMonth - 1, cutoffDay, cutoffHour - 8, cutoffMin));
     return utcDate;
+    /* eslint-enable no-unreachable */
   };
 
   // Tracks jobs we've already auto-cancelled in this session, to avoid double-processing
