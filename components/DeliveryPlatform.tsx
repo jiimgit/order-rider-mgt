@@ -4,8 +4,6 @@ import { Package, User, TrendingUp, LogOut, Lock, UserPlus, Edit2, Trash2, Credi
 
 const SUPABASE_URL = 'https://esylsugzysfjntukmxks.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeWxzdWd6eXNmam50dWtteGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDgyODEsImV4cCI6MjA4NDYyNDI4MX0.Ldbk29uDGte1ue7LSAzEoHjAJNjYToAA2zyHWloS2fI';
-const PAYNOW_UEN = "202012697W";
-const MERCHANT_NAME = "The Food Thinker Pte Ltd";
 const ITEMS_PER_PAGE = 10;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -272,7 +270,6 @@ const DeliveryPlatform = () => {
   const [createRiderForm, setCreateRiderForm] = useState({ name: '', email: '', password: '', phone: '', tier: 1, employment_type: 'part-time', vehicle_type: 'bike', referralCode: '' });
   const [showTopUp, setShowTopUp] = useState(false);
   const [topUpAmt, setTopUpAmt] = useState('');
-  const [payNowQR, setPayNowQR] = useState('');
   const [jobForm, setJobForm] = useState({ 
     pickup: '', 
     pickupUnitNo: '', // New unit no field
@@ -2921,16 +2918,6 @@ MoveIt Logistics reserves the right to:
 • Adjust, modify, or reverse any transaction affected by system errors
 • Update policies, commission structures, and system rules at any time without prior notice`;
 
-  // Generate random reference number for PayNow top-up
-  const generateTopUpReference = (): string => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars: I,O,0,1
-    let result = 'TOPUP-';
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  };
-
   // Copy live tracking link
   const copyLiveTrackingLink = (job: any) => {
     const url = generateLiveTrackingUrl(job);
@@ -4828,111 +4815,6 @@ Please be punctual and update once completed. Thanks!`;
     } catch (e: any) { alert('Error completing job: ' + e.message); }
   };
 
-  // CRC16-CCITT calculation for PayNow QR
-  const calculateCRC16 = (str: string): string => {
-    let crc = 0xFFFF;
-    const polynomial = 0x1021;
-    
-    for (let i = 0; i < str.length; i++) {
-      crc ^= (str.charCodeAt(i) << 8);
-      for (let j = 0; j < 8; j++) {
-        if (crc & 0x8000) {
-          crc = ((crc << 1) ^ polynomial) & 0xFFFF;
-        } else {
-          crc = (crc << 1) & 0xFFFF;
-        }
-      }
-    }
-    return crc.toString(16).toUpperCase().padStart(4, '0');
-  };
-
-  // Generate proper PayNow QR string following EMVCo standard
-  const generatePayNowString = (uen: string, amount: number, refNumber: string, editable: boolean = false): string => {
-    const merchantName = MERCHANT_NAME.substring(0, 25).toUpperCase();
-    const amountStr = amount.toFixed(2);
-    
-    // Helper to create TLV (Tag-Length-Value)
-    const tlv = (tag: string, value: string): string => {
-      return tag + value.length.toString().padStart(2, '0') + value;
-    };
-    
-    // Build Merchant Account Information (ID 26) for PayNow
-    let merchantAcctInfo = '';
-    merchantAcctInfo += tlv('00', 'SG.PAYNOW');           // Globally unique identifier
-    merchantAcctInfo += tlv('01', '2');                   // Proxy type: 2 = UEN
-    merchantAcctInfo += tlv('02', uen);                   // Proxy value (UEN)
-    merchantAcctInfo += tlv('03', editable ? '1' : '0');  // Amount editable: 0 = No, 1 = Yes
-    
-    // Build Additional Data Field (ID 62)
-    let additionalData = '';
-    additionalData += tlv('01', refNumber);              // Bill/Reference number
-    
-    // Build the QR string
-    let qrString = '';
-    qrString += tlv('00', '01');                         // Payload Format Indicator
-    qrString += tlv('01', '12');                         // Point of Initiation: 12 = Dynamic QR
-    qrString += tlv('26', merchantAcctInfo);             // Merchant Account Info (PayNow)
-    qrString += tlv('52', '0000');                       // Merchant Category Code
-    qrString += tlv('53', '702');                        // Transaction Currency: 702 = SGD
-    qrString += tlv('54', amountStr);                    // Transaction Amount
-    qrString += tlv('58', 'SG');                         // Country Code
-    qrString += tlv('59', merchantName);                 // Merchant Name
-    qrString += tlv('60', 'SINGAPORE');                  // Merchant City
-    qrString += tlv('62', additionalData);               // Additional Data
-    
-    // Add CRC placeholder and calculate
-    qrString += '6304';
-    const crc = calculateCRC16(qrString);
-    qrString += crc;
-    
-    return qrString;
-  };
-
-  const handleTopUp = () => {
-    const amt = parseFloat(topUpAmt);
-    if (!amt || amt < 10) return alert('Minimum top-up amount is $10');
-    const refNumber = generateTopUpReference(); // e.g., TOPUP-A7X3K9
-    
-    // Generate proper PayNow QR string
-    const payNowString = generatePayNowString(PAYNOW_UEN, amt, refNumber, false);
-    
-    // Generate QR code image URL
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(payNowString)}`;
-    
-    setPayNowQR(JSON.stringify({
-      qrUrl: qrCodeUrl,
-      payNowString: payNowString,
-      amount: amt,
-      refNumber: refNumber,
-      uen: PAYNOW_UEN,
-      merchantName: MERCHANT_NAME
-    }));
-  };
-
-  const confirmTopUp = async () => {
-    try {
-      const qrData = JSON.parse(payNowQR);
-      // Fetch fresh credits from database to avoid stale state
-      const freshCust = await api(`customers?id=eq.${auth.id}`);
-      const freshCredits = freshCust && freshCust.length > 0 ? (freshCust[0].credits || 0) : (curr.credits || 0);
-      await api(`customers?id=eq.${auth.id}`, 'PATCH', { credits: freshCredits + parseFloat(topUpAmt) });
-      
-      // Log the top-up for admin reference (can be used for approval queue later)
-      await logAuditAction('customer_topup', {
-        customerId: auth.id,
-        customerName: curr.name,
-        amount: parseFloat(topUpAmt),
-        refNumber: qrData.refNumber,
-        status: 'self_confirmed' // For now - later can be 'pending_approval'
-      });
-      
-      alert(`Credits added successfully!\nReference: ${qrData.refNumber}`);
-      setTopUpAmt('');
-      setPayNowQR('');
-      setShowTopUp(false);
-      loadData();
-    } catch (e: any) { alert('Error adding credits: ' + e.message); }
-  };
 
   if (loading) return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -5660,63 +5542,10 @@ Please be punctual and update once completed. Thanks!`;
                   )}
                   
                   <button 
-                    onClick={async () => {
-                      const amt = parseFloat(topUpAmt);
-                      if (!amt || amt < 10) {
-                        alert('Minimum top-up amount is $10');
-                        return;
-                      }
-                      if (!tncAccepted) {
-                        alert('Please tick the checkbox to agree to the Terms and Conditions before making payment.');
-                        return;
-                      }
-                      
-                      try {
-                        // Show loading state
-                        const btn = document.getElementById('stripe-checkout-btn');
-                        if (btn) {
-                          btn.textContent = 'Redirecting to payment...';
-                          btn.setAttribute('disabled', 'true');
-                        }
-                        
-                        // Create Stripe checkout session
-                        const response = await fetch('/api/create-checkout-session', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            amount: amt,
-                            customerId: auth.id,
-                            customerEmail: curr?.email || '',
-                            customerName: curr?.name || '',
-                          }),
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (data.error) {
-                          alert('Error: ' + data.error);
-                          if (btn) {
-                            btn.textContent = 'Pay with PayNow / Card';
-                            btn.removeAttribute('disabled');
-                          }
-                          return;
-                        }
-                        
-                        // Redirect to Stripe checkout
-                        if (data.url) {
-                          // Store amount for logging after successful payment
-                          localStorage.setItem('moveit_pending_topup', JSON.stringify({ amount: amt, timestamp: new Date().toISOString() }));
-                          // Use direct navigation - most reliable across all platforms including iOS WebViews
-                          window.location.href = data.url;
-                        }
-                      } catch (error: any) {
-                        alert('Payment error: ' + error.message);
-                        const btn = document.getElementById('stripe-checkout-btn');
-                        if (btn) {
-                          btn.textContent = 'Pay with PayNow / Card';
-                          btn.removeAttribute('disabled');
-                        }
-                      }
+                    onClick={() => {
+                      // Stripe PayNow integration has been disconnected.
+                      // The top-up UI is kept visible but any attempt to pay simply fails.
+                      alert('Top Up Failed');
                     }}
                     id="stripe-checkout-btn"
                     disabled={!topUpAmt || parseFloat(topUpAmt) < 10 || !tncAccepted}
